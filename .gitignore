@@ -8,5 +8,10 @@ webrtc-sfu/node_modules/
 
 backend/dist/
 webrtc-sfu/dist/
+web-dashboard/dist/
+
+*.tsbuildinfo
 
 infra/speech/models/
+
+vr-client-unity/

@@ -59,3 +59,5 @@ This repository should treat documentation, design decisions, backlog items, and
 
 The current state of the repository is an early project-start foundation intended to help the team ideate and align, not a claim that implementation ownership or production delivery is already settled.
 
+The current root repository tracks the monorepo scaffold, docs, backend, SFU, dashboard, and infra support. The Unity project currently present under `vr-client-unity/` is being treated as a local workspace only and is ignored at the root until there is an explicit decision to bring that project under the main repository history.
+
