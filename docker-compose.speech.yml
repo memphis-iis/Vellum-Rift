@@ -1,0 +1,36 @@
+services:
+  faster-whisper:
+    build:
+      context: ./infra/speech/faster-whisper
+    restart: unless-stopped
+    environment:
+      PORT: ${FASTER_WHISPER_PORT}
+      FASTER_WHISPER_MODEL: ${FASTER_WHISPER_MODEL}
+      FASTER_WHISPER_DEVICE: ${FASTER_WHISPER_DEVICE}
+      FASTER_WHISPER_COMPUTE_TYPE: ${FASTER_WHISPER_COMPUTE_TYPE}
+    ports:
+      - "${FASTER_WHISPER_PORT}:10300"
+    volumes:
+      - ./infra/speech/models/faster-whisper:/models
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:10300/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  piper:
+    build:
+      context: ./infra/speech/piper
+    restart: unless-stopped
+    environment:
+      PORT: ${PIPER_PORT}
+      PIPER_DEFAULT_VOICE: ${PIPER_DEFAULT_VOICE}
+    ports:
+      - "${PIPER_PORT}:10400"
+    volumes:
+      - ./infra/speech/models/piper:/voices
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:10400/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

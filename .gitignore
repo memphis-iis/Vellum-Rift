@@ -1,0 +1,12 @@
+.env
+backend/.env
+webrtc-sfu/.env
+
+node_modules/
+backend/node_modules/
+webrtc-sfu/node_modules/
+
+backend/dist/
+webrtc-sfu/dist/
+
+infra/speech/models/

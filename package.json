@@ -1,0 +1,32 @@
+{
+  "name": "vellum-rift-workspace",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "setup:env": "node ./scripts/setup-env.mjs",
+    "infra:up": "docker compose --env-file .env -f docker-compose.yml up -d",
+    "infra:down": "docker compose --env-file .env -f docker-compose.yml down",
+    "infra:logs": "docker compose --env-file .env -f docker-compose.yml logs -f --tail=200",
+    "infra:ps": "docker compose --env-file .env -f docker-compose.yml ps",
+    "tools:up": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.tools.yml up -d",
+    "tools:down": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.tools.yml down",
+    "tools:logs": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.tools.yml logs -f --tail=200",
+    "speech:up": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.speech.yml up -d",
+    "speech:down": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.speech.yml down",
+    "speech:logs": "docker compose --env-file .env -f docker-compose.yml -f docker-compose.speech.yml logs -f --tail=200",
+    "onboard": "node ./scripts/onboard-all.mjs",
+    "onboard:speech": "node ./scripts/onboard-all.mjs --with-speech",
+    "dev": "concurrently -n backend,sfu,dashboard -c green,cyan,magenta \"pnpm --filter @vellum-rift/backend dev\" \"pnpm --filter @vellum-rift/webrtc-sfu dev\" \"pnpm --filter @vellum-rift/web-dashboard dev\"",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "migrate": "pnpm --filter @vellum-rift/backend migrate",
+    "dashboard:dev": "pnpm --filter @vellum-rift/web-dashboard dev",
+    "dashboard:build": "pnpm --filter @vellum-rift/web-dashboard build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
