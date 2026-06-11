@@ -1,15 +1,15 @@
 # =========================================================================
 # Unity Auto-Generated Folders & Files
 # =========================================================================
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-/[Bb]uild/
-/[Bb]uilds/
-/[Cc]aptures/
-/[Cc]ache/
-/[Ll]ogs/
-/[𝘜𝘵𝘮𝘱]/
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Cc]aptures/
+[Cc]ache/
+[Ll]ogs/
+[𝘜𝘵𝘮𝘱]/
 .utmp
 
 # Memory dumps and performance profiling data
