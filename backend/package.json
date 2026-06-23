@@ -7,6 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "migrate": "node -e \"console.log('Backend migration tooling is not committed yet. Replace this placeholder with the real migration command when backend schema scripts land.')\""
   },
   "dependencies": {
@@ -19,6 +21,7 @@
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.9"
   }
 }
