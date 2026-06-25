@@ -13,5 +13,3 @@ web-dashboard/dist/
 *.tsbuildinfo
 
 infra/speech/models/
-
-vr-client-unity/
