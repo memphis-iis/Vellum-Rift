@@ -283,8 +283,7 @@ describe("GameState", () => {
     it("metadata is a shallow copy", () => {
       const state = new GameState();
       const json = state.toJSON();
-      json.metadata["key"] = "val";
-      expect(state.metadata).not.toHaveProperty("key");
+      expect(json.metadata).not.toBe(state.metadata);
     });
   });
 });

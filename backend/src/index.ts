@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import winston from "winston";
 
 import pool, { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
@@ -14,9 +15,6 @@ const port = Number(process.env.PORT ?? 4000);
 app.use(cors());
 app.use(express.json());
 
-<<<<<<< Updated upstream
-app.get("/api/health", (_req, res) => {
-=======
 // Configure logging
 const logger = winston.createLogger({
   level: "info",
@@ -36,11 +34,9 @@ app.use((req, res, next) => {
   next();
 });
 
-
 // Health check endpoint
 app.get("/api/health", async (_req, res) => {
   const dbOk = await checkConnection();
->>>>>>> Stashed changes
   res.json({
     status: dbOk ? "ok" : "degraded",
     service: "backend",
