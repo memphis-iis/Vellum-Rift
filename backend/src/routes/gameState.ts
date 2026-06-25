@@ -1,32 +1,28 @@
 import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
+import { GameStateRepository } from "../lib/gameStateRepository.js";
 
 const router = Router();
+const repo = new GameStateRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
   String(req.params[name]);
 
-// In-memory session store (will be replaced by a database layer later).
-const sessions = new Map<string, GameState>();
-
 // ---------------------------------------------------------------
 // POST /api/game-state  —  Create a new game session
 // ---------------------------------------------------------------
-router.post("/", (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   const { label } = req.body as { label?: string };
-  const state = new GameState(label);
-
-  sessions.set(state.sessionId, state);
-
+  const state = await repo.create(label);
   res.status(201).json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
 // GET /api/game-state/:sessionId  —  Retrieve a session
 // ---------------------------------------------------------------
-router.get("/:sessionId", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.get("/:sessionId", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -37,22 +33,23 @@ router.get("/:sessionId", (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 // DELETE /api/game-state/:sessionId  —  End a session
 // ---------------------------------------------------------------
-router.delete("/:sessionId", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.delete("/:sessionId", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
   }
 
   state.end();
+  await repo.save(state);
   res.json({ sessionId: state.sessionId, isActive: false });
 });
 
 // ---------------------------------------------------------------
 // POST /api/game-state/:sessionId/players  —  Add a player
 // ---------------------------------------------------------------
-router.post("/:sessionId/players", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.post("/:sessionId/players", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -69,17 +66,18 @@ router.post("/:sessionId/players", (req: Request, res: Response) => {
   }
 
   const player = state.addPlayer(displayName, isHost ?? false);
+  await repo.save(state);
   res.status(201).json(player);
 });
 
 // ---------------------------------------------------------------
 // DELETE /api/game-state/:sessionId/players/:playerId  —  Remove a player
 // ---------------------------------------------------------------
-router.delete("/:sessionId/players/:playerId", (req: Request, res: Response) => {
+router.delete("/:sessionId/players/:playerId", async (req: Request, res: Response) => {
   const sessionId = param(req, "sessionId");
   const playerId = param(req, "playerId");
 
-  const state = sessions.get(sessionId);
+  const state = await repo.findById(sessionId);
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -91,14 +89,15 @@ router.delete("/:sessionId/players/:playerId", (req: Request, res: Response) => 
     return;
   }
 
+  await repo.save(state);
   res.json({ removed: true });
 });
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/position  —  Update a player's position
 // ---------------------------------------------------------------
-router.patch("/:sessionId/position", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.patch("/:sessionId/position", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -120,14 +119,15 @@ router.patch("/:sessionId/position", (req: Request, res: Response) => {
     return;
   }
 
+  await repo.save(state);
   res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/rotation  —  Update a player's rotation
 // ---------------------------------------------------------------
-router.patch("/:sessionId/rotation", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.patch("/:sessionId/rotation", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -149,14 +149,15 @@ router.patch("/:sessionId/rotation", (req: Request, res: Response) => {
     return;
   }
 
+  await repo.save(state);
   res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/host  —  Transfer host authority
 // ---------------------------------------------------------------
-router.patch("/:sessionId/host", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.patch("/:sessionId/host", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -174,14 +175,15 @@ router.patch("/:sessionId/host", (req: Request, res: Response) => {
     return;
   }
 
+  await repo.save(state);
   res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/connection  —  Set player connection status
 // ---------------------------------------------------------------
-router.patch("/:sessionId/connection", (req: Request, res: Response) => {
-  const state = sessions.get(param(req, "sessionId"));
+router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
   if (!state) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -203,6 +205,7 @@ router.patch("/:sessionId/connection", (req: Request, res: Response) => {
     return;
   }
 
+  await repo.save(state);
   res.json(state.toJSON());
 });
 
