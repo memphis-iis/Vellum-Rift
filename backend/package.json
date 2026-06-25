@@ -12,6 +12,7 @@
     "migrate": "node -e \"console.log('Backend migration tooling is not committed yet. Replace this placeholder with the real migration command when backend schema scripts land.')\""
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2"

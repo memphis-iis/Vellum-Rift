@@ -1,0 +1,151 @@
+import { Document, NodeIO } from "@gltf-transform/core";
+export type RGBA = [number, number, number, number]; //create RGBA type, Alpha = transparency
+export type Vertex = [number, number, number];//one pixel's color
+export type PixelDataTuple = [number, number, RGBA]; //one point in 3D space
+
+//tuple (groups multiple ordered elems into single entity), in this case fixed length and must contain numbers
+export type MeshData = {
+    vertices: Vertex[]; //array of vertices
+    faces: number[]; //connection of vertices to form the triangles
+    colors: RGBA[]; //array of RGBA values and one color for each point
+};
+
+export type HeightMode = "red" | "green" | "blue" | "alpha" | "brightness"; //create type for height mode, can be one of the 4 color channels, brightness averages red, green, and blue
+//in TypeScript "|" is a union type operator, allowing a variable to hold multiple types"
+function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get height value based on selected color channel
+    const [r, g, b, a] = rgba; //gives each value a name
+    if (mode === "red") return r / 255;
+    if (mode === "green") return g / 255;
+    if (mode === "blue") return b / 255;
+    if (mode === "alpha") return a / 255;
+    return (r + g + b) / 3 / 255; //shows the light and dark values of the manuscript 
+
+}
+
+export class TopographyMeshGenerator {
+    //generate image and convert it to mesh data, leave it up to export function to decide what format it will be exported in 
+    generate(imageArray: PixelDataTuple[], mode: HeightMode): MeshData { //takes in imageArray to return MeshData
+        const vertices: Vertex[] = []; //empty list to later store vertices
+        const faces: number[] = []; //empty list to later store faces
+        const colors: RGBA[] = []; //empty list to later store colors
+
+        if (imageArray.length === 0) {
+            throw new Error("imageArray must not be empty");
+        }
+        const width = Math.max(...imageArray.map(([x]) => x)) + 1; //finds the maximum x value in the image array and adds 1 to get the width of the image
+        const height = Math.max(...imageArray.map(([_, y]) => y)) + 1; //finds the maximum y value in the image array and adds 1 to get the height of the image
+
+
+        //arranges pixels top row to bototm row and left to right inside each row 
+        const orderedPixels = [...imageArray].sort( //copy prevents changing original input
+            ([x1, y1], [x2, y2]) => y1 - y2 || x1 - x2,
+        );
+
+        for (const pixel of orderedPixels) { //for each pixel...
+            const [x, y, rgba] = pixel; //get its position and colos
+            const zHeight = getHeight(rgba, mode); //get its height
+
+            vertices.push([x, y, zHeight]); //create a 3D point
+            colors.push(rgba); //save its original color
+        }
+
+
+
+        //connects vertices into triangles
+        //the loops find every square so we can split them into triangles
+        for (let y = 0; y < height - 1; y++) { //loops through each row except the last 
+            for (let x = 0; x < width - 1; x++) { //loops through each column except the last
+                const topLeft = y * width + x; //calculates the index of the top left vertex of the current pixel
+                const topRight = topLeft + 1; //calculates the index of the top right vertex of the current pixel
+                const bottomLeft = (y + 1) * width + x; //calculates the index of the bottom left vertex of the current pixel
+                const bottomRight = bottomLeft + 1; //calculates the index of the bottom right vertex of the current pixel
+
+                faces.push(topLeft, bottomLeft, topRight);
+                faces.push(topRight, bottomLeft, bottomRight);
+            }
+
+        }
+        return {
+            vertices,
+            faces,
+            colors
+        };
+    }
+}
+
+
+
+export class GLTFExporter {
+    //takes in MeshData, outputs a string, Promise<void> is a TypeScript type that represents an asynchronous operation that does not return a value. It indicates that the function will perform some asynchronous work and will eventually complete, but it does not produce a result that can be used by the caller.
+    async export(mesh: MeshData, outputPath: string): Promise<void> {
+        if (mesh.colors.length !== mesh.vertices.length) { //each 3D point must have one matching color
+            throw new Error("Each vertex must have exactly one color");
+        }
+        const document = new Document(); //create a new glTF document
+        const buffer = document.createBuffer(); //storage for numerical data
+
+        const positions = new Float32Array(mesh.vertices.flat()); //tightly packed numerical arrays
+        const indices = new Uint32Array(mesh.faces); //in a format that glTF can read, which is a 32 bit unsigned integer
+
+        const colors = new Float32Array( //turns colors into glTF compatible format, which is a float between 0 and 1
+            mesh.colors.flatMap(([r, g, b, a]) => [
+                r / 255,
+                g / 255,
+                b / 255,
+                a / 255,
+            ]),
+        );
+
+        //an accessor is a label explaining how gLTF should read stored numbers
+        //location of 3D points
+        const positionAccessor = document
+            .createAccessor("position")
+            .setType("VEC3")
+            .setArray(positions)
+            .setBuffer(buffer);
+
+
+//which points should be connected into triangles
+        const indexAccessor = document
+            .createAccessor("indices")
+            .setType("SCALAR") //read one number at a time
+            .setArray(indices)
+            .setBuffer(buffer);
+
+            //colors of the points
+        const colorAccessor = document
+            .createAccessor("colors")
+            .setType("VEC4") //groups 4 of float numbers together to represent a color in RGBA format
+            .setArray(colors)
+            .setBuffer(buffer);
+
+
+            //how the mesh is displayed
+        const material = document
+            .createMaterial("topography-material")
+            .setAlphaMode("BLEND") //uses alpha transparency 
+            .setDoubleSided(true); //shows both the top and underside
+
+            //combines all the pieces
+        const primitive = document
+            .createPrimitive()
+            .setAttribute("POSITION", positionAccessor)
+            .setAttribute("COLOR_0", colorAccessor)
+            .setIndices(indexAccessor)
+            .setMaterial(material);
+
+
+        //primitive->mesh->node->scene->document->file
+        const gltfMesh = document.createMesh("topography-mesh").addPrimitive(primitive);
+
+        const node = document.createNode("topography").setMesh(gltfMesh);
+
+
+
+        document.createScene("scene").addChild(node);
+
+        //saves the file
+        const io = new NodeIO();
+        await io.write(outputPath, document);
+    }
+}
