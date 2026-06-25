@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import express from "express";
 import winston from "winston";
 
+import pool, { checkConnection } from "./lib/db.js";
+import { initSchema } from "./lib/schema.js";
 import gameStateRouter from "./routes/gameState.js";
 
 dotenv.config();
@@ -34,16 +36,30 @@ app.use((req, res, next) => {
 
 
 // Health check endpoint
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const dbOk = await checkConnection();
   res.json({
-    status: "ok",
+    status: dbOk ? "ok" : "degraded",
     service: "backend",
-    environment: process.env.NODE_ENV ?? "development"
+    environment: process.env.NODE_ENV ?? "development",
+    database: dbOk ? "connected" : "disconnected",
   });
 });
 
 app.use("/api/game-state", gameStateRouter);
 
-app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}/api`);
-});
+// ---------------------------------------------------------------------------
+// Startup
+// ---------------------------------------------------------------------------
+
+// Ensure the game_sessions table exists before accepting traffic.
+initSchema()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`Backend listening on http://localhost:${port}/api`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to initialise database schema:", err);
+    process.exit(1);
+  });

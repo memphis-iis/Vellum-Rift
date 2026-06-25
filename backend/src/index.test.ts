@@ -23,7 +23,14 @@ vi.mock("winston", () => {
   };
 });
 
-// 3. Import the app after the mock is established
+// 3. Mock the database pool so the server starts without a real Postgres
+const mockQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
+vi.mock("./lib/db.js", () => ({
+  default: { query: mockQuery },
+  checkConnection: vi.fn().mockResolvedValue(true),
+}));
+
+// 4. Import the app after the mocks are established
 import "./index.js";
 
 describe("Winston Logger Middleware", () => {
