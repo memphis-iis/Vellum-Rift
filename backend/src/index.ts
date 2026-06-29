@@ -5,6 +5,7 @@ import winston from "winston";
 
 import pool, { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
+import { SampleModelIngestor } from "./lib/sampleModelIngestor.js";
 import gameStateRouter from "./routes/gameState.js";
 import gltfModelRouter from "./routes/gltfModel.js";
 
@@ -56,6 +57,14 @@ app.use("/api/models", gltfModelRouter);
 
 // Ensure the game_sessions table exists before accepting traffic.
 initSchema()
+  .then(() => {
+    // Ingest sample PDFs/images from src/sample/pdfs/ on startup
+    const ingestor = new SampleModelIngestor();
+    return ingestor.ingestAll().catch((err) => {
+      logger.warn("Sample model ingestion failed (non-fatal):", err);
+      return [];
+    });
+  })
   .then(() => {
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);
