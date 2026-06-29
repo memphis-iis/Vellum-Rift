@@ -1,4 +1,9 @@
+import crypto from "node:crypto";
+import { readFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Document, NodeIO } from "@gltf-transform/core";
+
 export type RGBA = [number, number, number, number]; //create RGBA type, Alpha = transparency
 export type Vertex = [number, number, number];//one pixel's color
 export type PixelDataTuple = [number, number, RGBA]; //one point in 3D space
@@ -76,11 +81,64 @@ export class TopographyMeshGenerator {
 
 
 export class GLTFExporter {
-    //takes in MeshData, outputs a string, Promise<void> is a TypeScript type that represents an asynchronous operation that does not return a value. It indicates that the function will perform some asynchronous work and will eventually complete, but it does not produce a result that can be used by the caller.
+    /**
+     * Build a glTF Binary (.glb) in-memory and return it as a Buffer.
+     * This is the primary path for server-side generation (stored to MinIO).
+     *
+     * Uses a temp-file round-trip because NodeIO lacks a direct in-memory
+     * binary export on this version of @gltf-transform/core.
+     */
+    async exportToBuffer(mesh: MeshData): Promise<Buffer> {
+        if (mesh.colors.length !== mesh.vertices.length) {
+            throw new Error("Each vertex must have exactly one color");
+        }
+
+        const document = this.buildDocument(mesh);
+
+        const tmpPath = join(tmpdir(), `gltf-${crypto.randomUUID()}.glb`);
+        try {
+            const io = new NodeIO();
+            await io.write(tmpPath, document);
+
+            // NodeIO.write can resolve before the file is fully flushed to disk.
+            // Retry a few times with a short back-off to avoid flaky ENOENT reads.
+            let lastError: Error | undefined;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    return await readFile(tmpPath);
+                } catch (err) {
+                    lastError = err as Error;
+                    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+                        await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
+            throw lastError ?? new Error("Failed to read temp glTF file after retries");
+        } finally {
+            // Best-effort cleanup — don't let a cleanup failure mask the real error
+            await unlink(tmpPath).catch(() => {});
+        }
+    }
+
+    /**
+     * Build a glTF Binary (.glb) and write it to a file path on disk.
+     * Kept for manual / offline tooling use.
+     */
     async export(mesh: MeshData, outputPath: string): Promise<void> {
         if (mesh.colors.length !== mesh.vertices.length) { //each 3D point must have one matching color
             throw new Error("Each vertex must have exactly one color");
         }
+        const document = this.buildDocument(mesh);
+
+        //saves the file
+        const io = new NodeIO();
+        await io.write(outputPath, document);
+    }
+
+    /** Shared document construction — used by both export paths. */
+    private buildDocument(mesh: MeshData): Document {
         const document = new Document(); //create a new glTF document
         const buffer = document.createBuffer(); //storage for numerical data
 
@@ -144,8 +202,6 @@ export class GLTFExporter {
 
         document.createScene("scene").addChild(node);
 
-        //saves the file
-        const io = new NodeIO();
-        await io.write(outputPath, document);
+        return document;
     }
 }
