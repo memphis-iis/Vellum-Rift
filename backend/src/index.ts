@@ -3,16 +3,20 @@ import dotenv from "dotenv";
 import express from "express";
 import winston from "winston";
 
-import pool, { checkConnection } from "./lib/db.js";
+import { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
 import { SampleModelIngestor } from "./lib/sampleModelIngestor.js";
 import gameStateRouter from "./routes/gameState.js";
 import gltfModelRouter from "./routes/gltfModel.js";
+import { getGameStateStats } from "./components/gameState.js";
+import { GameStateRepository } from "./lib/gameStateRepository.js";
 
 dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
+
+const gameStateRepo = new GameStateRepository();
 
 app.use(cors());
 // Models can carry large pixel arrays — bump the JSON body limit to 50 MB.
@@ -38,15 +42,23 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get("/api/health", async (_req, res) => {
+const healthHandler = async (
+  _req: express.Request,
+  res: express.Response,
+) => {
   const dbOk = await checkConnection();
+  const sessions = dbOk ? await gameStateRepo.findAll() : [];
+
   res.json({
     status: dbOk ? "ok" : "degraded",
     service: "backend",
     environment: process.env.NODE_ENV ?? "development",
-    database: dbOk ? "connected" : "disconnected",
+    gameState: getGameStateStats(sessions),
   });
-});
+};
+
+app.get("/health", healthHandler);
+app.get("/api/health", healthHandler);
 
 app.use("/api/game-state", gameStateRouter);
 app.use("/api/models", gltfModelRouter);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { GameState } from "./gameState.js";
+import { GameState, getGameStateStats } from "./gameState.js";
 
 describe("GameState", () => {
   afterEach(() => {
@@ -285,5 +285,66 @@ describe("GameState", () => {
       const json = state.toJSON();
       expect(json.metadata).not.toBe(state.metadata);
     });
+  });
+});
+
+describe("getGameStateStats", () => {
+  it("returns zeros when there are no sessions", () => {
+    expect(getGameStateStats([])).toEqual({
+      totalSessionsCreated: 0,
+      activeSessions: 0,
+      totalPlayers: 0,
+      connectedPlayers: 0,
+      orphanedSessions: 0,
+      avgPlayersPerActiveSession: 0,
+    });
+  });
+
+  it("calculates statistics across active and ended sessions", () => {
+    const hosted = new GameState("hosted");
+    hosted.addPlayer("Host", true);
+    const disconnected = hosted.addPlayer("Disconnected");
+    hosted.setConnected(disconnected.id, false);
+
+    const orphaned = new GameState("orphaned");
+    orphaned.addPlayer("Player");
+
+    const ended = new GameState("ended");
+    ended.addPlayer("Former host", true);
+    ended.end();
+
+    expect(getGameStateStats([hosted, orphaned, ended])).toEqual({
+      totalSessionsCreated: 3,
+      activeSessions: 2,
+      totalPlayers: 4,
+      connectedPlayers: 3,
+      orphanedSessions: 1,
+      avgPlayersPerActiveSession: 2,
+    });
+  });
+
+  //creates a session without a host, then ends it, shouldn't be counted as orphaned
+  it("does not count an ended session as orphaned", () => {
+    const ended = new GameState();
+    ended.addPlayer("Player");
+    ended.end();
+
+    expect(getGameStateStats([ended]).orphanedSessions).toBe(0);
+  });
+
+  it("rounds the average to one decimal place", () => {
+    const sessions = [
+      new GameState(),
+      new GameState(),
+      new GameState(),
+    ];
+
+    for (let index = 0; index < 14; index++) {
+      sessions[index % 3].addPlayer(`Player ${index}`, index < 3);
+    }
+
+    expect(
+      getGameStateStats(sessions).avgPlayersPerActiveSession,
+    ).toBe(4.7);
   });
 });

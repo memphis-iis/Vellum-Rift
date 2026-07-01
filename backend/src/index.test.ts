@@ -55,3 +55,18 @@ describe("Winston Logger Middleware", () => {
     );
   });
 });
+
+it("returns game-state statistics from /health", async () => {
+  const response = await request("http://localhost:4000")
+    .get("/health");
+
+  expect(response.status).toBe(200);
+  expect(response.body.gameState).toEqual({
+    totalSessionsCreated: 0,
+    activeSessions: 0,
+    totalPlayers: 0,
+    connectedPlayers: 0,
+    orphanedSessions: 0,
+    avgPlayersPerActiveSession: 0,
+  });
+});

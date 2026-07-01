@@ -110,6 +110,17 @@ export class GameStateRepository {
     return hydrate(result.rows[0]);
   }
 
+  //find every session from the database and eventually return an array of GameState objects
+  async findAll(): Promise<GameState[]> {
+    //selects every row in game_sessions, oldest first
+  const result = await pool.query(
+    "SELECT * FROM game_sessions ORDER BY created_at ASC",
+  );
+
+  //converts each row back into a proper GameState object as database rows are plain data
+  return result.rows.map((row) => hydrate(row));
+}
+
   // ---------------------------------------------------------------
   // Update
   // ---------------------------------------------------------------
