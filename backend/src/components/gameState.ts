@@ -15,6 +15,16 @@ export interface PlayerState {
   joinedAt: string;
 }
 
+//describes waht the statistics object must contain
+export interface GameStateStats {
+  totalSessionsCreated: number;
+  activeSessions: number;
+  totalPlayers: number;
+  connectedPlayers: number;
+  orphanedSessions: number;
+  avgPlayersPerActiveSession: number;
+}
+
 /**
  * The top-level game state for a single group session.
  *
@@ -190,4 +200,46 @@ export class GameState {
   private _touch(): void {
     this.updatedAt = new Date().toISOString();
   }
+}
+
+
+export function getGameStateStats(
+  gameStates: Iterable<GameState>, //collection of sessions anc multiple GameState objects
+): GameStateStats { //the function must return the stats shape
+  const sessions = Array.from(gameStates); //turns collection of sessions into array, making it easy to count and filter
+  const activeSessions = sessions.filter((session) => session.isActive);
+
+  //goes through every session and and adds together the number of players
+  const totalPlayers = sessions.reduce(
+    (total, session) => total + session.players.length,
+    0,
+  );
+
+  //keeps connected players and counts them for each session
+  const connectedPlayers = sessions.reduce(
+    (total, session) =>
+      total + session.players.filter((player) => player.isConnected).length,
+    0,
+  );
+
+  //if no matching host matches at least one player, the session is orphaned
+  const orphanedSessions = activeSessions.filter(
+    (session) =>
+      !session.players.some(
+        (player) => player.id === session.hostId && player.isHost,
+      ),
+  ).length;
+
+  return {
+    totalSessionsCreated: sessions.length,
+    activeSessions: activeSessions.length,
+    totalPlayers,
+    connectedPlayers,
+    orphanedSessions,
+    avgPlayersPerActiveSession:
+    //divides players by active sessions and rounds to one decimal 
+      activeSessions.length === 0
+        ? 0
+        : Math.round((totalPlayers / activeSessions.length) * 10) / 10,
+  };
 }
