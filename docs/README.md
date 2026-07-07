@@ -53,6 +53,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [reference/glossary.md](reference/glossary.md)
 - [reference/backend-integration-summary.md](reference/backend-integration-summary.md)
 - [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md)
+- [reference/authentication.md](reference/authentication.md)
 
 ## Local Development Files
 
