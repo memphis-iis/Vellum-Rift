@@ -10,6 +10,7 @@ import gameStateRouter from "./routes/gameState.js";
 import gltfModelRouter from "./routes/gltfModel.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
+import { requireAuth } from "./lib/auth.js";
 
 dotenv.config();
 
@@ -57,11 +58,13 @@ const healthHandler = async (
   });
 };
 
+// Public routes (no auth required)
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
 
-app.use("/api/game-state", gameStateRouter);
-app.use("/api/models", gltfModelRouter);
+// Protected routes (require Bluekey auth when AUTH_REQUIRED=true)
+app.use("/api/game-state", requireAuth, gameStateRouter);
+app.use("/api/models", requireAuth, gltfModelRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
