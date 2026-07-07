@@ -13,3 +13,10 @@ web-dashboard/dist/
 *.tsbuildinfo
 
 infra/speech/models/
+
+# Unity project lives under vr-client-unity/ — ignore any stray root-level
+# Unity artifacts that may have been generated outside the proper path.
+/Assets/
+/Library/
+/ProjectSettings/
+/UserSettings/
