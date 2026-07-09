@@ -2,3 +2,4 @@ packages:
   - backend
   - webrtc-sfu
   - web-dashboard
+  - launcher

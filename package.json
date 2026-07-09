@@ -24,7 +24,9 @@
     "lint": "pnpm -r --if-present lint",
     "migrate": "pnpm --filter @vellum-rift/backend migrate",
     "dashboard:dev": "pnpm --filter @vellum-rift/web-dashboard dev",
-    "dashboard:build": "pnpm --filter @vellum-rift/web-dashboard build"
+    "dashboard:build": "pnpm --filter @vellum-rift/web-dashboard build",
+    "launcher:dev": "pnpm --filter @vellum-rift/launcher dev",
+    "launcher:build": "pnpm --filter @vellum-rift/launcher build"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
