@@ -30,8 +30,31 @@ vi.mock("./lib/db.js", () => ({
   checkConnection: vi.fn().mockResolvedValue(true),
 }));
 
-// 4. Import the app after the mocks are established
-import "./index.js";
+// 4. Mock the schema initialization to avoid actual DB calls
+vi.mock("./lib/schema.js", () => ({
+  initSchema: vi.fn().mockResolvedValue(undefined),
+}));
+
+// 5. Mock the sample model ingestor to avoid file system operations
+vi.mock("./lib/sampleModelIngestor.js", () => {
+  const mockIngestAll = vi.fn().mockResolvedValue([]);
+  return {
+    SampleModelIngestor: class {
+      ingestAll = mockIngestAll;
+    },
+  };
+});
+
+// 6. Mock the auth module to bypass authentication in tests
+vi.mock("./lib/auth.js", () => ({
+  requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
+// 7. Mock process.exit to prevent tests from exiting
+vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+
+// 8. Import the app after the mocks are established
+import { app } from "./index.js";
 
 describe("Winston Logger Middleware", () => {
   beforeEach(() => {
@@ -39,8 +62,7 @@ describe("Winston Logger Middleware", () => {
   });
 
   it("should log incoming requests with the correct method, URL, and IP", async () => {
-    // The app auto-starts on port 4000 via app.listen() in index.ts
-    const response = await request("http://localhost:4000")
+    const response = await request(app)
       .get("/api/health")
       .set("x-forwarded-for", "123.45.67.89");
 
@@ -54,19 +76,19 @@ describe("Winston Logger Middleware", () => {
       expect.stringContaining("Incoming request: GET /api/health from IP: 123.45.67.89")
     );
   });
-});
 
-it("returns game-state statistics from /health", async () => {
-  const response = await request("http://localhost:4000")
-    .get("/health");
+  it("returns game-state statistics from /health", async () => {
+    const response = await request(app)
+      .get("/health");
 
-  expect(response.status).toBe(200);
-  expect(response.body.gameState).toEqual({
-    totalSessionsCreated: 0,
-    activeSessions: 0,
-    totalPlayers: 0,
-    connectedPlayers: 0,
-    orphanedSessions: 0,
-    avgPlayersPerActiveSession: 0,
+    expect(response.status).toBe(200);
+    expect(response.body.gameState).toEqual({
+      totalSessionsCreated: 0,
+      activeSessions: 0,
+      totalPlayers: 0,
+      connectedPlayers: 0,
+      orphanedSessions: 0,
+      avgPlayersPerActiveSession: 0,
+    });
   });
 });

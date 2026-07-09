@@ -14,7 +14,7 @@ import { requireAuth } from "./lib/auth.js";
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 const gameStateRepo = new GameStateRepository();
