@@ -31,7 +31,6 @@ export function ServerStatus({ backendUrl, onUrlChange, mode }: ServerStatusProp
     const result = await window.launcherAPI.startBackend();
     setIsStarting(false);
     if (result.success) {
-      // Wait a moment for backend to start, then check health
       setTimeout(checkHealth, 3000);
     } else {
       setDetails(result.error || 'Failed to start backend');

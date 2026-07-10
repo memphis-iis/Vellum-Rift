@@ -2,17 +2,12 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 
-/**
- * Find the project root (where docker-compose.yml lives).
- */
 function getProjectRoot(): string | null {
-  // Check environment variable first
   const envPath = process.env.VELLUM_PROJECT_ROOT;
   if (envPath && fs.existsSync(path.join(envPath, 'docker-compose.yml'))) {
     return envPath;
   }
 
-  // Walk up from current directory
   let dir = __dirname;
   for (let i = 0; i < 10; i++) {
     if (fs.existsSync(path.join(dir, 'docker-compose.yml'))) {
@@ -26,9 +21,6 @@ function getProjectRoot(): string | null {
   return null;
 }
 
-/**
- * Check if the backend is healthy by making an HTTP request.
- */
 export async function checkBackendHealth(backendUrl: string): Promise<{ status: 'ok' | 'degraded' | 'offline'; details?: string }> {
   try {
     const response = await fetch(`${backendUrl}/api/health`, {
@@ -52,9 +44,6 @@ export async function checkBackendHealth(backendUrl: string): Promise<{ status: 
   }
 }
 
-/**
- * Start the Docker stack (development/test only).
- */
 export async function startDockerStack(): Promise<{ success: boolean; error?: string }> {
   const projectRoot = getProjectRoot();
   if (!projectRoot) {
@@ -87,9 +76,6 @@ export async function startDockerStack(): Promise<{ success: boolean; error?: st
   });
 }
 
-/**
- * Stop the Docker stack (development/test only).
- */
 export async function stopDockerStack(): Promise<{ success: boolean; error?: string }> {
   const projectRoot = getProjectRoot();
   if (!projectRoot) {

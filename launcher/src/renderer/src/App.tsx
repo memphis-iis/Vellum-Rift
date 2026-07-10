@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { ServerStatus } from './components/ServerStatus';
 import { SessionPanel } from './components/SessionPanel';
 import { LaunchButton } from './components/LaunchButton';
+import { BackendLogs } from './components/BackendLogs';
+import { GameStateDisplay } from './components/GameStateDisplay';
 
 type AppMode = 'development' | 'production';
 
@@ -19,17 +21,14 @@ export default function App() {
   const [unityStatus, setUnityStatus] = useState<'running' | 'stopped'>('stopped');
 
   useEffect(() => {
-    // Get app mode from electron
     window.launcherAPI.getMode().then(setMode);
     
-    // Set default backend URL based on mode
     window.launcherAPI.getMode().then((m) => {
       if (m === 'production') {
         setBackendUrl('https://api.vellumrift.com');
       }
     });
 
-    // Listen for Unity exit
     window.launcherAPI.onUnityExited(() => {
       setUnityStatus('stopped');
     });
@@ -95,12 +94,16 @@ export default function App() {
         mode={mode}
       />
 
+      <BackendLogs backendUrl={backendUrl} />
+
       <SessionPanel
         sessions={sessions}
         selectedSession={selectedSession}
         onCreateSession={handleCreateSession}
         onJoinSession={handleJoinSession}
       />
+
+      <GameStateDisplay backendUrl={backendUrl} />
 
       <div className="launch-section">
         <LaunchButton
