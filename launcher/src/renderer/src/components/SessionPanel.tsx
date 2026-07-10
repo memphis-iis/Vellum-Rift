@@ -30,7 +30,6 @@ export function SessionPanel({ sessions, selectedSession, onCreateSession, onJoi
       if (session) {
         onJoinSession(session);
       } else {
-        // Create a placeholder session for joining by ID
         onJoinSession({
           id: joinSessionId.trim(),
           label: `Session ${joinSessionId.trim().slice(0, 8)}`,
