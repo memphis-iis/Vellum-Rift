@@ -13,3 +13,35 @@ web-dashboard/dist/
 *.tsbuildinfo
 
 infra/speech/models/
+
+# =====================================================
+# Unity project (vr-client-unity/)
+# https://github.com/github/gitignore/blob/main/Unity.gitignore
+# =====================================================
+vr-client-unity/Vellum Rift/Library/
+vr-client-unity/Vellum Rift/Temp/
+vr-client-unity/Vellum Rift/Obj/
+vr-client-unity/Vellum Rift/Build/
+vr-client-unity/Vellum Rift/Builds/
+vr-client-unity/Vellum Rift/Logs/
+vr-client-unity/Vellum Rift/UserSettings/
+
+# Unity generated project files (regenerate on editor launch)
+vr-client-unity/Vellum Rift/*.csproj
+vr-client-unity/Vellum Rift/*.sln
+vr-client-unity/Vellum Rift/*.slnx
+vr-client-unity/Vellum Rift/*.guidmap
+
+# Crash / diagnostic artifacts
+vr-client-unity/Vellum Rift/sysinfo.txt
+vr-client-unity/Vellum Rift/Library/ArtifactDB
+vr-client-unity/Vellum Rift/Library/ArtifactDB-lock
+vr-client-unity/Vellum Rift/Library/SourceAssetDB
+vr-client-unity/Vellum Rift/Library/SourceAssetDB-lock
+vr-client-unity/Vellum Rift/Library/ilpp.pid
+
+# Rider / Visual Studio caches
+vr-client-unity/Vellum Rift/.vs/
+vr-client-unity/Vellum Rift/*.suo
+vr-client-unity/Vellum Rift/*.userprefs
+vr-client-unity/Vellum Rift/*.pidb
