@@ -45,6 +45,7 @@ namespace VellumRift
         private string sessionId;
         private string localPlayerId;
         private float lastSendTime = 0f;
+        
 
         // ---------------------------------------------------------------
         // Unity Lifecycle
@@ -56,6 +57,13 @@ namespace VellumRift
             // 1. Listen for OnGameStateReceived to update positions
             // 2. Listen for OnPlayerJoined to spawn new players
             // 3. Listen for OnPlayerLeft to remove players
+            if (gameStatePoller != null)
+{
+    gameStatePoller.OnGameStateReceived += HandleGameStateReceived;
+    gameStatePoller.OnPlayerJoined += HandlePlayerJoined;
+    gameStatePoller.OnPlayerLeft += HandlePlayerLeft;
+}
+            
         }
 
         private void Update()
@@ -106,6 +114,8 @@ namespace VellumRift
             this.sessionId = sessionId;
             this.localPlayerId = localPlayerId;
 
+        
+
             // Subscribe to events
             if (gameStatePoller != null)
             {
@@ -133,7 +143,24 @@ namespace VellumRift
         /// <param name="poller">The GameStatePoller instance</param>
         public void SetGameStatePoller(GameStatePoller poller)
         {
-            gameStatePoller = poller;
+
+            if (gameStatePoller != null)
+    {
+        gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
+        gameStatePoller.OnPlayerJoined -= HandlePlayerJoined;
+        gameStatePoller.OnPlayerLeft -= HandlePlayerLeft;
+    }
+
+    gameStatePoller = poller;
+
+    if (gameStatePoller != null)
+    {
+        gameStatePoller.OnGameStateReceived += HandleGameStateReceived;
+        gameStatePoller.OnPlayerJoined += HandlePlayerJoined;
+        gameStatePoller.OnPlayerLeft += HandlePlayerLeft;
+    }
+        
+        
             Debug.Log("[MultiplayerController] GameStatePoller reference set");
         }
 
@@ -166,6 +193,10 @@ namespace VellumRift
             //    b. Calculate target position/rotation from state
             //    c. Smoothly interpolate to target
             // 4. Handle any players that don't have GameObjects yet
+            if(state == null || state.players == null)
+            {
+                return;
+            }
 
             if (playerSpawner == null)
             {
@@ -175,13 +206,25 @@ namespace VellumRift
 
             foreach (var player in state.players)
             {
+                if (player == null)
+                {
+                    continue;
+                }
+                 
                 // Skip local player
                 if (player.id == localPlayerId)
+                {
                     continue;
+                    
+                }
+                    
 
                 UpdateSinglePlayer(player);
             }
-        }
+                
+            }
+           
+        
 
         /// <summary>
         /// Update a single player's transform to match server state.
@@ -195,10 +238,10 @@ namespace VellumRift
             // 3. Get the target position/rotation from player state
             // 4. Smoothly interpolate the transform
 
-            if (playerSpawner == null)
+            if (playerSpawner == null || player == null)
                 return;
 
-            GameObject playerObj = playerSpawner.GetPlayerObject(player.id);
+            GameObject playerObj = playerSpawner.GetPlayerObject(player.id); //get Unity object for that player
             if (playerObj == null)
             {
                 Debug.LogWarning($"[MultiplayerController] No GameObject found for player {player.id}");
@@ -287,7 +330,15 @@ namespace VellumRift
             // 4. Handle errors
 
             if (apiClient == null || playerSpawner == null)
+            {
+                  return;
+                
+            }
+            if(string.IsNullOrEmpty(sessionId)|| string.IsNullOrEmpty(localPlayerId)) //session Id and local player ID
+            {
                 return;
+            }
+        
 
             GameObject localPlayerObj = playerSpawner.GetPlayerObject(localPlayerId);
             if (localPlayerObj == null)
@@ -325,7 +376,7 @@ namespace VellumRift
         /// </summary>
         private void HandleGameStateReceived(GameState state)
         {
-            UpdatePlayerPositions(state);
+            UpdatePlayerPositions(state); 
         }
 
         /// <summary>
