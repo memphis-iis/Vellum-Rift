@@ -102,6 +102,7 @@ initSchema()
   .then(() => {
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);
+      console.log(`Health check endpoint: http://localhost:${port}/health`);
     });
   })
   .catch((err) => {

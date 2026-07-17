@@ -28,6 +28,11 @@ namespace VellumRift
         private float lastPollTime = 0f;
         private GameState lastKnownState;
 
+        // Guards against issuing a new poll while a previous request is still
+        // outstanding. Without this, a request slower than pollingInterval would
+        // let fetches pile up and potentially apply server state out of order.
+        private bool isFetchInProgress = false;
+
         // ---------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------
@@ -59,13 +64,11 @@ namespace VellumRift
 
         private void Update()
         {
-            // TODO: Implement polling loop in Update
-            // 1. Check if polling is active
-            // 2. Check if enough time has passed since last poll
-            // 3. If so, trigger FetchGameState
-            // 4. Update lastPollTime
-
             if (!isPolling || apiClient == null)
+                return;
+
+            // Skip this tick if the previous poll hasn't returned yet.
+            if (isFetchInProgress)
                 return;
 
             if (Time.time - lastPollTime >= pollingInterval)
@@ -92,13 +95,6 @@ namespace VellumRift
         /// <param name="interval">Polling interval in seconds (optional, uses default if not specified)</param>
         public void StartPolling(string sessionId, float interval = -1)
         {
-            // TODO: Implement polling start
-            // 1. Validate session ID
-            // 2. Set currentSessionId
-            // 3. Set polling interval if provided
-            // 4. Set isPolling to true
-            // 5. Reset lastPollTime to trigger immediate first poll
-
             if (string.IsNullOrEmpty(sessionId))
             {
                 Debug.LogError("[GameStatePoller] Cannot start polling: sessionId is null or empty");
@@ -121,10 +117,6 @@ namespace VellumRift
         /// </summary>
         public void StopPolling()
         {
-            // TODO: Implement polling stop
-            // 1. Set isPolling to false
-            // 2. Clear currentSessionId if desired
-
             isPolling = false;
             Debug.Log("[GameStatePoller] Stopped polling");
         }
@@ -136,15 +128,6 @@ namespace VellumRift
         /// <returns>The fetched GameState, or null on failure</returns>
         public async Task<GameState> FetchGameState()
         {
-            // TODO: Implement game state fetch
-            // 1. Check if we have a valid session ID
-            // 2. Call apiClient.GetSession(currentSessionId)
-            // 3. If successful, compare with lastKnownState
-            // 4. Detect new/removed players
-            // 5. Fire appropriate events
-            // 6. Update lastKnownState
-            // 7. Return the new state
-
             if (apiClient == null)
             {
                 Debug.LogError("[GameStatePoller] API client is not set");
@@ -159,10 +142,11 @@ namespace VellumRift
                 return null;
             }
 
+            isFetchInProgress = true;
             try
             {
                 GameState newState = await apiClient.GetSession(currentSessionId);
-                
+
                 if (newState != null)
                 {
                     ProcessStateChange(newState);
@@ -173,6 +157,10 @@ namespace VellumRift
             {
                 Debug.LogError($"[GameStatePoller] Error fetching game state: {ex.Message}");
                 OnPollingError?.Invoke(ex.Message);
+            }
+            finally
+            {
+                isFetchInProgress = false;
             }
 
             return null;
@@ -216,36 +204,18 @@ namespace VellumRift
         /// <param name="newState">The newly received game state</param>
         private void ProcessStateChange(GameState newState)
         {
-            // TODO: Implement state change detection
-            // 1. Compare new state with lastKnownState
-            // 2. Detect new players (in new but not in old)
-            // 3. Detect removed players (in old but not in new)
-            // 4. Fire OnPlayerJoined for new players
-            // 5. Fire OnPlayerLeft for removed players
-            // 6. Fire OnGameStateReceived
-            // 7. Update lastKnownState
+            GameStateDiff.Compute(lastKnownState, newState, out var joined, out var leftIds);
 
-            if (lastKnownState != null)
+            foreach (var player in joined)
             {
-                // Detect new players
-                foreach (var player in newState.players)
-                {
-                    if (lastKnownState.GetPlayer(player.id) == null)
-                    {
-                        Debug.Log($"[GameStatePoller] Player joined: {player.displayName}");
-                        OnPlayerJoined?.Invoke(player);
-                    }
-                }
+                Debug.Log($"[GameStatePoller] Player joined: {player.displayName}");
+                OnPlayerJoined?.Invoke(player);
+            }
 
-                // Detect removed players
-                foreach (var player in lastKnownState.players)
-                {
-                    if (newState.GetPlayer(player.id) == null)
-                    {
-                        Debug.Log($"[GameStatePoller] Player left: {player.id}");
-                        OnPlayerLeft?.Invoke(player.id);
-                    }
-                }
+            foreach (var id in leftIds)
+            {
+                Debug.Log($"[GameStatePoller] Player left: {id}");
+                OnPlayerLeft?.Invoke(id);
             }
 
             lastKnownState = newState;
