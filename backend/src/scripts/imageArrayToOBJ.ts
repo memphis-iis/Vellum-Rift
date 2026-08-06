@@ -271,7 +271,11 @@ export class GLTFExporter {
 
 
 
-        document.createScene("scene").addChild(node);
+        // createScene does NOT auto-set the default scene — without it, loaders
+        // (glTFast's InstantiateMainSceneAsync, Unity's importer) refuse to
+        // instantiate: "glTF has no (main) scene defined".
+        const scene = document.createScene("scene").addChild(node);
+        document.getRoot().setDefaultScene(scene);
 
         return document;
     }
