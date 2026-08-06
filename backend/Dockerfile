@@ -4,7 +4,7 @@
 # Run:    docker run --network traefik_proxy -e DATABASE_URL=... -p 4000:4000 vellumrift-backend
 #         (see infra/deploy/iis-memphis/README.md for the full deploy)
 
-FROM node:20-alpine AS build
+FROM node:20-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -12,7 +12,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
