@@ -62,6 +62,9 @@ namespace VellumRift
         /// <summary>Joined/created session id (empty until the bootstrap completes).</summary>
         public string SessionId { get; private set; }
 
+        /// <summary>The shareable page URL for this session (WebGL: includes ?session=).</summary>
+        public string ShareUrl => BuildShareUrl(SessionId);
+
         /// <summary>Local player id assigned by the server (empty until complete).</summary>
         public string LocalPlayerId { get; private set; }
 
@@ -84,6 +87,9 @@ namespace VellumRift
             if (healthChecker == null)
                 healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
             healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
+
+            // On-screen session id + one-click copy-link (WebGL: full invite URL).
+            gameObject.AddComponent<SessionLinkOverlay>().Init(this);
 
             // WebGL has no Inspector, so the shared session id can come from
             // the page URL (?session=...). Editor/standalone keep using the
