@@ -46,13 +46,14 @@ function computeVertexNormals(vertices: Vertex[], faces: number[]): Vertex[] {
         const [bx, by, bz] = vertices[b];
         const [cx, cy, cz] = vertices[c];
 
-        // face normal = (b - a) x (c - a)
-        const ux = bx - ax;
-        const uy = by - ay;
-        const uz = bz - az;
-        const vx = cx - ax;
-        const vy = cy - ay;
-        const vz = cz - az;
+        // face normal = (c - a) x (b - a); the mesh winding produces normals
+        // pointing INTO the surface otherwise, leaving the top unlit/invisible
+        const ux = cx - ax;
+        const uy = cy - ay;
+        const uz = cz - az;
+        const vx = bx - ax;
+        const vy = by - ay;
+        const vz = bz - az;
         const nx = uy * vz - uz * vy;
         const ny = uz * vx - ux * vz;
         const nz = ux * vy - uy * vx;
@@ -251,7 +252,7 @@ export class GLTFExporter {
             //how the mesh is displayed
         const material = document
             .createMaterial("topography-material")
-            .setAlphaMode("BLEND") //uses alpha transparency 
+            .setAlphaMode("OPAQUE") // opaque renders reliably (BLEND could render invisible)
             .setDoubleSided(true); //shows both the top and underside
 
             //combines all the pieces
