@@ -3,7 +3,7 @@ using UnityEngine;
 //eventually include 3d screen of current server
 //settings tab later
 //include controls display 
-public class playerController : MonoBehaviour //inherits from MonoBehaviour so you can attach it to a Unity GameObject
+public class PlayerMovementGate : MonoBehaviour //inherits from MonoBehaviour so you can attach it to a Unity GameObject
 {
     //stores whether movement is allowed
     public bool MovementEnabled { get; private set; } = true; //true means player can move false means player is frozen
