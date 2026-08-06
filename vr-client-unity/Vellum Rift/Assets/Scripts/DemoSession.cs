@@ -168,16 +168,6 @@ namespace VellumRift
                 SessionId = session.sessionId;
                 createdSession = string.IsNullOrEmpty(sessionIdOverride);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-                if (createdSession)
-                {
-                    // Put the session id into the page URL so the host can
-                    // copy the address bar and share a ready-to-join link.
-                    UpdateUrlWithSession(SessionId);
-                    Debug.Log($"[DemoSession] Session created — shareable link: {BuildShareUrl(SessionId)}");
-                }
-#endif
-
                 // Only the client that created the session is the host; a joiner
                 // must not steal host authority.
                 PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: createdSession);
@@ -205,6 +195,18 @@ namespace VellumRift
                 poller.StartPolling(SessionId, pollingInterval);
 
                 IsReady = true;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                if (createdSession)
+                {
+                    // Only after a fully successful bootstrap: put the session id
+                    // into the page URL so the host can copy the address bar and
+                    // share a ready-to-join link. (A failed bootstrap that cleans
+                    // up the session must not advertise it.)
+                    UpdateUrlWithSession(SessionId);
+                    Debug.Log($"[DemoSession] Session created — shareable link: {BuildShareUrl(SessionId)}");
+                }
+#endif
                 Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId})");
             }
             catch (Exception ex)
@@ -355,6 +357,13 @@ namespace VellumRift
         private static string BuildShareUrl(string sessionId)
         {
             string url = Application.absoluteURL;
+
+            // A URL fragment (#...) is never sent to the server and must not
+            // end up in the shared link (mirrors BackendUrlResolver).
+            int fragmentIndex = url.IndexOf('#');
+            if (fragmentIndex >= 0)
+                url = url.Substring(0, fragmentIndex);
+
             int queryIndex = url.IndexOf('?');
             string baseUrl = queryIndex >= 0 ? url.Substring(0, queryIndex) : url;
             string query = queryIndex >= 0 ? url.Substring(queryIndex + 1) : "";
