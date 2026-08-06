@@ -174,7 +174,13 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       fileSize: glbBuffer.length,
     });
 
-    const downloadUrl = await storage.presignedUrl(record.storageKey, 86400);
+    // Public download URL: the backend's own streaming route
+    // (GET /api/models/:modelId), reachable through the same origin the
+    // request came from. The raw MinIO presigned URL is internal-only
+    // (S3_ENDPOINT points at the docker gateway), so it must not be exposed.
+    const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol;
+    const prefix = (req.headers["x-forwarded-prefix"] as string) ?? "";
+    const downloadUrl = `${proto}://${req.get("host")}${prefix}/api/models/${record.modelId}`;
 
     res.status(201).json({
       modelId: record.modelId,

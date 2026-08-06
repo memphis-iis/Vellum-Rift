@@ -149,8 +149,10 @@ describe("POST /api/upload", () => {
     expect(res.status).toBe(201);
     // the computed extent (10x8 from pixels) flows into the DB record...
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ width: 10, height: 8 }));
-    // ...and the response reflects the stored record (mocked as 2x2)
-    expect(res.body).toMatchObject({ modelId: "m1", width: 2, height: 2, downloadUrl: "https://minio/models/test.glb" });
+    // ...and the response reflects the stored record (mocked as 2x2), with a
+    // download URL pointing at the backend's public streaming route
+    expect(res.body).toMatchObject({ modelId: "m1", width: 2, height: 2 });
+    expect(res.body.downloadUrl).toMatch(/\/api\/models\/m1$/);
   });
 
   it("accepts a real-signature PDF and routes to the PDF pipeline", async () => {
