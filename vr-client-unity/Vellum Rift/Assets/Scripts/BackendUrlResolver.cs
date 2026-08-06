@@ -81,6 +81,47 @@ public static class BackendUrlResolver
         return inspectorDefault;
     }
 
+    /// <summary>
+    /// Extract the "backendUrl" query parameter from an absolute page URL
+    /// (e.g. "https://host/vellumrift/?backendUrl=https%3A%2F%2Fapi-host%3A4000").
+    ///
+    /// WebGL builds have no CLI args and no environment variables
+    /// (PlatformNotSupportedException), so the deploy URL is passed via the
+    /// page's query string instead. Pure string parsing — deliberately avoids
+    /// System.Uri construction so it also works where Uri parsing of the page
+    /// URL is limited. Returns <paramref name="fallback"/> when the parameter
+    /// is absent or the URL is malformed.
+    /// </summary>
+    public static string FromQueryString(string absoluteUrl, string fallback)
+    {
+        if (string.IsNullOrEmpty(absoluteUrl))
+            return fallback;
+
+        int queryIndex = absoluteUrl.IndexOf('?');
+        if (queryIndex < 0)
+            return fallback;
+
+        const string prefix = "backendUrl=";
+        string query = absoluteUrl.Substring(queryIndex + 1);
+        foreach (string pair in query.Split('&'))
+        {
+            if (pair.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                string raw = pair.Substring(prefix.Length);
+                try
+                {
+                    return Clean(Uri.UnescapeDataString(raw));
+                }
+                catch
+                {
+                    return fallback;
+                }
+            }
+        }
+
+        return fallback;
+    }
+
     // Trims surrounding whitespace so a stray trailing space in a CLI flag or
     // env var (e.g. "VELLUM_BACKEND_URL=http://host/ ") doesn't flow into the
     // resolved URL. Null-safe: null in, null out.

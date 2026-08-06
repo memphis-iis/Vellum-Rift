@@ -158,12 +158,19 @@ namespace VellumRift
 
         private void ConfigureBackendUrl()
         {
+#if UNITY_WEBGL
+            // WebGL has no CLI args or environment variables
+            // (PlatformNotSupportedException). The backend URL comes from the
+            // "?backendUrl=" query parameter on the page URL, else the
+            // Inspector default — see BackendUrlResolver.FromQueryString.
+            string resolved = BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl);
+#else
             string resolved = BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArg,
                 getEnvVar: Environment.GetEnvironmentVariable,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
-
+#endif
             apiClient.SetBaseUrl(StripHealthPath(resolved));
         }
 

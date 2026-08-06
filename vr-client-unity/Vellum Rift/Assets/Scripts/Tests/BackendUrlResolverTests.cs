@@ -199,5 +199,41 @@ namespace VellumRift.Tests
             Assert.That(BackendUrlResolver.IsWellFormed(url, out var uri), Is.True);
             Assert.That(BackendUrlResolver.IsRemoteHost(uri), Is.True);
         }
+
+        // ---------------------------------------------------------------
+        // FromQueryString (WebGL page-URL config)
+        // ---------------------------------------------------------------
+
+        [Test]
+        public void FromQueryString_ReturnsBackendUrl_WhenPresent()
+        {
+            const string page = "https://iis.memphis.edu/vellumrift/?backendUrl=https%3A%2F%2Fiis.memphis.edu%2Fapis%2Fvellumrift";
+            string result = BackendUrlResolver.FromQueryString(page, "http://fallback:4000");
+            Assert.That(result, Is.EqualTo("https://iis.memphis.edu/apis/vellumrift"));
+        }
+
+        [Test]
+        public void FromQueryString_ReturnsFallback_WhenAbsent()
+        {
+            const string page = "https://iis.memphis.edu/vellumrift/";
+            string result = BackendUrlResolver.FromQueryString(page, "http://fallback:4000");
+            Assert.That(result, Is.EqualTo("http://fallback:4000"));
+        }
+
+        [Test]
+        public void FromQueryString_IgnoresOtherParameters()
+        {
+            const string page = "https://host/vellumrift/?session=demo&backendUrl=http%3A%2F%2Fapi.local%3A4000&debug=1";
+            string result = BackendUrlResolver.FromQueryString(page, "fallback");
+            Assert.That(result, Is.EqualTo("http://api.local:4000"));
+        }
+
+        [Test]
+        public void FromQueryString_NullOrEmpty_ReturnsFallback()
+        {
+            Assert.That(BackendUrlResolver.FromQueryString(null, "fb"), Is.EqualTo("fb"));
+            Assert.That(BackendUrlResolver.FromQueryString("", "fb"), Is.EqualTo("fb"));
+            Assert.That(BackendUrlResolver.FromQueryString("no-query-here", "fb"), Is.EqualTo("fb"));
+        }
     }
 }
