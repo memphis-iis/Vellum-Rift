@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 import { Document, NodeIO } from "@gltf-transform/core";
 
 export type RGBA = [number, number, number, number]; //create RGBA type, Alpha = transparency
@@ -25,6 +26,41 @@ function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get hei
     if (mode === "alpha") return a / 255;
     return (r + g + b) / 3 / 255; //shows the light and dark values of the manuscript 
 
+}
+
+/**
+ * Max x/y (+1) of the vertex grid — used to size the baked color texture.
+ */
+function computeExtent(vertices: Vertex[]): { width: number; height: number } {
+    let maxX = 0;
+    let maxY = 0;
+    for (const [x, y] of vertices) {
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+    }
+    return { width: maxX + 1, height: maxY + 1 };
+}
+
+/**
+ * Build a PNG from the per-vertex colors laid out on the W×H grid. Each
+ * vertex i carries its grid position (vertices[i][0], vertices[i][1]) and
+ * its color (mesh.colors[i]); the color is written to that cell.
+ */
+async function buildColorTexture(mesh: MeshData, width: number, height: number): Promise<Buffer> {
+    const rgba = Buffer.alloc(width * height * 4);
+    for (let i = 0; i < mesh.vertices.length; i++) {
+        const x = mesh.vertices[i][0];
+        const y = mesh.vertices[i][1];
+        const [r, g, b, a] = mesh.colors[i];
+        const off = (y * width + x) * 4;
+        rgba[off] = r;
+        rgba[off + 1] = g;
+        rgba[off + 2] = b;
+        rgba[off + 3] = a;
+    }
+    return sharp(rgba, { raw: { width, height, channels: 4 } })
+        .png({ compressionLevel: 6 })
+        .toBuffer();
 }
 
 /**
@@ -152,7 +188,7 @@ export class GLTFExporter {
             throw new Error("Each vertex must have exactly one color");
         }
 
-        const document = this.buildDocument(mesh);
+        const document = await this.buildDocument(mesh);
 
         const tmpPath = join(tmpdir(), `gltf-${crypto.randomUUID()}.glb`);
         try {
@@ -189,7 +225,7 @@ export class GLTFExporter {
         if (mesh.colors.length !== mesh.vertices.length) { //each 3D point must have one matching color
             throw new Error("Each vertex must have exactly one color");
         }
-        const document = this.buildDocument(mesh);
+        const document = await this.buildDocument(mesh);
 
         //saves the file
         const io = new NodeIO();
@@ -197,27 +233,33 @@ export class GLTFExporter {
     }
 
     /** Shared document construction — used by both export paths. */
-    private buildDocument(mesh: MeshData): Document {
+    private async buildDocument(mesh: MeshData): Promise<Document> {
         const document = new Document(); //create a new glTF document
         const buffer = document.createBuffer(); //storage for numerical data
 
         const positions = new Float32Array(mesh.vertices.flat()); //tightly packed numerical arrays
         const indices = new Uint32Array(mesh.faces); //in a format that glTF can read, which is a 32 bit unsigned integer
 
-        const colors = new Float32Array( //turns colors into glTF compatible format, which is a float between 0 and 1
-            mesh.colors.flatMap(([r, g, b, a]) => [
-                r / 255,
-                g / 255,
-                b / 255,
-                a / 255,
-            ]),
-        );
-
         // smooth vertex normals computed from the triangle faces — without a
         // NORMAL attribute Unity's glTF importer can fail or render the mesh
         // invisible (the export used to omit normals entirely)
         const normals = computeVertexNormals(mesh.vertices, mesh.faces);
         const normalArray = new Float32Array(normals.flat());
+
+        // Bake the manuscript colors into a PNG base-color TEXTURE instead of
+        // vertex colors. Textures are the one path every renderer/importer
+        // handles reliably (glTFast's vertex-color + custom-shader path rendered
+        // pink in the URP WebGL build; the texture path uses a standard lit
+        // material with a base color map).
+        const { width, height } = computeExtent(mesh.vertices);
+        const texturePng = await buildColorTexture(mesh, width, height);
+
+        // per-vertex UVs mapping each pixel to its cell in the texture
+        const uvs = new Float32Array(mesh.vertices.length * 2);
+        for (let i = 0; i < mesh.vertices.length; i++) {
+            uvs[i * 2] = width > 1 ? mesh.vertices[i][0] / (width - 1) : 0;
+            uvs[i * 2 + 1] = height > 1 ? 1 - mesh.vertices[i][1] / (height - 1) : 0;
+        }
 
         //an accessor is a label explaining how gLTF should read stored numbers
         //location of 3D points
@@ -235,11 +277,10 @@ export class GLTFExporter {
             .setArray(indices)
             .setBuffer(buffer);
 
-            //colors of the points
-        const colorAccessor = document
-            .createAccessor("colors")
-            .setType("VEC4") //groups 4 of float numbers together to represent a color in RGBA format
-            .setArray(colors)
+        const uvAccessor = document
+            .createAccessor("uvs")
+            .setType("VEC2")
+            .setArray(uvs)
             .setBuffer(buffer);
 
         const normalAccessor = document
@@ -248,23 +289,25 @@ export class GLTFExporter {
             .setArray(normalArray)
             .setBuffer(buffer);
 
+        const texture = document
+            .createTexture("color")
+            .setMimeType("image/png")
+            .setImage(new Uint8Array(texturePng)); // default sampler applies
 
             //how the mesh is displayed
         const material = document
             .createMaterial("topography-material")
             .setAlphaMode("OPAQUE") // opaque renders reliably (BLEND could render invisible)
-            .setDoubleSided(true); //shows both the top and underside
-        // NOTE: intentionally NOT KHR_materials_unlit — glTFast's unlit path
-        // rendered pink/transparent in the URP WebGL build. The standard lit
-        // material (glTF/PbrMetallicRoughness, always-included) renders
-        // correctly now that normals face up.
+            .setDoubleSided(true) //shows both the top and underside
+            .setBaseColorTexture(texture)
+            .setBaseColorFactor([1, 1, 1, 1]);
 
             //combines all the pieces
         const primitive = document
             .createPrimitive()
             .setAttribute("POSITION", positionAccessor)
             .setAttribute("NORMAL", normalAccessor)
-            .setAttribute("COLOR_0", colorAccessor)
+            .setAttribute("TEXCOORD_0", uvAccessor)
             .setIndices(indexAccessor)
             .setMaterial(material);
 
