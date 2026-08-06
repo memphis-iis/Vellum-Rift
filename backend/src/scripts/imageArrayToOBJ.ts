@@ -27,6 +27,53 @@ function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get hei
 
 }
 
+/**
+ * Compute smooth per-vertex normals from a triangle list. Each face's normal
+ * (cross product of its edges) is accumulated onto its three vertices, then
+ * normalized. Required so Unity's glTF importer gets a proper NORMAL attribute
+ * (the export previously omitted normals, which can make Unity fail to import
+ * or render the mesh invisible).
+ */
+function computeVertexNormals(vertices: Vertex[], faces: number[]): Vertex[] {
+    const normals: Vertex[] = vertices.map(() => [0, 0, 0] as Vertex);
+
+    for (let i = 0; i + 2 < faces.length; i += 3) {
+        const a = faces[i];
+        const b = faces[i + 1];
+        const c = faces[i + 2];
+
+        const [ax, ay, az] = vertices[a];
+        const [bx, by, bz] = vertices[b];
+        const [cx, cy, cz] = vertices[c];
+
+        // face normal = (b - a) x (c - a)
+        const ux = bx - ax;
+        const uy = by - ay;
+        const uz = bz - az;
+        const vx = cx - ax;
+        const vy = cy - ay;
+        const vz = cz - az;
+        const nx = uy * vz - uz * vy;
+        const ny = uz * vx - ux * vz;
+        const nz = ux * vy - uy * vx;
+
+        const na = normals[a];
+        const nb = normals[b];
+        const nc = normals[c];
+        na[0] += nx; na[1] += ny; na[2] += nz;
+        nb[0] += nx; nb[1] += ny; nb[2] += nz;
+        nc[0] += nx; nc[1] += ny; nc[2] += nz;
+    }
+
+    for (const n of normals) {
+        const len = Math.hypot(n[0], n[1], n[2]) || 1;
+        n[0] /= len;
+        n[1] /= len;
+        n[2] /= len;
+    }
+    return normals;
+}
+
 export class TopographyMeshGenerator {
     // generate image and convert it to mesh data, leave it up to export function to decide what format it will be exported in
     // heightScale exaggerates the color-channel height so the bump mapping is
@@ -165,6 +212,12 @@ export class GLTFExporter {
             ]),
         );
 
+        // smooth vertex normals computed from the triangle faces — without a
+        // NORMAL attribute Unity's glTF importer can fail or render the mesh
+        // invisible (the export used to omit normals entirely)
+        const normals = computeVertexNormals(mesh.vertices, mesh.faces);
+        const normalArray = new Float32Array(normals.flat());
+
         //an accessor is a label explaining how gLTF should read stored numbers
         //location of 3D points
         const positionAccessor = document
@@ -188,6 +241,12 @@ export class GLTFExporter {
             .setArray(colors)
             .setBuffer(buffer);
 
+        const normalAccessor = document
+            .createAccessor("normals")
+            .setType("VEC3")
+            .setArray(normalArray)
+            .setBuffer(buffer);
+
 
             //how the mesh is displayed
         const material = document
@@ -199,6 +258,7 @@ export class GLTFExporter {
         const primitive = document
             .createPrimitive()
             .setAttribute("POSITION", positionAccessor)
+            .setAttribute("NORMAL", normalAccessor)
             .setAttribute("COLOR_0", colorAccessor)
             .setIndices(indexAccessor)
             .setMaterial(material);
