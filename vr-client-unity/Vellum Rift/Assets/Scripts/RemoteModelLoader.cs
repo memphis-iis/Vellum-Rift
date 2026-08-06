@@ -54,6 +54,7 @@ namespace VellumRift
             }
 
             loadInProgress = true;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
@@ -61,6 +62,9 @@ namespace VellumRift
                 try
                 {
                     bool loaded = await gltf.Load(modelUrl);
+                    stopwatch.Stop();
+                    float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
+
                     if (!loaded)
                     {
                         Debug.LogError($"[RemoteModelLoader] Failed to load model from {modelUrl} — check the URL and that the backend is reachable");
@@ -88,7 +92,7 @@ namespace VellumRift
                     }
 
                     IsLoaded = true;
-                    Debug.Log($"[RemoteModelLoader] Model instantiated from {modelUrl}");
+                    LogModelStats(parent, loadSeconds);
                 }
                 finally
                 {
@@ -105,6 +109,53 @@ namespace VellumRift
             {
                 loadInProgress = false;
             }
+        }
+
+        /// <summary>
+        /// Log diagnostics about the instantiated model: vertex/triangle/mesh/
+        /// material counts, world-space bounds, and load time. Computed from
+        /// the actual Unity objects so it reflects what is really in the scene.
+        /// </summary>
+        private void LogModelStats(Transform root, float loadSeconds)
+        {
+            int meshCount = 0;
+            int vertexCount = 0;
+            int triangleCount = 0;
+            int materialCount = 0;
+            Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            bool hasBounds = false;
+
+            foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == null)
+                    continue;
+                meshCount++;
+                vertexCount += filter.sharedMesh.vertexCount;
+                triangleCount += filter.sharedMesh.triangles.Length / 3;
+            }
+
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var materials = renderer.sharedMaterials;
+                if (materials != null)
+                    materialCount += materials.Length;
+
+                if (renderer.bounds.size != Vector3.zero)
+                {
+                    hasBounds = true;
+                    min = Vector3.Min(min, renderer.bounds.min);
+                    max = Vector3.Max(max, renderer.bounds.max);
+                }
+            }
+
+            Vector3 size = hasBounds ? max - min : Vector3.zero;
+            Debug.Log(
+                $"[RemoteModelLoader] Model stats — URL: {modelUrl}\n" +
+                $"  Load time: {loadSeconds:F2}s | Applied scale: {modelScale}\n" +
+                $"  Meshes: {meshCount} | Vertices: {vertexCount:N0} | Triangles: {triangleCount:N0} | Materials: {materialCount}\n" +
+                $"  World bounds: {size.x:F1} x {size.y:F1} x {size.z:F1}" +
+                (hasBounds ? " (a ~10-15 unit mesh at scale 0.01 is normal for manuscript pages)" : ""));
         }
     }
 }
