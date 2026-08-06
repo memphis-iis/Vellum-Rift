@@ -235,5 +235,18 @@ namespace VellumRift.Tests
             Assert.That(BackendUrlResolver.FromQueryString("", "fb"), Is.EqualTo("fb"));
             Assert.That(BackendUrlResolver.FromQueryString("no-query-here", "fb"), Is.EqualTo("fb"));
         }
+
+        [Test]
+        public void FromQueryString_EmptyValue_ReturnsFallback()
+        {
+            Assert.That(BackendUrlResolver.FromQueryString("https://host/?backendUrl=", "fb"), Is.EqualTo("fb"));
+        }
+
+        [Test]
+        public void FromQueryString_FragmentAfterParam_IsIgnored()
+        {
+            const string page = "https://host/?backendUrl=http%3A%2F%2Fapi.local%3A4000#section";
+            Assert.That(BackendUrlResolver.FromQueryString(page, "fb"), Is.EqualTo("http://api.local:4000"));
+        }
     }
 }

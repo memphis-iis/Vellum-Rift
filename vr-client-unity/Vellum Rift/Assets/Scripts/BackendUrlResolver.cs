@@ -97,6 +97,12 @@ public static class BackendUrlResolver
         if (string.IsNullOrEmpty(absoluteUrl))
             return fallback;
 
+        // A URL fragment (#...) is never sent to the server and must not
+        // corrupt the parsed value (RFC 3986: fragment follows the query).
+        int fragmentIndex = absoluteUrl.IndexOf('#');
+        if (fragmentIndex >= 0)
+            absoluteUrl = absoluteUrl.Substring(0, fragmentIndex);
+
         int queryIndex = absoluteUrl.IndexOf('?');
         if (queryIndex < 0)
             return fallback;
@@ -110,7 +116,10 @@ public static class BackendUrlResolver
                 string raw = pair.Substring(prefix.Length);
                 try
                 {
-                    return Clean(Uri.UnescapeDataString(raw));
+                    // Treat an empty value ("?backendUrl=") as absent, matching
+                    // Resolve()'s treatment of empty CLI/env overrides.
+                    string cleaned = Clean(Uri.UnescapeDataString(raw));
+                    return string.IsNullOrEmpty(cleaned) ? fallback : cleaned;
                 }
                 catch
                 {
