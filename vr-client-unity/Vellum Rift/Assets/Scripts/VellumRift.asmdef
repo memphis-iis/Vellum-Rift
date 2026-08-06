@@ -1,7 +1,8 @@
 {
 	"name": "VellumRift",
 	"references": [
-		"Unity.InputSystem"
+		"Unity.InputSystem",
+		"glTFast"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
