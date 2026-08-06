@@ -70,10 +70,22 @@ public class BackendHealthChecker : MonoBehaviour
     private bool isRunning = false;
     private GUIStyle cachedLabelStyle;
 
+    /// <summary>
+    /// Override the health-check URL before this component's Start runs (e.g.
+    /// from DemoSession, so the on-screen label reflects the same resolved
+    /// backend URL instead of the Inspector default). Ignored once the check
+    /// has started.
+    /// </summary>
+    public void SetHealthCheckUrl(string url)
+    {
+        if (isRunning || string.IsNullOrEmpty(url))
+            return;
+        healthCheckUrl = url.Trim();
+    }
+
     private void Start()
     {
-        resolvedUrl = ResolveBackendUrl();
-        Debug.Log($"[BackendHealthChecker] Using backend URL: {resolvedUrl}");
+        resolvedUrl = ResolveBackendUrl();        Debug.Log($"[BackendHealthChecker] Using backend URL: {resolvedUrl}");
 
         if (!BackendUrlResolver.IsWellFormed(resolvedUrl, out Uri parsedUri))
         {
