@@ -1,0 +1,21 @@
+# Vellum Rift — insert into the `iis.memphis.edu { ... }` block of
+# /assets/Caddyfile on the box, BEFORE the catch-all
+# `handle { reverse_proxy wordpress:80 }` block (Caddy matches most-specific
+# first, but keep it above the catch-all for readability).
+#
+# After editing:  docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+#                 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+#
+# --- API (Node backend container) -------------------------------------------
+# https://iis.memphis.edu/apis/vellumrift/api/health
+handle_path /apis/vellumrift/* {
+	uri strip_prefix /apis/vellumrift
+	reverse_proxy vellumrift-backend:4000
+}
+
+# --- WebGL client (static files in /assets/static/vellumrift/) ---------------
+# https://iis.memphis.edu/vellumrift/
+handle_path /vellumrift/* {
+	root * /usr/share/caddy/static/vellumrift
+	file_server
+}

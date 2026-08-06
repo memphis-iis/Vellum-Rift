@@ -1,0 +1,20 @@
+# Vellum Rift backend — deployment for iis.memphis.edu (cohmetrix box).
+#
+# Uses the pre-existing "traefik_proxy" docker network so the Caddy
+# container can reverse_proxy to it by container name.
+#
+# Usage (on the box, from this directory):
+#   docker compose up -d
+
+services:
+  vellumrift-backend:
+    image: vellumrift-backend:latest
+    container_name: vellumrift-backend
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - traefik_proxy
+
+networks:
+  traefik_proxy:
+    external: true
