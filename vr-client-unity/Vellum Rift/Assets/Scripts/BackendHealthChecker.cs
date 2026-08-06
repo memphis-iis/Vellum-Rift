@@ -78,14 +78,22 @@ public class BackendHealthChecker : MonoBehaviour
     /// </summary>
     public void SetHealthCheckUrl(string url)
     {
-        if (isRunning || string.IsNullOrEmpty(url))
+        if (string.IsNullOrEmpty(url))
             return;
+
+        if (isRunning)
+        {
+            Debug.LogWarning($"[BackendHealthChecker] SetHealthCheckUrl ignored — health check already started (using {resolvedUrl})");
+            return;
+        }
+
         healthCheckUrl = url.Trim();
     }
 
     private void Start()
     {
-        resolvedUrl = ResolveBackendUrl();        Debug.Log($"[BackendHealthChecker] Using backend URL: {resolvedUrl}");
+        resolvedUrl = ResolveBackendUrl();
+        Debug.Log($"[BackendHealthChecker] Using backend URL: {resolvedUrl}");
 
         if (!BackendUrlResolver.IsWellFormed(resolvedUrl, out Uri parsedUri))
         {

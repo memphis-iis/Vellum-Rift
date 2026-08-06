@@ -80,7 +80,7 @@ namespace VellumRift
             // indicator. Point it at the same resolved backend before its Start
             // runs (its Inspector default is localhost, which is wrong on WebGL).
             if (healthChecker == null)
-                healthChecker = gameObject.AddComponent<BackendHealthChecker>();
+                healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
             healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
 
             // WebGL has no Inspector, so the shared session id can come from
