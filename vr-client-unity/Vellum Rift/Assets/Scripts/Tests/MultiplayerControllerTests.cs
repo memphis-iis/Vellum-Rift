@@ -78,7 +78,12 @@ namespace VellumRift.Tests
         {
             var manager = CreateGameObject("MultiplayerManager");
             spawner = manager.AddComponent<PlayerSpawner>();
-            return manager.AddComponent<MultiplayerController>();
+            var controller = manager.AddComponent<MultiplayerController>();
+            // Mirror production wiring (DemoSession calls SetPlayerSpawner
+            // before Initialize); without it UpdatePlayerPositions early-returns
+            // and the position tests never exercise the code.
+            controller.SetPlayerSpawner(spawner);
+            return controller;
         }
 
         private GameObject CreateGameObject(string name)
