@@ -7,7 +7,12 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# npm ci on this host intermittently extracts the large typescript tarball as
+# empty, leaving node_modules/.bin/tsc missing. Verify and retry with a clean
+# cache; if the retry also fails the build stops with a clear error.
+RUN npm ci --no-audit --no-fund \
+    && (test -x node_modules/.bin/tsc || (npm cache clean --force && npm ci --no-audit --no-fund)) \
+    && test -x node_modules/.bin/tsc
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
@@ -16,7 +21,9 @@ FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund --omit=dev
+RUN npm ci --no-audit --no-fund --omit=dev \
+    && (npm ls --depth=0 >/dev/null 2>&1 || (npm cache clean --force && npm ci --no-audit --no-fund --omit=dev)) \
+    && npm ls --depth=0 >/dev/null
 # Compiled JS/TS output.
 COPY --from=build /app/dist ./dist
 # Startup ingestion reads src/sample/pdfs (referenced relative to the compiled
