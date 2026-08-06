@@ -27,6 +27,14 @@ namespace VellumRift
         [Tooltip("Dictionary mapping player IDs to their spawned GameObjects")]
         private readonly Dictionary<string, GameObject> spawnedPlayers = new Dictionary<string, GameObject>();
 
+        /// <summary>
+        /// Persistent round-robin cursor into spawnPoints. Using a counter that
+        /// only advances on spawn keeps placements stable when players leave:
+        /// the next spawn reuses the freed slot instead of reindexing onto a
+        /// spot that is still occupied.
+        /// </summary>
+        private int nextSpawnIndex = 0;
+
         /// <summary>Number of players currently spawned.</summary>
         public int SpawnedCount => spawnedPlayers.Count;
 
@@ -49,6 +57,12 @@ namespace VellumRift
                 return null;
             }
 
+            if (string.IsNullOrEmpty(player.id))
+            {
+                Debug.LogError("[PlayerSpawner] SpawnPlayer called with missing player id; ignoring");
+                return null;
+            }
+
             if (IsPlayerSpawned(player.id))
             {
                 Debug.Log($"[PlayerSpawner] Player {player.displayName} ({player.id}) already spawned; returning existing object");
@@ -62,16 +76,18 @@ namespace VellumRift
                 return null;
             }
 
-            // Prefer the server-reported position once a player has moved;
+            // Prefer the server-reported transform once a player has moved;
             // otherwise fall back to a spawn point (or a default offset).
             if (HasServerPosition(player.position))
             {
                 go.transform.position = ToUnityVector3(player.position);
+                go.transform.rotation = ToUnityRotation(player.rotation);
             }
             else
             {
-                go.transform.position = GetSpawnPosition();
-                go.transform.rotation = GetSpawnRotation();
+                (Vector3 position, Quaternion rotation) placement = GetSpawnPlacement();
+                go.transform.position = placement.position;
+                go.transform.rotation = placement.rotation;
             }
 
             go.name = string.IsNullOrEmpty(player.displayName)
@@ -93,6 +109,8 @@ namespace VellumRift
             {
                 DestroyVisual(go);
                 spawnedPlayers.Remove(playerId);
+                if (spawnedPlayers.Count == 0)
+                    nextSpawnIndex = 0;
                 Debug.Log($"[PlayerSpawner] Removed player {playerId}");
             }
             else
@@ -111,6 +129,7 @@ namespace VellumRift
                 DestroyVisual(go);
             }
             spawnedPlayers.Clear();
+            nextSpawnIndex = 0;
             Debug.Log("[PlayerSpawner] Removed all players");
         }
 
@@ -176,33 +195,29 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Get the next spawn position, round-robin over the configured spawn
-        /// points, or a default offset when none are configured.
+        /// Get the next spawn placement: round-robin over the configured spawn
+        /// points via a persistent cursor, or a default X-axis offset when none
+        /// are configured. The cursor only advances on spawn, so removing a
+        /// player mid-session makes the next spawn reuse the freed slot instead
+        /// of drifting onto an occupied one.
         /// </summary>
-        private Vector3 GetSpawnPosition()
+        private (Vector3 position, Quaternion rotation) GetSpawnPlacement()
         {
             if (spawnPoints != null && spawnPoints.Length > 0)
-                return spawnPoints[spawnedPlayers.Count % spawnPoints.Length].position;
+            {
+                Transform point = spawnPoints[nextSpawnIndex % spawnPoints.Length];
+                nextSpawnIndex++;
+                return (point.position, point.rotation);
+            }
 
             // Default: spread players along the X axis so they don't stack.
-            return new Vector3(spawnedPlayers.Count * 1.5f, 0f, 0f);
+            return (new Vector3(spawnedPlayers.Count * 1.5f, 0f, 0f), Quaternion.identity);
         }
 
         /// <summary>
-        /// Get the next spawn rotation, matching the selected spawn point when
-        /// one is in use.
-        /// </summary>
-        private Quaternion GetSpawnRotation()
-        {
-            if (spawnPoints != null && spawnPoints.Length > 0)
-                return spawnPoints[spawnedPlayers.Count % spawnPoints.Length].rotation;
-
-            return Quaternion.identity;
-        }
-
-        /// <summary>
-        /// Whether the server has reported a meaningful (non-zero) position for
-        /// a player — i.e. they have moved since joining.
+        /// Whether the server has reported a meaningful position for a player.
+        /// (0,0,0) is the initial/sentinel value, so a player at the origin is
+        /// treated as "hasn't moved yet" and gets a spawn-point placement.
         /// </summary>
         private static bool HasServerPosition(Vector3Data position)
         {
@@ -212,6 +227,11 @@ namespace VellumRift
         private static Vector3 ToUnityVector3(Vector3Data data)
         {
             return new Vector3(data.x, data.y, data.z);
+        }
+
+        private static Quaternion ToUnityRotation(Vector3Data data)
+        {
+            return Quaternion.Euler(data.x, data.y, data.z);
         }
 
         /// <summary>
