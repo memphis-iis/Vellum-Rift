@@ -59,9 +59,7 @@ namespace VellumRift
             {
                 Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
                 var gltf = new GltfImport();
-                try
-                {
-                    bool loaded = await gltf.Load(modelUrl);
+                bool loaded = await gltf.Load(modelUrl);
                     stopwatch.Stop();
                     float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
 
@@ -101,7 +99,6 @@ namespace VellumRift
                         UnityEditor.Selection.activeGameObject = meshRenderer.gameObject;
 #endif
                     LogModelStats(parent, loadSeconds);
-                }
                 // NOTE: GltfImport.Dispose() is NOT called here. This version
                 // of glTFast destroys the shared meshes on Dispose
                 // (DestroyUtils.SafeDestroy(m_Meshes)), which would leave the
