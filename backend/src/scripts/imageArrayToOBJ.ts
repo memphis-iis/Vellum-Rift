@@ -37,8 +37,16 @@ export class TopographyMeshGenerator {
         if (imageArray.length === 0) {
             throw new Error("imageArray must not be empty");
         }
-        const width = Math.max(...imageArray.map(([x]) => x)) + 1; //finds the maximum x value in the image array and adds 1 to get the width of the image
-        const height = Math.max(...imageArray.map(([_, y]) => y)) + 1; //finds the maximum y value in the image array and adds 1 to get the height of the image
+        // single pass for max x/y — Math.max(...spread) on large arrays blows
+        // the engine argument limit (RangeError: Maximum call stack size exceeded)
+        let maxX = 0;
+        let maxY = 0;
+        for (const [x, y] of imageArray) {
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+        const width = maxX + 1; //finds the maximum x value in the image array and adds 1 to get the width of the image
+        const height = maxY + 1; //finds the maximum y value in the image array and adds 1 to get the height of the image
 
 
         //arranges pixels top row to bototm row and left to right inside each row 
