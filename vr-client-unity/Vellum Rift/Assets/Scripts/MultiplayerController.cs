@@ -143,24 +143,10 @@ namespace VellumRift
         /// <param name="poller">The GameStatePoller instance</param>
         public void SetGameStatePoller(GameStatePoller poller)
         {
-
-            if (gameStatePoller != null)
-    {
-        gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
-        gameStatePoller.OnPlayerJoined -= HandlePlayerJoined;
-        gameStatePoller.OnPlayerLeft -= HandlePlayerLeft;
-    }
-
-    gameStatePoller = poller;
-
-    if (gameStatePoller != null)
-    {
-        gameStatePoller.OnGameStateReceived += HandleGameStateReceived;
-        gameStatePoller.OnPlayerJoined += HandlePlayerJoined;
-        gameStatePoller.OnPlayerLeft += HandlePlayerLeft;
-    }
-        
-        
+            // Reference-only setter (mirrors SetApiClient/SetPlayerSpawner).
+            // Event subscription is owned by Initialize(), so callers should
+            // SetGameStatePoller before Initialize and not subscribe twice.
+            gameStatePoller = poller;
             Debug.Log("[MultiplayerController] GameStatePoller reference set");
         }
 

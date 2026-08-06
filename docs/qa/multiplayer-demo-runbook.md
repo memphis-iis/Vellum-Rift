@@ -53,9 +53,11 @@ GameObject, so the only wiring required is:
    logs the id); set it on every other client.
 
 Optional niceties (not required for the POC):
-- Assign `PlayerSpawner`'s **Player Prefab** (or spawn points) on the
-  auto-created component after first Play, if you want something other than the
-  default cube.
+- To use a custom visual instead of the default cube, call
+  `playerSpawner.SetPlayerPrefab(...)` from code (e.g. in a scene script), or
+  add a `PlayerSpawner` component in the scene yourself and assign its
+  **Player Prefab** / spawn points in the Inspector *before* Play — the
+  auto-created component exists only at runtime and is not editable.
 - Point `BackendHealthChecker` at the backend for a startup connectivity readout.
 
 ## 3. Run the demo

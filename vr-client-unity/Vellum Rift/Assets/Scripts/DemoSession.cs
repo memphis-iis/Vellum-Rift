@@ -97,14 +97,23 @@ namespace VellumRift
 
         private async Task BootstrapAsync()
         {
+            bool createdSession = false;
             try
             {
                 ConfigureBackendUrl();
 
                 GameState session = await JoinOrCreateSession();
                 SessionId = session.sessionId;
+                createdSession = string.IsNullOrEmpty(sessionIdOverride);
 
-                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: true);
+                // Only the client that created the session is the host; a joiner
+                // must not steal host authority.
+                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: createdSession);
+                if (local == null)
+                {
+                    throw new InvalidOperationException(
+                        $"AddPlayer returned null for session {SessionId} — is the backend running and is the session id valid?");
+                }
                 LocalPlayerId = local.id;
 
                 // Register the local player's cube so MultiplayerController's
@@ -129,6 +138,21 @@ namespace VellumRift
             catch (Exception ex)
             {
                 Debug.LogError($"[DemoSession] Bootstrap failed: {ex.Message}");
+
+                // Don't leak an empty session we created if the rest of the
+                // bootstrap failed.
+                if (createdSession && !string.IsNullOrEmpty(SessionId) && apiClient != null)
+                {
+                    try
+                    {
+                        await apiClient.EndSession(SessionId);
+                        Debug.Log($"[DemoSession] Cleaned up session {SessionId} after failed bootstrap");
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        Debug.LogWarning($"[DemoSession] Failed to clean up session: {cleanupEx.Message}");
+                    }
+                }
             }
         }
 
@@ -224,8 +248,8 @@ namespace VellumRift
         // ---------------------------------------------------------------
 
         /// <summary>
-        /// Strip the "/api/health" suffix BackendUrlResolver appends so the API
-        /// client gets a bare base URL.
+        /// Strip the "/api/health" suffix BackendUrlResolver appends (with or
+        /// without a trailing slash) so the API client gets a bare base URL.
         /// </summary>
         private static string StripHealthPath(string url)
         {
@@ -233,9 +257,10 @@ namespace VellumRift
                 return url;
 
             const string suffix = "/api/health";
-            return url.EndsWith(suffix, StringComparison.Ordinal)
-                ? url.Substring(0, url.Length - suffix.Length)
-                : url;
+            string trimmed = url.TrimEnd('/');
+            return trimmed.EndsWith(suffix, StringComparison.Ordinal)
+                ? trimmed.Substring(0, trimmed.Length - suffix.Length)
+                : trimmed;
         }
 
         /// <summary>
