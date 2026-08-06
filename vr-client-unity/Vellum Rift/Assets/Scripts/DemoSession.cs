@@ -214,6 +214,13 @@ namespace VellumRift
             // "?backendUrl=" query parameter on the page URL, else the
             // Inspector default — see BackendUrlResolver.FromQueryString.
             string resolved = BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl);
+
+            // WebGL runs inside the browser's secure (https) context: plain
+            // http requests are blocked ("Insecure connection not allowed")
+            // and the http->https redirect is never followed. Promote a
+            // typo'd or default http:// URL so the build still connects.
+            if (resolved.StartsWith("http://", StringComparison.Ordinal))
+                resolved = "https://" + resolved.Substring("http://".Length);
 #else
             string resolved = BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
