@@ -92,6 +92,14 @@ namespace VellumRift
                     }
 
                     IsLoaded = true;
+#if UNITY_EDITOR
+                    // Convenience: select the instantiated mesh so pressing F in
+                    // the Scene view frames it. The wrapper GameObject has no
+                    // renderer/bounds, so framing the parent does nothing.
+                    var meshRenderer = parent.GetComponentInChildren<Renderer>(true);
+                    if (meshRenderer != null)
+                        UnityEditor.Selection.activeGameObject = meshRenderer.gameObject;
+#endif
                     LogModelStats(parent, loadSeconds);
                 }
                 finally
