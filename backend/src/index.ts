@@ -86,7 +86,7 @@ app.get("/api/health", healthHandler);
 // ---------------------------------------------------------------------------
 app.use("/api/game-state", requireAuth, gameStateRouter);
 app.use("/api/models", requireAuth, gltfModelRouter);
-app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload endpoint that is protected using the auth module from
+app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload — protected by requireAuth
 
 // ---------------------------------------------------------------------------
 // Startup
