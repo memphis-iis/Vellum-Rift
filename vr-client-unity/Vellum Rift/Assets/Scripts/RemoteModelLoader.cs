@@ -102,12 +102,12 @@ namespace VellumRift
 #endif
                     LogModelStats(parent, loadSeconds);
                 }
-                finally
-                {
-                    // GltfImport retains parsed buffers/textures; on WebGL a
-                    // leaked instance is a real per-reload memory leak.
-                    gltf.Dispose();
-                }
+                // NOTE: GltfImport.Dispose() is NOT called here. This version
+                // of glTFast destroys the shared meshes on Dispose
+                // (DestroyUtils.SafeDestroy(m_Meshes)), which would leave the
+                // instantiated MeshFilters with "Missing Mesh" and render
+                // nothing. The import is left for GC; the meshes are owned by
+                // Unity after instantiation.
             }
             catch (Exception ex)
             {
