@@ -81,17 +81,46 @@ namespace VellumRift
                 sessionIdOverride = BackendUrlResolver.FromQueryStringParam(Application.absoluteURL, "session", "");
 #endif
 
-            // Demo 1 convenience: the scene's Player historically carried an
-            // empty playerController stub with no movement code. Attach the
-            // real free-fly controller (VellumRift.Control.PlayerController)
-            // to the local player object when missing, so WASD + mouse-look
-            // work without manual scene wiring. The main-menu gate is skipped:
-            // the controller is live as soon as it is attached.
-            if (localPlayerObject != null &&
-                localPlayerObject.GetComponent<VellumRift.Control.PlayerController>() == null)
+            EnsureLocalPlayerVisuals();
+        }
+
+        /// <summary>
+        /// Demo 1 convenience: resolve the local player object when the
+        /// Inspector field is unset, attach the free-fly controller if missing,
+        /// and parent the Main Camera under it so the view follows movement.
+        /// WebGL builds can't be scene-edited after build, so this is driven by
+        /// code here rather than scene wiring. All steps are guarded — a
+        /// manually-configured scene is left untouched.
+        /// </summary>
+        private void EnsureLocalPlayerVisuals()
+        {
+            if (localPlayerObject == null)
+            {
+                // Fallback: the scene's controlled rig is named "Player".
+                GameObject found = GameObject.Find("Player");
+                if (found == null)
+                {
+                    Debug.LogWarning("[DemoSession] No Local Player Object assigned and no 'Player' object found — movement not wired. Assign DemoSession.Local Player Object in the scene.");
+                    return;
+                }
+                localPlayerObject = found.transform;
+            }
+
+            // Free-fly movement (idempotent — the scene's Player may already
+            // carry the empty playerController stub, which is left alone).
+            if (localPlayerObject.GetComponent<VellumRift.Control.PlayerController>() == null)
             {
                 localPlayerObject.gameObject.AddComponent<VellumRift.Control.PlayerController>();
                 Debug.Log($"[DemoSession] Auto-attached VellumRift.Control.PlayerController to {localPlayerObject.name}");
+            }
+
+            // Make the camera follow the player, unless it is already a
+            // descendant of the player object.
+            Camera cam = Camera.main;
+            if (cam != null && !cam.transform.IsChildOf(localPlayerObject))
+            {
+                cam.transform.SetParent(localPlayerObject, worldPositionStays: true);
+                Debug.Log($"[DemoSession] Parented Main Camera under {localPlayerObject.name}");
             }
         }
 
