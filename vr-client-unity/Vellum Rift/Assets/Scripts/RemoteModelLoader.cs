@@ -30,6 +30,8 @@ namespace VellumRift
         /// <summary>True once the model has been loaded and instantiated.</summary>
         public bool IsLoaded { get; private set; }
 
+        private bool loadInProgress;
+
         private async void Start()
         {
             if (loadOnStart)
@@ -37,46 +39,72 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Fetch and instantiate the model. Safe to call again (replaces any
-        /// previously loaded instance).
+        /// Fetch and instantiate the model. The previously loaded instance is
+        /// only replaced after a successful load, and a failed reload leaves
+        /// the current model in place. Reentrancy is guarded.
         /// </summary>
         public async Task Load()
         {
+            if (loadInProgress)
+                return;
             if (string.IsNullOrEmpty(modelUrl))
             {
                 Debug.LogWarning("[RemoteModelLoader] Model URL is empty — nothing to load");
                 return;
             }
 
-            // Drop any previously loaded instance so repeated calls replace it.
-            foreach (Transform child in transform)
+            loadInProgress = true;
+            try
             {
-                Destroy(child.gameObject);
-            }
+                Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
+                var gltf = new GltfImport();
+                try
+                {
+                    bool loaded = await gltf.Load(modelUrl);
+                    if (!loaded)
+                    {
+                        Debug.LogError($"[RemoteModelLoader] Failed to load model from {modelUrl} — check the URL and that the backend is reachable");
+                        return;
+                    }
 
-            Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
-            var gltf = new GltfImport();
-            bool loaded = await gltf.Load(modelUrl);
-            if (!loaded)
+                    var parent = new GameObject("LoadedModel").transform;
+                    parent.SetParent(transform, false);
+                    parent.localPosition = Vector3.zero;
+                    parent.localScale = Vector3.one * modelScale;
+
+                    bool instantiated = await gltf.InstantiateMainSceneAsync(parent);
+                    if (!instantiated)
+                    {
+                        Destroy(parent.gameObject);
+                        Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
+                        return;
+                    }
+
+                    // Success — replace any previous instance now.
+                    foreach (Transform child in transform)
+                    {
+                        if (child != parent)
+                            Destroy(child.gameObject);
+                    }
+
+                    IsLoaded = true;
+                    Debug.Log($"[RemoteModelLoader] Model instantiated from {modelUrl}");
+                }
+                finally
+                {
+                    // GltfImport retains parsed buffers/textures; on WebGL a
+                    // leaked instance is a real per-reload memory leak.
+                    gltf.Dispose();
+                }
+            }
+            catch (Exception ex)
             {
-                Debug.LogError($"[RemoteModelLoader] Failed to load model from {modelUrl} — check the URL and that the backend is reachable");
-                return;
+                Debug.LogError($"[RemoteModelLoader] Error loading model: {ex.Message}");
             }
-
-            var parent = new GameObject("LoadedModel").transform;
-            parent.SetParent(transform, false);
-            parent.localPosition = Vector3.zero;
-            parent.localScale = Vector3.one * modelScale;
-
-            bool instantiated = await gltf.InstantiateMainSceneAsync(parent);
-            if (!instantiated)
+            finally
             {
-                Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
-                return;
+                loadInProgress = false;
             }
-
-            IsLoaded = true;
-            Debug.Log($"[RemoteModelLoader] Model instantiated from {modelUrl}");
         }
     }
 }
