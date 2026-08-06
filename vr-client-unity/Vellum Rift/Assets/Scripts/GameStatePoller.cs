@@ -145,12 +145,19 @@ namespace VellumRift
             isFetchInProgress = true;
             try
             {
-                GameState newState = await apiClient.GetSession(currentSessionId);
+                GameStateApiClient.GetSessionResult result = await apiClient.GetSession(currentSessionId);
 
-                if (newState != null)
+                if (result.State != null)
                 {
-                    ProcessStateChange(newState);
-                    return newState;
+                    ProcessStateChange(result.State);
+                    return result.State;
+                }
+
+                if (result.NotFound)
+                {
+                    Debug.LogWarning($"[GameStatePoller] Session '{currentSessionId}' no longer exists — stopping polling");
+                    OnPollingError?.Invoke($"Session '{currentSessionId}' not found (ended)");
+                    StopPolling();
                 }
             }
             catch (Exception ex)

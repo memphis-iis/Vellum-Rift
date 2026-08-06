@@ -41,6 +41,20 @@ namespace VellumRift
         [Serializable] private class ConnectionBody { public string playerId; public bool connected; }
 
         // ---------------------------------------------------------------
+        // GetSession result
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Result of a GetSession call, so callers can distinguish a session that
+        /// no longer exists (404) from a transient request failure.
+        /// </summary>
+        public struct GetSessionResult
+        {
+            public GameState State;
+            public bool NotFound;
+        }
+
+        // ---------------------------------------------------------------
         // Configuration
         // ---------------------------------------------------------------
 
@@ -90,8 +104,9 @@ namespace VellumRift
         /// GET /api/game-state/:sessionId - Retrieve a session.
         /// </summary>
         /// <param name="sessionId">The session ID to retrieve</param>
-        /// <returns>The GameState, or null if not found / on failure</returns>
-        public async Task<GameState> GetSession(string sessionId)
+        /// <returns>The session, or a result with State == null when the session
+        /// does not exist (NotFound) or the request failed.</returns>
+        public async Task<GetSessionResult> GetSession(string sessionId)
         {
             ApiResponse res = await SendRequest(
                 UnityWebRequest.kHttpVerbGET,
@@ -99,15 +114,19 @@ namespace VellumRift
 
             // 404 is an expected, non-exceptional outcome (session ended/unknown).
             if (res.StatusCode == 404)
-                return null;
+                return new GetSessionResult { State = null, NotFound = true };
 
             if (!res.IsSuccess)
             {
                 LogFailure("GetSession", res);
-                return null;
+                return new GetSessionResult { State = null, NotFound = false };
             }
 
-            return JsonUtility.FromJson<GameState>(res.Body);
+            return new GetSessionResult
+            {
+                State = JsonUtility.FromJson<GameState>(res.Body),
+                NotFound = false,
+            };
         }
 
         /// <summary>

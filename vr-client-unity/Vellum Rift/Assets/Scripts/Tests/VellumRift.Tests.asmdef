@@ -1,6 +1,8 @@
 {
 	"name": "VellumRift.Tests",
 	"references": [
+		"UnityEngine.TestRunner",
+		"UnityEditor.TestRunner",
 		"VellumRift"
 	],
 	"optionalUnityReferences": [],
