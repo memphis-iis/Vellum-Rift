@@ -176,6 +176,34 @@ describe("POST /api/upload", () => {
     expect(res.body.error).toContain("heightMode must be one of");
   });
 
+  it("passes heightScale through to the mesh generator", async () => {
+    const res = await request(app)
+      .post("/api/upload")
+      .field("heightScale", "40")
+      .attach("file", PNG_BYTES, { filename: "bumpy.png", contentType: "image/png" });
+
+    expect(res.status).toBe(201);
+    expect(mocks.generate).toHaveBeenCalledWith(expect.anything(), "brightness", 40);
+  });
+
+  it("defaults heightScale to 1", async () => {
+    await request(app)
+      .post("/api/upload")
+      .attach("file", PNG_BYTES, { filename: "flat.png", contentType: "image/png" });
+
+    expect(mocks.generate).toHaveBeenCalledWith(expect.anything(), "brightness", 1);
+  });
+
+  it("rejects an invalid heightScale", async () => {
+    const res = await request(app)
+      .post("/api/upload")
+      .field("heightScale", "banana")
+      .attach("file", PNG_BYTES, { filename: "bad.png", contentType: "image/png" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("heightScale must be a positive number");
+  });
+
   it("rejects a non-integer page number", async () => {
     const res = await request(app)
       .post("/api/upload")

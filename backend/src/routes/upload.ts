@@ -99,6 +99,14 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       return;
     }
 
+    //bump-mapping exaggeration: channel values are 0..1, so multiply them up
+    //to make the relief visible at page scale (default 1 = raw)
+    const heightScale = Number(req.body.heightScale ?? 1);
+    if (!Number.isFinite(heightScale) || heightScale <= 0 || heightScale > 500) {
+      res.status(400).json({ error: "heightScale must be a positive number (max 500)" });
+      return;
+    }
+
     //when a pdf is uploaded, use page 1 unless the user asks for another page
     const page = Number(req.body.page ?? 1);
     if (!Number.isInteger(page) || page < 1) {
@@ -144,7 +152,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
     const height = extent.height;
 
     const generator = new TopographyMeshGenerator();
-    const mesh = generator.generate(pixels, heightMode);
+    const mesh = generator.generate(pixels, heightMode, heightScale);
 
     //turns the mesh into a real .glb model file in memory
     const exporter = new GLTFExporter();

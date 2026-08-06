@@ -28,8 +28,11 @@ function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get hei
 }
 
 export class TopographyMeshGenerator {
-    //generate image and convert it to mesh data, leave it up to export function to decide what format it will be exported in 
-    generate(imageArray: PixelDataTuple[], mode: HeightMode): MeshData { //takes in imageArray to return MeshData
+    // generate image and convert it to mesh data, leave it up to export function to decide what format it will be exported in
+    // heightScale exaggerates the color-channel height so the bump mapping is
+    // visible at page scale (default 1 = raw 0..1 channel values, which look
+    // flat on a 1000px-wide page)
+    generate(imageArray: PixelDataTuple[], mode: HeightMode, heightScale = 1): MeshData { //takes in imageArray to return MeshData
         const vertices: Vertex[] = []; //empty list to later store vertices
         const faces: number[] = []; //empty list to later store faces
         const colors: RGBA[] = []; //empty list to later store colors
@@ -56,7 +59,7 @@ export class TopographyMeshGenerator {
 
         for (const pixel of orderedPixels) { //for each pixel...
             const [x, y, rgba] = pixel; //get its position and colos
-            const zHeight = getHeight(rgba, mode); //get its height
+            const zHeight = getHeight(rgba, mode) * heightScale; //get its height (exaggerated by heightScale)
 
             vertices.push([x, y, zHeight]); //create a 3D point
             colors.push(rgba); //save its original color
