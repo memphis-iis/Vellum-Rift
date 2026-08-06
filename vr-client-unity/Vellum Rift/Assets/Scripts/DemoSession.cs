@@ -42,6 +42,9 @@ namespace VellumRift
         [Tooltip("Orchestrates spawn/update/send. Auto-added when unassigned.")]
         [SerializeField] private MultiplayerController multiplayerController;
 
+        [Tooltip("Pings the backend /api/health and shows a green/red status label. Auto-added when unassigned.")]
+        [SerializeField] private BackendHealthChecker healthChecker;
+
         [Header("Backend")]
         [Tooltip("Fallback backend base URL when no env/CLI override is present.")]
         [SerializeField] private string defaultBackendUrl = "http://localhost:4000";
@@ -72,6 +75,13 @@ namespace VellumRift
             if (poller == null) poller = gameObject.AddComponent<GameStatePoller>();
             if (playerSpawner == null) playerSpawner = gameObject.AddComponent<PlayerSpawner>();
             if (multiplayerController == null) multiplayerController = gameObject.AddComponent<MultiplayerController>();
+
+            // The existing BackendHealthChecker label is the on-screen network
+            // indicator. Point it at the same resolved backend before its Start
+            // runs (its Inspector default is localhost, which is wrong on WebGL).
+            if (healthChecker == null)
+                healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
+            healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
 
             // WebGL has no Inspector, so the shared session id can come from
             // the page URL (?session=...). Editor/standalone keep using the
@@ -208,6 +218,16 @@ namespace VellumRift
 
         private void ConfigureBackendUrl()
         {
+            apiClient.SetBaseUrl(StripHealthPath(ResolveBackendUrl()));
+        }
+
+        /// <summary>
+        /// Resolve the backend base URL (CLI/env on Editor/standalone;
+        /// ?backendUrl= query param or Inspector default on WebGL, upgraded to
+        /// https since the browser blocks plain http).
+        /// </summary>
+        private string ResolveBackendUrl()
+        {
 #if UNITY_WEBGL
             // WebGL has no CLI args or environment variables
             // (PlatformNotSupportedException). The backend URL comes from the
@@ -221,14 +241,14 @@ namespace VellumRift
             // typo'd or default http:// URL so the build still connects.
             if (resolved.StartsWith("http://", StringComparison.Ordinal))
                 resolved = "https://" + resolved.Substring("http://".Length);
+            return resolved;
 #else
-            string resolved = BackendUrlResolver.Resolve(
+            return BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArg,
                 getEnvVar: Environment.GetEnvironmentVariable,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
 #endif
-            apiClient.SetBaseUrl(StripHealthPath(resolved));
         }
 
         private async Task<GameState> JoinOrCreateSession()
