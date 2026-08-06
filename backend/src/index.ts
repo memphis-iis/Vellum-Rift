@@ -11,6 +11,7 @@ import gltfModelRouter from "./routes/gltfModel.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
+import uploadRouter from "./routes/upload.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ const gameStateRepo = new GameStateRepository();
 app.use(cors());
 // Models can carry large pixel arrays — bump the JSON body limit to 50 MB.
 app.use(express.json({ limit: "50mb" }));
+
 
 // Configure logging
 const logger = winston.createLogger({
@@ -84,6 +86,7 @@ app.get("/api/health", healthHandler);
 // ---------------------------------------------------------------------------
 app.use("/api/game-state", requireAuth, gameStateRouter);
 app.use("/api/models", requireAuth, gltfModelRouter);
+app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload endpoint that is protected using the auth module from
 
 // ---------------------------------------------------------------------------
 // Startup
