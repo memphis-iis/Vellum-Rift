@@ -80,6 +80,19 @@ namespace VellumRift
             if (string.IsNullOrEmpty(sessionIdOverride))
                 sessionIdOverride = BackendUrlResolver.FromQueryStringParam(Application.absoluteURL, "session", "");
 #endif
+
+            // Demo 1 convenience: the scene's Player historically carried an
+            // empty playerController stub with no movement code. Attach the
+            // real free-fly controller (VellumRift.Control.PlayerController)
+            // to the local player object when missing, so WASD + mouse-look
+            // work without manual scene wiring. The main-menu gate is skipped:
+            // the controller is live as soon as it is attached.
+            if (localPlayerObject != null &&
+                localPlayerObject.GetComponent<VellumRift.Control.PlayerController>() == null)
+            {
+                localPlayerObject.gameObject.AddComponent<VellumRift.Control.PlayerController>();
+                Debug.Log($"[DemoSession] Auto-attached VellumRift.Control.PlayerController to {localPlayerObject.name}");
+            }
         }
 
         private void Start()
