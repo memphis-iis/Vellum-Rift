@@ -62,8 +62,26 @@ namespace VellumRift
         /// <summary>Joined/created session id (empty until the bootstrap completes).</summary>
         public string SessionId { get; private set; }
 
-        /// <summary>The shareable page URL for this session (WebGL: includes ?session=).</summary>
-        public string ShareUrl => BuildShareUrl(SessionId);
+        /// <summary>
+        /// The shareable page URL for this session (WebGL: includes ?session=).
+        /// Returns null when there is no real page URL — e.g. in the Editor,
+        /// where Application.absoluteURL is empty — so callers can fall back to
+        /// copying the bare session id instead of a broken "?session=..." link.
+        /// </summary>
+        public string ShareUrl
+        {
+            get
+            {
+                string url = Application.absoluteURL;
+                if (string.IsNullOrEmpty(url) ||
+                    (!url.StartsWith("http://", StringComparison.Ordinal) &&
+                     !url.StartsWith("https://", StringComparison.Ordinal)))
+                {
+                    return null;
+                }
+                return BuildShareUrl(SessionId);
+            }
+        }
 
         /// <summary>Local player id assigned by the server (empty until complete).</summary>
         public string LocalPlayerId { get; private set; }

@@ -50,17 +50,13 @@ namespace VellumRift
             bool showCopied = copiedUntil > Time.time;
             string buttonLabel = showCopied
                 ? (copiedIsLink ? "Link copied!" : "Session id copied!")
-                : (IsWebGL ? "Copy link" : "Copy session id");
+                : (session.ShareUrl != null ? "Copy link" : "Copy session id");
 
             if (GUI.Button(new Rect(x, y + 24f, 140f, 26f), buttonLabel))
             {
-#if UNITY_WEBGL
-                string copy = session.ShareUrl;
-                copiedIsLink = true;
-#else
-                string copy = session.SessionId;
-                copiedIsLink = false;
-#endif
+                string shareUrl = session.ShareUrl;
+                string copy = shareUrl ?? session.SessionId;
+                copiedIsLink = shareUrl != null;
                 GUIUtility.systemCopyBuffer = copy;
                 copiedUntil = Time.time + CopiedFeedbackSeconds;
                 Debug.Log($"[SessionLinkOverlay] Copied: {copy}");
