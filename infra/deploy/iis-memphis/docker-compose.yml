@@ -3,14 +3,23 @@
 # Uses the pre-existing "traefik_proxy" docker network so the Caddy
 # container can reverse_proxy to it by container name.
 #
+# The backend runs from a volume mount of the transferred build
+# (~/vellumrift/backend) in the node:20 image — the box's docker/npm cannot
+# run `npm ci` reliably (intermittent empty extraction), so node_modules and
+# dist are built on a healthy host and rsynced here. No npm runs on this box.
+#
 # Usage (on the box, from this directory):
 #   docker compose up -d
 
 services:
   vellumrift-backend:
-    image: vellumrift-backend:latest
+    image: node:20-bookworm-slim
     container_name: vellumrift-backend
     restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - /home/jrhaner/vellumrift/backend:/app
+    command: ["node", "dist/index.js"]
     env_file: .env
     networks:
       - traefik_proxy
