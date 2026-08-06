@@ -248,5 +248,29 @@ namespace VellumRift.Tests
             const string page = "https://host/?backendUrl=http%3A%2F%2Fapi.local%3A4000#section";
             Assert.That(BackendUrlResolver.FromQueryString(page, "fb"), Is.EqualTo("http://api.local:4000"));
         }
+
+        // ---------------------------------------------------------------
+        // FromQueryStringParam (named query params, e.g. ?session=)
+        // ---------------------------------------------------------------
+
+        [Test]
+        public void FromQueryStringParam_ExtractsNamedParam()
+        {
+            const string page = "https://host/vellumrift/?backendUrl=http%3A%2F%2Fapi.local%3A4000&session=demo-abc-123";
+            Assert.That(BackendUrlResolver.FromQueryStringParam(page, "session", "fb"), Is.EqualTo("demo-abc-123"));
+        }
+
+        [Test]
+        public void FromQueryStringParam_MissingParam_ReturnsFallback()
+        {
+            const string page = "https://host/vellumrift/?backendUrl=http%3A%2F%2Fapi.local%3A4000";
+            Assert.That(BackendUrlResolver.FromQueryStringParam(page, "session", "fb"), Is.EqualTo("fb"));
+        }
+
+        [Test]
+        public void FromQueryStringParam_EmptyValue_ReturnsFallback()
+        {
+            Assert.That(BackendUrlResolver.FromQueryStringParam("https://host/?session=", "session", "fb"), Is.EqualTo("fb"));
+        }
     }
 }

@@ -72,6 +72,14 @@ namespace VellumRift
             if (poller == null) poller = gameObject.AddComponent<GameStatePoller>();
             if (playerSpawner == null) playerSpawner = gameObject.AddComponent<PlayerSpawner>();
             if (multiplayerController == null) multiplayerController = gameObject.AddComponent<MultiplayerController>();
+
+            // WebGL has no Inspector, so the shared session id can come from
+            // the page URL (?session=...). Editor/standalone keep using the
+            // Inspector field (sessionIdOverride) untouched.
+#if UNITY_WEBGL
+            if (string.IsNullOrEmpty(sessionIdOverride))
+                sessionIdOverride = BackendUrlResolver.FromQueryStringParam(Application.absoluteURL, "session", "");
+#endif
         }
 
         private void Start()
