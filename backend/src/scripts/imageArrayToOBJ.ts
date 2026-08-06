@@ -3,7 +3,6 @@ import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Document, NodeIO } from "@gltf-transform/core";
-import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
 
 export type RGBA = [number, number, number, number]; //create RGBA type, Alpha = transparency
 export type Vertex = [number, number, number];//one pixel's color
@@ -157,7 +156,7 @@ export class GLTFExporter {
 
         const tmpPath = join(tmpdir(), `gltf-${crypto.randomUUID()}.glb`);
         try {
-            const io = new NodeIO().registerExtensions([KHRMaterialsUnlit]);
+            const io = new NodeIO();
             await io.write(tmpPath, document);
 
             // NodeIO.write can resolve before the file is fully flushed to disk.
@@ -193,7 +192,7 @@ export class GLTFExporter {
         const document = this.buildDocument(mesh);
 
         //saves the file
-        const io = new NodeIO().registerExtensions([KHRMaterialsUnlit]);
+        const io = new NodeIO();
         await io.write(outputPath, document);
     }
 
@@ -254,11 +253,11 @@ export class GLTFExporter {
         const material = document
             .createMaterial("topography-material")
             .setAlphaMode("OPAQUE") // opaque renders reliably (BLEND could render invisible)
-            .setDoubleSided(true) //shows both the top and underside
-            .setExtension(
-                "KHR_materials_unlit",
-                (document.createExtension(KHRMaterialsUnlit) as KHRMaterialsUnlit).createUnlit(),
-            ); // unlit: manuscript vertex colors show regardless of scene lighting
+            .setDoubleSided(true); //shows both the top and underside
+        // NOTE: intentionally NOT KHR_materials_unlit — glTFast's unlit path
+        // rendered pink/transparent in the URP WebGL build. The standard lit
+        // material (glTF/PbrMetallicRoughness, always-included) renders
+        // correctly now that normals face up.
 
             //combines all the pieces
         const primitive = document
