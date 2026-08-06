@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -193,6 +195,18 @@ namespace VellumRift
                 poller.StartPolling(SessionId, pollingInterval);
 
                 IsReady = true;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                if (createdSession)
+                {
+                    // Only after a fully successful bootstrap: put the session id
+                    // into the page URL so the host can copy the address bar and
+                    // share a ready-to-join link. (A failed bootstrap that cleans
+                    // up the session must not advertise it.)
+                    UpdateUrlWithSession(SessionId);
+                    Debug.Log($"[DemoSession] Session created — shareable link: {BuildShareUrl(SessionId)}");
+                }
+#endif
                 Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId})");
             }
             catch (Exception ex)
@@ -330,6 +344,40 @@ namespace VellumRift
         // ---------------------------------------------------------------
         // Helpers
         // ---------------------------------------------------------------
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")]
+        private static extern void UpdateUrlWithSession(string sessionId);
+#endif
+
+        /// <summary>
+        /// Rebuild the current page URL with the session id added (or replaced)
+        /// in the query string, for sharing a ready-to-join link.
+        /// </summary>
+        private static string BuildShareUrl(string sessionId)
+        {
+            string url = Application.absoluteURL;
+
+            // A URL fragment (#...) is never sent to the server and must not
+            // end up in the shared link (mirrors BackendUrlResolver).
+            int fragmentIndex = url.IndexOf('#');
+            if (fragmentIndex >= 0)
+                url = url.Substring(0, fragmentIndex);
+
+            int queryIndex = url.IndexOf('?');
+            string baseUrl = queryIndex >= 0 ? url.Substring(0, queryIndex) : url;
+            string query = queryIndex >= 0 ? url.Substring(queryIndex + 1) : "";
+
+            var parts = new List<string>();
+            foreach (string pair in query.Split('&'))
+            {
+                if (!string.IsNullOrEmpty(pair) && !pair.StartsWith("session=", StringComparison.Ordinal))
+                    parts.Add(pair);
+            }
+            parts.Add("session=" + Uri.EscapeDataString(sessionId));
+
+            return baseUrl + "?" + string.Join("&", parts);
+        }
 
         /// <summary>
         /// Strip the "/api/health" suffix BackendUrlResolver appends (with or
