@@ -107,7 +107,7 @@ namespace VellumRift
             }
 
             // Free-fly movement (idempotent — the scene's Player may already
-            // carry the empty playerController stub, which is left alone).
+            // carry the empty PlayerMovementGate stub, which is left alone).
             if (localPlayerObject.GetComponent<VellumRift.Control.PlayerController>() == null)
             {
                 localPlayerObject.gameObject.AddComponent<VellumRift.Control.PlayerController>();
