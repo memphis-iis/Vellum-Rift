@@ -28,12 +28,18 @@ namespace VellumRift
         private readonly Dictionary<string, GameObject> spawnedPlayers = new Dictionary<string, GameObject>();
 
         /// <summary>
-        /// Persistent round-robin cursor into spawnPoints. Using a counter that
-        /// only advances on spawn keeps placements stable when players leave:
-        /// the next spawn reuses the freed slot instead of reindexing onto a
-        /// spot that is still occupied.
+        /// Persistent round-robin cursor into spawnPoints. The cursor only
+        /// advances on spawn; the actual slot is chosen by scanning from the
+        /// cursor for the first unoccupied point, so placements stay stable
+        /// when players leave.
         /// </summary>
         private int nextSpawnIndex = 0;
+
+        /// <summary>
+        /// Which spawn-point index each spawned player occupies, used to find a
+        /// free slot for the next spawn.
+        /// </summary>
+        private readonly Dictionary<string, int> playerSpawnIndexes = new Dictionary<string, int>();
 
         /// <summary>Number of players currently spawned.</summary>
         public int SpawnedCount => spawnedPlayers.Count;
@@ -85,9 +91,11 @@ namespace VellumRift
             }
             else
             {
-                (Vector3 position, Quaternion rotation) placement = GetSpawnPlacement();
+                (Vector3 position, Quaternion rotation, int spawnIndex) placement = GetSpawnPlacement();
                 go.transform.position = placement.position;
                 go.transform.rotation = placement.rotation;
+                if (placement.spawnIndex >= 0)
+                    playerSpawnIndexes[player.id] = placement.spawnIndex;
             }
 
             go.name = string.IsNullOrEmpty(player.displayName)
@@ -109,6 +117,7 @@ namespace VellumRift
             {
                 DestroyVisual(go);
                 spawnedPlayers.Remove(playerId);
+                playerSpawnIndexes.Remove(playerId);
                 if (spawnedPlayers.Count == 0)
                     nextSpawnIndex = 0;
                 Debug.Log($"[PlayerSpawner] Removed player {playerId}");
@@ -129,6 +138,7 @@ namespace VellumRift
                 DestroyVisual(go);
             }
             spawnedPlayers.Clear();
+            playerSpawnIndexes.Clear();
             nextSpawnIndex = 0;
             Debug.Log("[PlayerSpawner] Removed all players");
         }
@@ -195,23 +205,43 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Get the next spawn placement: round-robin over the configured spawn
-        /// points via a persistent cursor, or a default X-axis offset when none
-        /// are configured. The cursor only advances on spawn, so removing a
-        /// player mid-session makes the next spawn reuse the freed slot instead
-        /// of drifting onto an occupied one.
+        /// Get the next spawn placement: scan forward from the cursor for the
+        /// first spawn point not currently occupied by a spawned player, so a
+        /// freed slot (whether the earliest or latest spawner left) is reused
+        /// before any occupied one. Falls back to the cursor slot when every
+        /// point is taken, and to a default X-axis offset when no spawn points
+        /// are configured.
         /// </summary>
-        private (Vector3 position, Quaternion rotation) GetSpawnPlacement()
+        private (Vector3 position, Quaternion rotation, int spawnIndex) GetSpawnPlacement()
         {
             if (spawnPoints != null && spawnPoints.Length > 0)
             {
-                Transform point = spawnPoints[nextSpawnIndex % spawnPoints.Length];
-                nextSpawnIndex++;
-                return (point.position, point.rotation);
+                int start = nextSpawnIndex % spawnPoints.Length;
+                for (int step = 0; step < spawnPoints.Length; step++)
+                {
+                    int candidate = (start + step) % spawnPoints.Length;
+                    if (!IsSpawnPointOccupied(candidate))
+                    {
+                        nextSpawnIndex = (candidate + 1) % spawnPoints.Length;
+                        return (spawnPoints[candidate].position, spawnPoints[candidate].rotation, candidate);
+                    }
+                }
+
+                // Every spawn point is occupied — reuse the cursor slot.
+                nextSpawnIndex = (start + 1) % spawnPoints.Length;
+                return (spawnPoints[start].position, spawnPoints[start].rotation, start);
             }
 
             // Default: spread players along the X axis so they don't stack.
-            return (new Vector3(spawnedPlayers.Count * 1.5f, 0f, 0f), Quaternion.identity);
+            return (new Vector3(spawnedPlayers.Count * 1.5f, 0f, 0f), Quaternion.identity, -1);
+        }
+
+        /// <summary>
+        /// Whether a spawn point is currently occupied by a spawned player.
+        /// </summary>
+        private bool IsSpawnPointOccupied(int spawnIndex)
+        {
+            return playerSpawnIndexes.ContainsValue(spawnIndex);
         }
 
         /// <summary>

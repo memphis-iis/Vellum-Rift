@@ -133,11 +133,34 @@ namespace VellumRift.Tests
 
             spawner.RemovePlayer("p1");                 // frees point 0
 
-            // Cursor-based round-robin: next spawn takes the freed point 0,
-            // not point 1 (which is still occupied by p2).
+            // Next spawn takes the freed point 0, not point 1 (occupied by p2).
             GameObject third = spawner.SpawnPlayer(Player("p3", "Carol"));
 
             Assert.That(third.transform.position, Is.EqualTo(new Vector3(5f, 0f, 0f)));
+
+            Object.DestroyImmediate(p0.gameObject);
+            Object.DestroyImmediate(p1.gameObject);
+        }
+
+        [Test]
+        public void SpawnPlayer_RoundRobin_ReusesLatestFreedSlot_AfterRemoval()
+        {
+            var p0 = new GameObject("spawn0").transform;
+            var p1 = new GameObject("spawn1").transform;
+            p0.position = new Vector3(5f, 0f, 0f);
+            p1.position = new Vector3(10f, 0f, 0f);
+            spawner.SetSpawnPoints(new[] { p0, p1 });
+
+            spawner.SpawnPlayer(Player("p1", "Alice")); // -> point 0
+            spawner.SpawnPlayer(Player("p2", "Bob"));   // -> point 1
+
+            spawner.RemovePlayer("p2");                 // frees point 1 (most recent)
+
+            // Scanning from the cursor must find the freed point 1, not the
+            // still-occupied point 0.
+            GameObject third = spawner.SpawnPlayer(Player("p3", "Carol"));
+
+            Assert.That(third.transform.position, Is.EqualTo(new Vector3(10f, 0f, 0f)));
 
             Object.DestroyImmediate(p0.gameObject);
             Object.DestroyImmediate(p1.gameObject);
