@@ -1,9 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { Readable } from "node:stream";
 
-import { TopographyMeshGenerator, GLTFExporter, type PixelDataTuple, type HeightMode } from "../scripts/imageArrayToOBJ.js";
 import { getStorage } from "../lib/storage.js";
 import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
+import { JobQueue } from "../lib/jobQueue.js";
 
 const router = Router();
 const repo = new GlTFModelRepository();
@@ -12,10 +11,17 @@ const repo = new GlTFModelRepository();
 const param = (req: Request, name: string): string =>
   String(req.params[name]);
 
+// Will be set by index.ts after the queue is instantiated.
+let jobQueue: JobQueue | null = null;
+
+/** Register the job queue instance with this router so POST /generate can enqueue jobs. */
+export function setJobQueue(q: JobQueue): void {
+  jobQueue = q;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/models/generate
-//   Generate a glTF Binary (.glb) from pixel data, store it in MinIO,
-//   persist metadata to the DB, and return the model record.
+//   Enqueue an async glTF generation job and return 202 Accepted immediately.
 // ---------------------------------------------------------------------------
 router.post("/generate", async (req: Request, res: Response) => {
   try {
@@ -25,7 +31,7 @@ router.post("/generate", async (req: Request, res: Response) => {
       sessionId,
       label,
     } = req.body as {
-      pixels?: PixelDataTuple[];
+      pixels?: unknown[];
       heightMode?: string;
       sessionId?: string;
       label?: string;
@@ -37,51 +43,34 @@ router.post("/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const validModes: HeightMode[] = ["red", "green", "blue", "alpha", "brightness"];
-    if (!heightMode || !validModes.includes(heightMode as HeightMode)) {
+    const validModes = ["red", "green", "blue", "alpha", "brightness"];
+    if (!heightMode || !validModes.includes(heightMode)) {
       res.status(400).json({ error: `heightMode must be one of: ${validModes.join(", ")}` });
       return;
     }
 
-    // -- Generate mesh ------------------------------------------------------
-    const generator = new TopographyMeshGenerator();
-    const mesh = generator.generate(pixels, heightMode as HeightMode);
+    // -- Enqueue job (non-blocking) -----------------------------------------
+    if (!jobQueue) {
+      res.status(503).json({ error: "Job queue not initialized" });
+      return;
+    }
 
-    // Derive dimensions from the mesh (generator computes width/height from pixel coords)
-    const width = Math.max(...pixels.map(([x]) => x)) + 1;
-    const height = Math.max(...pixels.map(([_, y]) => y)) + 1;
-
-    // -- Export to buffer ---------------------------------------------------
-    const exporter = new GLTFExporter();
-    const glbBuffer = await exporter.exportToBuffer(mesh);
-
-    // -- Upload to MinIO ----------------------------------------------------
-    const storage = getStorage();
-    const storageKey = `models/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.glb`;
-
-    const stream = Readable.from([glbBuffer]);
-    await storage.upload(storageKey, stream, glbBuffer.length, "model/gltf-binary");
-
-    // -- Persist metadata to DB ---------------------------------------------
-    const record = await repo.create({
+    const jobId = await jobQueue.enqueue({
+      pixels: pixels as any,
+      heightMode: heightMode as any,
       sessionId: sessionId ?? null,
       label: label ?? "",
-      storageKey,
-      heightMode: heightMode as string,
-      width,
-      height,
-      vertexCount: mesh.vertices.length,
-      fileSize: glbBuffer.length,
     });
 
-    // -- Respond ------------------------------------------------------------
-    res.status(201).json({
-      ...record,
-      downloadUrl: await storage.presignedUrl(record.storageKey, 86400), // 24h presigned URL
+    // -- Respond immediately ------------------------------------------------
+    res.status(202).json({
+      jobId,
+      status: "pending",
+      message: "Job enqueued. Poll GET /api/jobs/:jobId for progress.",
     });
   } catch (err) {
     console.error("POST /api/models/generate failed:", err);
-    res.status(500).json({ error: "Failed to generate glTF model" });
+    res.status(500).json({ error: "Failed to enqueue glTF generation job" });
   }
 });
 

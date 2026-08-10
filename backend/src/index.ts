@@ -6,8 +6,10 @@ import winston from "winston";
 import { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
 import { SampleModelIngestor } from "./lib/sampleModelIngestor.js";
+import { JobQueue } from "./lib/jobQueue.js";
 import gameStateRouter from "./routes/gameState.js";
-import gltfModelRouter from "./routes/gltfModel.js";
+import gltfModelRouter, { setJobQueue as setGltfJobQueue } from "./routes/gltfModel.js";
+import jobsRouter, { setJobQueue as setJobsJobQueue } from "./routes/jobs.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
@@ -88,6 +90,9 @@ app.use("/api/game-state", requireAuth, gameStateRouter);
 app.use("/api/models", requireAuth, gltfModelRouter);
 app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload — protected by requireAuth
 
+// Jobs routes (public — clients need to poll status)
+app.use("/api/jobs", jobsRouter);
+
 // ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
@@ -103,6 +108,15 @@ initSchema()
     });
   })
   .then(() => {
+    // Start the async job queue (concurrency from env or default 2)
+    const concurrency = Number(process.env.JOB_QUEUE_CONCURRENCY ?? 2);
+    const jobQueue = new JobQueue(concurrency);
+    jobQueue.start();
+
+    // Register the queue with routes that need it
+    setGltfJobQueue(jobQueue);
+    setJobsJobQueue(jobQueue);
+
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);
       console.log(`Health check endpoint: http://localhost:${port}/health`);
