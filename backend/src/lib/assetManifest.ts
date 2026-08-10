@@ -1,8 +1,10 @@
 // ---------------------------------------------------------------------------
-// Asset Manifest Schema — IMPL-004
+// Asset Manifest Schema — IMPL-004 + IMPL-005 (LoD tiers)
 // Defines the contract for progressive chunked loading of 3D assets.
 // Clients fetch this manifest to discover available chunks and their metadata.
 // ---------------------------------------------------------------------------
+
+import type { LoDTier } from "./lodTiers.js";
 
 /** Spatial region within the source image (pixel coordinates). */
 export interface Region {
@@ -30,6 +32,16 @@ export interface ChunkDescriptor {
   dependencies?: string[];
 }
 
+/** LoD variant descriptor — one entry per tier in the manifest. */
+export interface LodVariant {
+  /** URL to download the .glb for this LoD tier. */
+  url: string;
+  /** Number of vertices in this tier's mesh. */
+  vertexCount: number;
+  /** File size in bytes. */
+  sizeBytes: number;
+}
+
 /** Top-level asset manifest returned by GET /api/assets/:assetId/manifest. */
 export interface AssetManifest {
   /** Unique identifier for the source asset (PDF page). */
@@ -46,6 +58,10 @@ export interface AssetManifest {
   generatedAt: string;
   /** Array of chunk descriptors. */
   chunks: ChunkDescriptor[];
+  /** LoD variants keyed by tier name (e.g., "quest", "balanced", "high", "archival"). */
+  lods?: Record<LoDTier, LodVariant>;
+  /** Default LoD tier when client doesn't specify one. */
+  defaultTier?: LoDTier;
 }
 
 /** DB row shape for asset_manifests table. */
@@ -57,6 +73,8 @@ export interface AssetManifestRow {
   total_size_bytes: number;
   generated_at: string;
   chunks_json: string; // JSONB serialized ChunkDescriptor[]
+  lods_json: string; // JSONB serialized Record<LoDTier, LodVariant>
+  default_tier: string;
 }
 
 /** DB row shape for individual chunk metadata (optional, for querying). */

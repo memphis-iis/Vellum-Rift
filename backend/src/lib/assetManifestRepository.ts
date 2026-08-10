@@ -1,5 +1,6 @@
 import pool from "./db.js";
 import type { AssetManifest, AssetManifestRow } from "./assetManifest.js";
+import type { LoDTier } from "./lodTiers.js";
 
 // ---------------------------------------------------------------------------
 // Mapping
@@ -14,6 +15,8 @@ function toManifest(row: AssetManifestRow): AssetManifest {
     totalSizeBytes: Number(row.total_size_bytes),
     generatedAt: row.generated_at,
     chunks: JSON.parse(row.chunks_json as string),
+    lods: row.lods_json ? JSON.parse(row.lods_json as string) : undefined,
+    defaultTier: (row.default_tier as LoDTier) || undefined,
   };
 }
 
@@ -28,15 +31,17 @@ export class AssetManifestRepository {
   async upsert(manifest: AssetManifest): Promise<AssetManifest> {
     const result = await pool.query(
       `INSERT INTO asset_manifests
-         (asset_id, version, source_file, total_chunks, total_size_bytes, generated_at, chunks_json)
-       VALUES ($1, $2, $3, $4, $5, NOW(), $6::jsonb)
+         (asset_id, version, source_file, total_chunks, total_size_bytes, generated_at, chunks_json, lods_json, default_tier)
+       VALUES ($1, $2, $3, $4, $5, NOW(), $6::jsonb, $7::jsonb, $8)
        ON CONFLICT (asset_id) DO UPDATE SET
          version = EXCLUDED.version,
          source_file = EXCLUDED.source_file,
          total_chunks = EXCLUDED.total_chunks,
          total_size_bytes = EXCLUDED.total_size_bytes,
          generated_at = NOW(),
-         chunks_json = EXCLUDED.chunks_json
+         chunks_json = EXCLUDED.chunks_json,
+         lods_json = EXCLUDED.lods_json,
+         default_tier = EXCLUDED.default_tier
        RETURNING *`,
       [
         manifest.assetId,
@@ -45,6 +50,8 @@ export class AssetManifestRepository {
         manifest.totalChunks,
         manifest.totalSizeBytes,
         JSON.stringify(manifest.chunks),
+        JSON.stringify(manifest.lods ?? {}),
+        manifest.defaultTier ?? "balanced",
       ],
     );
     return toManifest(result.rows[0] as AssetManifestRow);

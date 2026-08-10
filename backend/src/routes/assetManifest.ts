@@ -11,14 +11,34 @@ const param = (req: Request, name: string): string =>
 // ---------------------------------------------------------------------------
 // GET /api/assets/:assetId/manifest
 //   Return the asset manifest for progressive chunked loading.
+//   Optional ?tier=quest filters to a specific LoD tier.
 // ---------------------------------------------------------------------------
 router.get("/:assetId/manifest", async (req: Request, res: Response) => {
   try {
     const assetId = param(req, "assetId");
+    const requestedTier = req.query.tier as string | undefined;
 
     const manifest = await repo.findByAssetId(assetId);
     if (!manifest) {
       res.status(404).json({ error: "Asset manifest not found" });
+      return;
+    }
+
+    // If a specific tier is requested, filter the response
+    if (requestedTier && manifest.lods) {
+      const tier = manifest.lods[requestedTier as keyof typeof manifest.lods];
+      if (!tier) {
+        res.status(404).json({ error: `LoD tier "${requestedTier}" not available for this asset` });
+        return;
+      }
+
+      // Return a filtered manifest with just the requested tier's data
+      const filteredManifest = {
+        ...manifest,
+        lods: { [requestedTier]: tier },
+        defaultTier: requestedTier,
+      };
+      res.json(filteredManifest);
       return;
     }
 

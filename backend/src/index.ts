@@ -15,6 +15,7 @@ import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
 import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
 import assetManifestRouter from "./routes/assetManifest.js";
+import lodTiersRouter from "./routes/lodTiers.js";
 
 dotenv.config();
 
@@ -96,6 +97,9 @@ app.use("/api/jobs", jobsRouter);
 
 // Asset manifest routes (public — clients discover chunks for progressive loading)
 app.use("/api/assets", assetManifestRouter);
+
+// LoD tier routes (public — clients discover platform-specific budgets)
+app.use("/api/lod-tiers", lodTiersRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
