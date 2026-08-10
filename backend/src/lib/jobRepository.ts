@@ -9,6 +9,8 @@ export type JobStatus = "pending" | "processing" | "completed" | "failed";
 export interface ProcessingJobRecord {
   jobId: string;
   modelId: string | null;
+  uploadKey: string | null;
+  payload: unknown; // JSONB — conversion params for upload jobs
   status: JobStatus;
   progress: number; // 0-100
   errorMessage: string | null;
@@ -19,6 +21,8 @@ export interface ProcessingJobRecord {
 interface ProcessingJobRow {
   job_id: string;
   model_id: string | null;
+  upload_key: string | null;
+  payload: unknown;
   status: string;
   progress: number;
   error_message: string | null;
@@ -34,6 +38,8 @@ function toRecord(row: ProcessingJobRow): ProcessingJobRecord {
   return {
     jobId: row.job_id,
     modelId: row.model_id,
+    uploadKey: row.upload_key,
+    payload: row.payload,
     status: row.status as JobStatus,
     progress: row.progress,
     errorMessage: row.error_message,
@@ -53,18 +59,22 @@ export class JobRepository {
   async create(params: {
     jobId?: string;
     modelId?: string | null;
+    uploadKey?: string | null;
+    payload?: unknown;
     status?: JobStatus;
     progress?: number;
   }): Promise<ProcessingJobRecord> {
     const jobId = params.jobId ?? crypto.randomUUID();
     const result = await pool.query(
       `INSERT INTO processing_jobs
-         (job_id, model_id, status, progress)
-       VALUES ($1, $2, $3, $4)
+         (job_id, model_id, upload_key, payload, status, progress)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         jobId,
         params.modelId ?? null,
+        params.uploadKey ?? null,
+        params.payload ?? null,
         params.status ?? "pending",
         params.progress ?? 0,
       ],
@@ -94,6 +104,8 @@ export class JobRepository {
       progress?: number;
       errorMessage?: string | null;
       modelId?: string | null;
+      uploadKey?: string | null;
+      payload?: unknown;
     },
   ): Promise<ProcessingJobRecord | null> {
     const sets: string[] = [];
@@ -101,20 +113,28 @@ export class JobRepository {
     let idx = 1;
 
     if (params.status !== undefined) {
-      sets.push(`status = $${idx++}`);
+      sets.push(`status = ${idx++}`);
       values.push(params.status);
     }
     if (params.progress !== undefined) {
-      sets.push(`progress = $${idx++}`);
+      sets.push(`progress = ${idx++}`);
       values.push(params.progress);
     }
     if (params.errorMessage !== undefined) {
-      sets.push(`error_message = $${idx++}`);
+      sets.push(`error_message = ${idx++}`);
       values.push(params.errorMessage);
     }
     if (params.modelId !== undefined) {
-      sets.push(`model_id = $${idx++}`);
+      sets.push(`model_id = ${idx++}`);
       values.push(params.modelId);
+    }
+    if (params.uploadKey !== undefined) {
+      sets.push(`upload_key = ${idx++}`);
+      values.push(params.uploadKey);
+    }
+    if (params.payload !== undefined) {
+      sets.push(`payload = ${idx++}::jsonb`);
+      values.push(JSON.stringify(params.payload));
     }
 
     if (sets.length === 0) {
@@ -125,7 +145,7 @@ export class JobRepository {
     values.push(jobId);
 
     const result = await pool.query(
-      `UPDATE processing_jobs SET ${sets.join(", ")} WHERE job_id = $${idx} RETURNING *`,
+      `UPDATE processing_jobs SET ${sets.join(", ")} WHERE job_id = ${idx} RETURNING *`,
       values,
     );
     if (result.rows.length === 0) return null;

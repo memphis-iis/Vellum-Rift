@@ -89,7 +89,7 @@ app.use(express.json());
 app.use(gltfModelRouter);
 
 // Register a mock job queue so POST /generate doesn't 503
-setJobQueue({ enqueue: mockEnqueue } as any);
+setJobQueue({ enqueueGenerate: mockEnqueue } as any);
 
 // ---------------------------------------------------------------------------
 // Helpers

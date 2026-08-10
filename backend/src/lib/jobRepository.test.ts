@@ -29,6 +29,8 @@ import { JobRepository, type ProcessingJobRecord } from "./jobRepository.js";
 const sampleRow = {
   job_id: "test-job-0000-0000-0000-000000000001",
   model_id: null,
+  upload_key: null,
+  payload: null,
   status: "pending",
   progress: 0,
   error_message: null,
@@ -39,6 +41,8 @@ const sampleRow = {
 const sampleRecord: ProcessingJobRecord = {
   jobId: sampleRow.job_id,
   modelId: sampleRow.model_id,
+  uploadKey: sampleRow.upload_key,
+  payload: sampleRow.payload,
   status: sampleRow.status as ProcessingJobRecord["status"],
   progress: sampleRow.progress,
   errorMessage: sampleRow.error_message,

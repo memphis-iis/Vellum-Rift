@@ -13,7 +13,7 @@ import jobsRouter, { setJobQueue as setJobsJobQueue } from "./routes/jobs.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
-import uploadRouter from "./routes/upload.js";
+import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
 
 dotenv.config();
 
@@ -116,6 +116,7 @@ initSchema()
     // Register the queue with routes that need it
     setGltfJobQueue(jobQueue);
     setJobsJobQueue(jobQueue);
+    setUploadJobQueue(jobQueue);
 
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);

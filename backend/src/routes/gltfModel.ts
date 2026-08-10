@@ -55,7 +55,7 @@ router.post("/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const jobId = await jobQueue.enqueue({
+    const jobId = await jobQueue.enqueueGenerate({
       pixels: pixels as any,
       heightMode: heightMode as any,
       sessionId: sessionId ?? null,
