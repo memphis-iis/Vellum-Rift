@@ -9,6 +9,7 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "migrate": "node -e \"console.log('Backend migration tooling is not committed yet. Replace this placeholder with the real migration command when backend schema scripts land.')\""
   },
   "dependencies": {
