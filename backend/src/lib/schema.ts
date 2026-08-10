@@ -36,6 +36,16 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS asset_manifests (
+  asset_id       TEXT PRIMARY KEY,
+  version        TEXT NOT NULL DEFAULT '1.0.0',
+  source_file    TEXT NOT NULL DEFAULT '',
+  total_chunks   INT NOT NULL DEFAULT 1,
+  total_size_bytes BIGINT NOT NULL DEFAULT 0,
+  generated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  chunks_json    JSONB NOT NULL DEFAULT '[]'::jsonb
+);
 `;
 
 /**
