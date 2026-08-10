@@ -1,9 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
+import { JobRepository } from "../lib/jobRepository.js";
 
 const router = Router();
 const repo = new GameStateRepository();
+const jobRepo = new JobRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
@@ -91,6 +93,31 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
 
   await repo.save(state);
   res.json({ removed: true });
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/processing-status
+//   Return aggregate processing progress for all models in a session.
+// ---------------------------------------------------------------
+router.get("/:sessionId/processing-status", async (req: Request, res: Response) => {
+  const sessionId = param(req, "sessionId");
+
+  // Verify the session exists first
+  const state = await repo.findById(sessionId);
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  try {
+    const status = await jobRepo.getSessionProcessingStatus(sessionId);
+    res.json(status);
+  } catch (err) {
+    console.error(`GET /api/game-state/${sessionId}/processing-status failed:`, err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to fetch processing status" });
+    }
+  }
 });
 
 // ---------------------------------------------------------------

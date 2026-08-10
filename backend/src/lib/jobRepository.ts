@@ -18,6 +18,28 @@ export interface ProcessingJobRecord {
   updatedAt: string; // ISO-8601
 }
 
+/** Summary of a single job for the processing-status endpoint. */
+export interface JobSummary {
+  jobId: string;
+  modelId: string | null;
+  status: JobStatus;
+  progress: number;
+  errorMessage: string | null;
+}
+
+/** Aggregate processing status for all jobs in a session. */
+export interface SessionProcessingStatus {
+  sessionId: string;
+  totalJobs: number;
+  completedJobs: number;
+  failedJobs: number;
+  pendingJobs: number;
+  processingJobs: number;
+  overallProgress: number; // 0-100
+  isReady: boolean;
+  jobs: JobSummary[];
+}
+
 interface ProcessingJobRow {
   job_id: string;
   model_id: string | null;
@@ -189,5 +211,67 @@ export class JobRepository {
       [jobId],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Find all jobs linked to models in a given session.
+   * Joins gltf_models(session_id) → processing_jobs(model_id).
+   */
+  async findBySession(sessionId: string): Promise<JobSummary[]> {
+    const result = await pool.query(
+      `SELECT pj.job_id, pj.model_id, pj.status, pj.progress, pj.error_message
+       FROM processing_jobs pj
+       JOIN gltf_models gm ON pj.model_id = gm.model_id
+       WHERE gm.session_id = $1
+       ORDER BY pj.created_at DESC`,
+      [sessionId],
+    );
+
+    return (result.rows as Array<{
+      job_id: string;
+      model_id: string | null;
+      status: string;
+      progress: number;
+      error_message: string | null;
+    }>).map((row) => ({
+      jobId: row.job_id,
+      modelId: row.model_id,
+      status: row.status as JobStatus,
+      progress: row.progress,
+      errorMessage: row.error_message,
+    }));
+  }
+
+  /**
+   * Compute aggregate processing status for all jobs in a session.
+   */
+  async getSessionProcessingStatus(sessionId: string): Promise<SessionProcessingStatus> {
+    const jobs = await this.findBySession(sessionId);
+
+    const totalJobs = jobs.length;
+    const completedJobs = jobs.filter((j) => j.status === "completed").length;
+    const failedJobs = jobs.filter((j) => j.status === "failed").length;
+    const pendingJobs = jobs.filter((j) => j.status === "pending").length;
+    const processingJobs = jobs.filter((j) => j.status === "processing").length;
+
+    // Weighted average progress across all jobs
+    const overallProgress = totalJobs === 0
+      ? 100 // Empty session is considered ready
+      : Math.round(jobs.reduce((sum, j) => sum + j.progress, 0) / totalJobs);
+
+    // Session is ready when all jobs are completed (none pending or processing)
+    const isReady = totalJobs === 0 || (pendingJobs === 0 && processingJobs === 0);
+
+    return {
+      sessionId,
+      totalJobs,
+      completedJobs,
+      failedJobs,
+      pendingJobs,
+      processingJobs,
+      overallProgress,
+      isReady,
+      jobs,
+    };
   }
 }
