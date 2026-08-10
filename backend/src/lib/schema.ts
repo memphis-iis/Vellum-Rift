@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS asset_manifests (
   total_chunks   INT NOT NULL DEFAULT 1,
   total_size_bytes BIGINT NOT NULL DEFAULT 0,
   generated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  chunks_json    JSONB NOT NULL DEFAULT '[]'::jsonb
+  chunks_json    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  lods_json      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  default_tier   TEXT NOT NULL DEFAULT 'balanced'
 );
 `;
 
