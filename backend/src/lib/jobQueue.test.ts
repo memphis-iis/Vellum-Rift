@@ -27,16 +27,18 @@ const mocks = { query: (globalThis as Record<string, unknown>).__pgMockQuery as 
 vi.mock("../lib/storage", () => ({
   getStorage: vi.fn(() => ({
     upload: vi.fn().mockResolvedValue({ bucket: "test", key: "test.glb" }),
+    downloadBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-raw-file")),
+    remove: vi.fn().mockResolvedValue(undefined),
   })),
 }));
 
 // ---------------------------------------------------------------------------
-// Mock the glTF exporter so we don't pay the @gltf-transform cost in tests
+// Mock the glTF exporter and image converter
 // ---------------------------------------------------------------------------
 
 vi.mock("../scripts/imageArrayToOBJ.js", () => ({
   TopographyMeshGenerator: class {
-    generate(_pixels: unknown[], _mode: string) {
+    generate(_pixels: unknown[], _mode: string, _scale?: number) {
       return {
         vertices: [[0, 0, 0], [1, 0, 0.5], [0, 1, 0.5], [1, 1, 1]],
         faces: [0, 2, 1, 1, 2, 3],
@@ -47,6 +49,17 @@ vi.mock("../scripts/imageArrayToOBJ.js", () => ({
   GLTFExporter: class {
     async exportToBuffer() {
       return Buffer.from("FAKEGLB");
+    }
+  },
+}));
+
+vi.mock("../scripts/imageTo3DArray.js", () => ({
+  ImageTo3DArray: class {
+    async pdf2ArrayFromBuffer(_buf: Buffer, _page: number) {
+      return [[0, 0, [255, 255, 255, 255]], [1, 0, [0, 0, 0, 255]]];
+    }
+    async img2ArrayFromBuffer(_buf: Buffer) {
+      return [[0, 0, [255, 255, 255, 255]], [1, 0, [0, 0, 0, 255]]];
     }
   },
 }));
@@ -64,6 +77,8 @@ import { JobQueue } from "../lib/jobQueue.js";
 const sampleJobRow = {
   job_id: "test-job-0000-0000-0000-000000000001",
   model_id: null,
+  upload_key: null,
+  payload: null,
   status: "pending",
   progress: 0,
   error_message: null,
@@ -98,11 +113,11 @@ describe("JobQueue", () => {
     queue = new JobQueue(1); // single worker for predictable testing
   });
 
-  it("should enqueue a job and return a job ID immediately", async () => {
+  it("should enqueue a generate job and return a job ID immediately", async () => {
     // Mock the INSERT ... RETURNING query
     mocks.query.mockResolvedValueOnce({ rows: [sampleJobRow] });
 
-    const jobId = await queue.enqueue({
+    const jobId = await queue.enqueueGenerate({
       pixels: [[0, 0, [255, 255, 255, 255]]],
       heightMode: "brightness",
     });
@@ -111,10 +126,23 @@ describe("JobQueue", () => {
     expect(typeof jobId).toBe("string");
   });
 
-  it("should persist the job as pending in the DB after enqueue", async () => {
+  it("should enqueue an upload job and return a job ID immediately", async () => {
     mocks.query.mockResolvedValueOnce({ rows: [sampleJobRow] });
 
-    const jobId = await queue.enqueue({
+    const jobId = await queue.enqueueUpload({
+      uploadKey: "uploads/test.png",
+      fileType: "image/png",
+      heightMode: "brightness",
+    });
+
+    expect(jobId).toBeDefined();
+    expect(typeof jobId).toBe("string");
+  });
+
+  it("should persist the generate job as pending in the DB after enqueue", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [sampleJobRow] });
+
+    await queue.enqueueGenerate({
       pixels: [[0, 0, [255, 255, 255, 255]]],
       heightMode: "brightness",
     });
@@ -124,16 +152,32 @@ describe("JobQueue", () => {
     const sql = mocks.query.mock.calls[0][0] as string;
     expect(sql).toContain("INSERT INTO processing_jobs");
     const params = mocks.query.mock.calls[0][1] as (string | null | number)[];
-    expect(params[2]).toBe("pending"); // status param
+    expect(params[4]).toBe("pending"); // status param
   });
 
-  it("should process a job to completion", async () => {
+  it("should persist the upload job with uploadKey and payload", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [sampleJobRow] });
+
+    await queue.enqueueUpload({
+      uploadKey: "uploads/test.png",
+      fileType: "image/png",
+      heightMode: "brightness",
+    });
+
+    const params = mocks.query.mock.calls[0][1] as (string | null | number | object)[];
+    expect(params[2]).toBe("uploads/test.png"); // uploadKey param
+    expect(params[3]).toHaveProperty("type", "upload"); // payload object
+  });
+
+  it("should process a generate job to completion", async () => {
     queue.start();
 
     // Persistent mock: handles all queries the worker + getStatus will fire
     let currentJob = {
       job_id: sampleJobRow.job_id,
       model_id: null as string | null,
+      upload_key: null as string | null,
+      payload: null as unknown,
       status: "pending" as string,
       progress: 0,
       error_message: null as string | null,
@@ -147,7 +191,6 @@ describe("JobQueue", () => {
         return { rows: [currentJob] };
       }
       if (s.includes("UPDATE processing_jobs")) {
-        // Simulate status progression through the worker lifecycle
         currentJob.status = "completed";
         currentJob.progress = 100;
         currentJob.model_id = sampleModelRow.model_id;
@@ -162,14 +205,12 @@ describe("JobQueue", () => {
       return { rows: [] };
     });
 
-    // Enqueue: INSERT processing_jobs RETURNING *
-    const jobId = await queue.enqueue({
+    const jobId = await queue.enqueueGenerate({
       pixels: [[0, 0, [255, 255, 255, 255]], [1, 0, [0, 0, 0, 255]]],
       heightMode: "brightness",
       label: "test-model",
     });
 
-    // Patch the job_id on our tracking object so SELECT finds it
     currentJob.job_id = jobId;
 
     // Wait for the worker to finish (mocks are fast)
@@ -181,13 +222,14 @@ describe("JobQueue", () => {
     expect(status!.progress).toBe(100);
   });
 
-  it("should handle job failure gracefully", async () => {
+  it("should process an upload job to completion", async () => {
     queue.start();
 
-    // Persistent mock: handles all queries the worker + getStatus will fire
     let currentJob = {
       job_id: sampleJobRow.job_id,
       model_id: null as string | null,
+      upload_key: "uploads/test.png" as string | null,
+      payload: { type: "upload" } as unknown,
       status: "pending" as string,
       progress: 0,
       error_message: null as string | null,
@@ -201,7 +243,58 @@ describe("JobQueue", () => {
         return { rows: [currentJob] };
       }
       if (s.includes("UPDATE processing_jobs")) {
-        // Simulate failure state
+        currentJob.status = "completed";
+        currentJob.progress = 100;
+        currentJob.model_id = sampleModelRow.model_id;
+        return { rows: [currentJob] };
+      }
+      if (s.includes("INSERT INTO gltf_models")) {
+        return { rows: [sampleModelRow] };
+      }
+      if (s.includes("SELECT * FROM processing_jobs")) {
+        return { rows: [currentJob] };
+      }
+      return { rows: [] };
+    });
+
+    const jobId = await queue.enqueueUpload({
+      uploadKey: "uploads/test.png",
+      fileType: "image/png",
+      heightMode: "brightness",
+    });
+
+    currentJob.job_id = jobId;
+
+    // Wait for the worker to finish
+    await new Promise((r) => setTimeout(r, 500));
+
+    const status = await queue.getStatus(jobId);
+    expect(status).not.toBeNull();
+    expect(status!.status).toBe("completed");
+    expect(status!.progress).toBe(100);
+  });
+
+  it("should handle job failure gracefully", async () => {
+    queue.start();
+
+    let currentJob = {
+      job_id: sampleJobRow.job_id,
+      model_id: null as string | null,
+      upload_key: null as string | null,
+      payload: null as unknown,
+      status: "pending" as string,
+      progress: 0,
+      error_message: null as string | null,
+      created_at: sampleJobRow.created_at,
+      updated_at: sampleJobRow.updated_at,
+    };
+    mocks.query.mockImplementation(async (sql: string) => {
+      const s = sql as string;
+
+      if (s.includes("INSERT INTO processing_jobs")) {
+        return { rows: [currentJob] };
+      }
+      if (s.includes("UPDATE processing_jobs")) {
         currentJob.status = "failed";
         currentJob.error_message = "Simulated failure";
         return { rows: [currentJob] };
@@ -212,12 +305,11 @@ describe("JobQueue", () => {
       return { rows: [] };
     });
 
-    const jobId = await queue.enqueue({
+    const jobId = await queue.enqueueGenerate({
       pixels: [[0, 0, [255, 255, 255, 255]]],
       heightMode: "brightness",
     });
 
-    // Patch the job_id on our tracking object so SELECT finds it
     currentJob.job_id = jobId;
 
     // Wait for the worker to process and fail

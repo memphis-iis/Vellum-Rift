@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS gltf_models (
 CREATE TABLE IF NOT EXISTS processing_jobs (
   job_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   model_id      UUID REFERENCES gltf_models(model_id),
+  upload_key    TEXT,
+  payload       JSONB,
   status        TEXT NOT NULL DEFAULT 'pending',
   progress      INT NOT NULL DEFAULT 0,
   error_message TEXT,
