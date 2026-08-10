@@ -14,6 +14,7 @@ import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
 import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
+import assetManifestRouter from "./routes/assetManifest.js";
 
 dotenv.config();
 
@@ -92,6 +93,9 @@ app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload — prote
 
 // Jobs routes (public — clients need to poll status)
 app.use("/api/jobs", jobsRouter);
+
+// Asset manifest routes (public — clients discover chunks for progressive loading)
+app.use("/api/assets", assetManifestRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
