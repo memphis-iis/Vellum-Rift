@@ -24,6 +24,8 @@ const validHeightModes: HeightMode[] = [
   "blue",
   "alpha",
   "brightness",
+  "grayscale",
+  "contrast",
 ];
 
 // Will be set by index.ts after the queue is instantiated.

@@ -16,7 +16,7 @@ export type MeshData = {
     colors: RGBA[]; //array of RGBA values and one color for each point
 };
 
-export type HeightMode = "red" | "green" | "blue" | "alpha" | "brightness"; //create type for height mode, can be one of the 4 color channels, brightness averages red, green, and blue
+export type HeightMode = "red" | "green" | "blue" | "alpha" | "brightness" | "grayscale" | "contrast"; //create type for height mode, can be one of the 4 color channels, brightness averages red/green/blue, grayscale uses BT.601 luminance, contrast emphasizes both dark and bright extremes
 //in TypeScript "|" is a union type operator, allowing a variable to hold multiple types"
 function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get height value based on selected color channel
     const [r, g, b, a] = rgba; //gives each value a name
@@ -24,8 +24,19 @@ function getHeight(rgba: RGBA, mode: HeightMode): number { //function to get hei
     if (mode === "green") return g / 255;
     if (mode === "blue") return b / 255;
     if (mode === "alpha") return a / 255;
-    return (r + g + b) / 3 / 255; //shows the light and dark values of the manuscript 
-
+    if (mode === "brightness") return (r + g + b) / 3 / 255; //shows the light and dark values of the manuscript 
+    if (mode === "grayscale") {
+        // ITU-R BT.601 luminance — perceptually accurate B&W height map
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }
+    if (mode === "contrast") {
+        // Map mid-gray → 0, both pure black and pure white → 1
+        // Makes ink AND highlights stand out as elevated terrain
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return Math.abs(luminance - 0.5) * 2;
+    }
+    // fallback (should never reach here with proper type narrowing)
+    return (r + g + b) / 3 / 255;
 }
 
 /**
