@@ -43,7 +43,7 @@ router.post("/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const validModes = ["red", "green", "blue", "alpha", "brightness"];
+    const validModes = ["red", "green", "blue", "alpha", "brightness", "grayscale", "contrast"];
     if (!heightMode || !validModes.includes(heightMode)) {
       res.status(400).json({ error: `heightMode must be one of: ${validModes.join(", ")}` });
       return;
