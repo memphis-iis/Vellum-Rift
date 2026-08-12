@@ -51,6 +51,9 @@ namespace VellumRift
         [Tooltip("Fallback backend base URL when no env/CLI override is present.")]
         [SerializeField] private string defaultBackendUrl = "http://localhost:4000";
 
+        [Tooltip("Allow plain-http backend URLs (e.g. a test server like http://100.76.98.70:4100). Off by default: http is promoted to https on WebGL. Note browsers still block http from https pages, so this mainly helps Editor/standalone testing.")]
+        [SerializeField] private bool allowInsecureHttp = false;
+
         [Header("Polling")]
         [Tooltip("Seconds between game-state polls (default 0.1 = 10 Hz).")]
         [SerializeField] private float pollingInterval = 0.1f;
@@ -276,9 +279,19 @@ namespace VellumRift
             // WebGL runs inside the browser's secure (https) context: plain
             // http requests are blocked ("Insecure connection not allowed")
             // and the http->https redirect is never followed. Promote a
-            // typo'd or default http:// URL so the build still connects.
+            // typo'd or default http:// URL so the build still connects —
+            // unless allowInsecureHttp is enabled for a non-SSL test backend.
             if (resolved.StartsWith("http://", StringComparison.Ordinal))
-                resolved = "https://" + resolved.Substring("http://".Length);
+            {
+                if (allowInsecureHttp)
+                {
+                    Debug.LogWarning("[DemoSession] Connecting over plain http (allowInsecureHttp enabled). On WebGL the browser may still block this.");
+                }
+                else
+                {
+                    resolved = "https://" + resolved.Substring("http://".Length);
+                }
+            }
             return resolved;
 #else
             return BackendUrlResolver.Resolve(
