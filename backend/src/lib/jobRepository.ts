@@ -135,27 +135,27 @@ export class JobRepository {
     let idx = 1;
 
     if (params.status !== undefined) {
-      sets.push(`status = ${idx++}`);
+      sets.push(`status = $${idx++}`);
       values.push(params.status);
     }
     if (params.progress !== undefined) {
-      sets.push(`progress = ${idx++}`);
+      sets.push(`progress = $${idx++}`);
       values.push(params.progress);
     }
     if (params.errorMessage !== undefined) {
-      sets.push(`error_message = ${idx++}`);
+      sets.push(`error_message = $${idx++}`);
       values.push(params.errorMessage);
     }
     if (params.modelId !== undefined) {
-      sets.push(`model_id = ${idx++}`);
+      sets.push(`model_id = $${idx++}`);
       values.push(params.modelId);
     }
     if (params.uploadKey !== undefined) {
-      sets.push(`upload_key = ${idx++}`);
+      sets.push(`upload_key = $${idx++}`);
       values.push(params.uploadKey);
     }
     if (params.payload !== undefined) {
-      sets.push(`payload = ${idx++}::jsonb`);
+      sets.push(`payload = $${idx++}::jsonb`);
       values.push(JSON.stringify(params.payload));
     }
 
@@ -167,7 +167,7 @@ export class JobRepository {
     values.push(jobId);
 
     const result = await pool.query(
-      `UPDATE processing_jobs SET ${sets.join(", ")} WHERE job_id = ${idx} RETURNING *`,
+      `UPDATE processing_jobs SET ${sets.join(", ")} WHERE job_id = $${idx} RETURNING *`,
       values,
     );
     if (result.rows.length === 0) return null;
