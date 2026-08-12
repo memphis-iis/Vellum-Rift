@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import crypto from "node:crypto";
 import { extname } from "node:path";
+import { Readable } from "node:stream";
 
 import { detectFileType, MAX_UPLOAD_BYTES } from "./uploadValidation.js";
 import { getStorage } from "../lib/storage.js";
@@ -89,7 +90,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
 
     await storage.upload(
       uploadKey,
-      require("node:stream").Readable.from([file.buffer]),
+      Readable.from([file.buffer]),
       file.buffer.length,
       fileType,
     );
