@@ -27,6 +27,9 @@ namespace VellumRift
         [Tooltip("Load automatically on Start.")]
         [SerializeField] private bool loadOnStart = true;
 
+        [Tooltip("Allow plain-http model URLs (e.g. a test server like http://100.76.98.70:4100). Off by default: http URLs are rejected with a clear error. Browsers still block http from https pages, so this mainly helps Editor/standalone testing.")]
+        [SerializeField] private bool allowInsecureHttp = false;
+
         /// <summary>True once the model has been loaded and instantiated.</summary>
         public bool IsLoaded { get; private set; }
 
@@ -50,6 +53,11 @@ namespace VellumRift
             if (string.IsNullOrEmpty(modelUrl))
             {
                 Debug.LogWarning("[RemoteModelLoader] Model URL is empty — nothing to load");
+                return;
+            }
+            if (modelUrl.StartsWith("http://", StringComparison.Ordinal) && !allowInsecureHttp)
+            {
+                Debug.LogError($"[RemoteModelLoader] Model URL uses plain http ({modelUrl}) but allowInsecureHttp is off — enable it on this component to load non-SSL test-server models.");
                 return;
             }
 
