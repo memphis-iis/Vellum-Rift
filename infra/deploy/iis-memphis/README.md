@@ -2,24 +2,29 @@
 
 Public endpoints (LIVE since 2026-08-06):
 
-- API:      `https://iis.memphis.edu/apis/vellumrift/` (backend container, port 4000)
-- WebGL:    `https://iis.memphis.edu/vellumrift/` (static files)
+- API:      `https://iis.memphis.edu/apis/vellumrift/` (backend proxied to **ramiel** :4100)
+- WebGL:    `https://iis.memphis.edu/vellumrift/` (static files on the iis box)
 
 ## Topology
 
 ```
 Browser (WebGL at /vellumrift/)
-   └─▶ Caddy (:443, container on traefik_proxy)
-         ├─ /apis/vellumrift/*  ─▶ vellumrift-backend:4000 (node:20 container)
+   └─▶ Caddy (:443, iis box)
+         ├─ /apis/vellumrift/*  ─▶ ramiel.uom.memphis.edu:4100 (vellumrift-backend on ramiel)
          └─ /vellumrift/*       ─▶ /assets/static/vellumrift/ (host bind mount)
-vellumrift-backend ─▶ hasura-postgres:5432 (shared Postgres 15, db `vellum_rift`)
+
+ramiel (test server):
+  vellumrift-backend (node:20, :4100 exposed) ─▶ vellumrift-postgres (db vellum_rift)
+                                           ─▶ vellumrift-minio (:9100/9101, bucket vellumrift)
 ```
 
 Notes:
 - `/vellumrift/` and `/apis/vellumrift/` share the same origin
   (`iis.memphis.edu`, port 443), so the WebGL client needs **no CORS** setup.
-- No host ports are published for the backend — Caddy proxies container to
-  container over the docker network.
+- The API is proxied **by hostname** over the campus LAN (`ramiel.uom.memphis.edu`
+  resolves via university DNS, which tracks the DHCP lease). Tailnet fallback:
+  `100.76.98.70:4100` (stable IP). The old local `vellumrift-backend` container
+  on the iis box is parked/not routed.
 
 ## Deployment model
 
@@ -66,6 +71,39 @@ large packages as empty dirs). So the backend is NOT built on the box:
    ```
 4. WebGL build → `/assets/static/vellumrift/` (served at
    `https://iis.memphis.edu/vellumrift/`; `index.html` is the entry).
+
+## Test server: ramiel (current API host)
+
+The live API now runs on **ramiel** (`rusty@ramiel`, `ramiel.uom.memphis.edu`), reached from the iis box by **hostname** over the campus LAN.
+
+Containers (all on `vellumrift-net`, backend also on `hasura_traefik_proxy`):
+
+| Container | Image | Ports | Notes |
+|---|---|---|---|
+| `vellumrift-backend` | `vellumrift-base:latest` (node:20 + fonts) | host `4100`→`4000` | volume-mounts `~/vellumrift/backend` (pnpm-deploy artifact) |
+| `vellumrift-postgres` | postgres:16-alpine | internal | db `vellum_rift`, role `vellumrift` |
+| `vellumrift-minio` | minio/minio | host `9100`→9000, `9101`→9001 | volume `vellumrift-minio-data`, bucket + user `vellumrift` |
+
+Redeploy (after building the artifact on a healthy host):
+
+```bash
+# from the repo: pnpm --filter @vellum-rift/backend deploy --prod .deploy/backend
+tar czf - -C .deploy/backend . | ssh rusty@ramiel \
+  "rm -rf ~/vellumrift/backend && mkdir -p ~/vellumrift/backend && tar xzf - --no-same-owner -C ~/vellumrift/backend && docker restart vellumrift-backend"
+```
+
+Caddy route on the iis box (`/assets/Caddyfile`):
+
+```
+handle_path /apis/vellumrift/* {
+	reverse_proxy ramiel.uom.memphis.edu:4100 {
+		header_up X-Forwarded-Prefix /apis/vellumrift
+	}
+}
+```
+
+Fallbacks if the LAN hostname route breaks: tailnet IP `100.76.98.70:4100`, or the
+old iis-box container (`vellumrift-backend:4000`, parked).
 
 ## Verify
 
