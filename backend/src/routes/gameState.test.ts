@@ -53,6 +53,17 @@ describe("GameState route logic", () => {
       expect(player.isHost).toBe(false);
     });
 
+    it("emits a join announcement as a system chat message", () => {
+      const state = buildSession();
+      state.addPlayer("Charlie");
+      state.addSystemMessage("Charlie joined the session");
+
+      const messages = state.getChatMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.system).toBe(true);
+      expect(messages[0]!.text).toBe("Charlie joined the session");
+    });
+
     it("adds a host player", () => {
       const state = buildSession();
       const player = state.addPlayer("Host2", true);
@@ -113,6 +124,41 @@ describe("GameState route logic", () => {
       const bob = state.players[1];
       state.setConnected(bob.id, false);
       expect(bob.isConnected).toBe(false);
+    });
+  });
+
+  describe("POST /api/game-state/:sessionId/chat", () => {
+    it("adds a message from an existing player", () => {
+      const state = buildSession();
+      const alice = state.players[0];
+
+      const message = state.addChatMessage(alice.id, "hello team");
+      expect(message).not.toBeNull();
+      expect(state.getChatMessages()).toHaveLength(1);
+      expect(state.getChatMessages()[0]!.displayName).toBe("Alice");
+    });
+
+    it("rejects a message from an unknown player", () => {
+      const state = buildSession();
+      expect(state.addChatMessage("ghost", "hello")).toBeNull();
+      expect(state.getChatMessages()).toHaveLength(0);
+    });
+  });
+
+  describe("GET /api/game-state/:sessionId/chat", () => {
+    it("returns messages in chronological order", () => {
+      const state = buildSession();
+      const alice = state.players[0];
+      const bob = state.players[1];
+
+      state.addChatMessage(alice.id, "first");
+      state.addChatMessage(bob.id, "second");
+
+      expect(state.getChatMessages().map((m) => m.text)).toEqual(["first", "second"]);
+    });
+
+    it("returns an empty list for a session with no chat", () => {
+      expect(buildSession().getChatMessages()).toEqual([]);
     });
   });
 });

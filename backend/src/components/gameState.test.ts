@@ -143,6 +143,91 @@ describe("GameState", () => {
   });
 
   // ---------------------------------------------------------------
+  // Chat
+  // ---------------------------------------------------------------
+  describe("addChatMessage", () => {
+    it("adds a message attributed to the player", () => {
+      const state = new GameState();
+      const p = state.addPlayer("Alice");
+
+      const msg = state.addChatMessage(p.id, "hello");
+      expect(msg).not.toBeNull();
+      expect(msg!.playerId).toBe(p.id);
+      expect(msg!.displayName).toBe("Alice");
+      expect(msg!.text).toBe("hello");
+      expect(msg!.id).toBeTruthy();
+      expect(msg!.sentAt).toBeTruthy();
+    });
+
+    it("returns null for an unknown player", () => {
+      const state = new GameState();
+      expect(state.addChatMessage("missing", "hello")).toBeNull();
+    });
+
+    it("persists messages in chronological order", () => {
+      const state = new GameState();
+      const p = state.addPlayer("Alice");
+      state.addChatMessage(p.id, "one");
+      state.addChatMessage(p.id, "two");
+
+      const messages = state.getChatMessages();
+      expect(messages.map((m) => m.text)).toEqual(["one", "two"]);
+    });
+
+    it("caps history at the configured maximum", () => {
+      const state = new GameState();
+      const p = state.addPlayer("Alice");
+      for (let i = 0; i < 250; i++) {
+        state.addChatMessage(p.id, `msg ${i}`);
+      }
+
+      expect(state.getChatMessages()).toHaveLength(200);
+      expect(state.getChatMessages()[0]!.text).toBe("msg 50");
+    });
+
+    it("getChatMessages defaults to an empty array with no history", () => {
+      const state = new GameState();
+      expect(state.getChatMessages()).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // addSystemMessage
+  // ---------------------------------------------------------------
+  describe("addSystemMessage", () => {
+    it("adds a system message not attributed to a player", () => {
+      const state = new GameState();
+      const msg = state.addSystemMessage("Alice joined the session");
+
+      expect(msg.id).toBeTruthy();
+      expect(msg.playerId).toBe("");
+      expect(msg.displayName).toBe("");
+      expect(msg.system).toBe(true);
+      expect(msg.text).toBe("Alice joined the session");
+      expect(state.getChatMessages()).toHaveLength(1);
+    });
+
+    it("persists system and player messages in chronological order", () => {
+      const state = new GameState();
+      const p = state.addPlayer("Alice");
+      state.addSystemMessage("Alice joined the session");
+      state.addChatMessage(p.id, "hello");
+
+      const messages = state.getChatMessages();
+      expect(messages[0]!.system).toBe(true);
+      expect(messages[1]!.text).toBe("hello");
+    });
+
+    it("caps history including system messages", () => {
+      const state = new GameState();
+      for (let i = 0; i < 250; i++) {
+        state.addSystemMessage(`msg ${i}`);
+      }
+      expect(state.getChatMessages()).toHaveLength(200);
+    });
+  });
+
+  // ---------------------------------------------------------------
   // updatePosition
   // ---------------------------------------------------------------
   describe("updatePosition", () => {

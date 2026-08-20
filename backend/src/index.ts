@@ -1,3 +1,6 @@
+// Load .env BEFORE any other module evaluates (ESM imports are hoisted, so
+// env vars read at import time in other modules would otherwise see nothing).
+import "dotenv/config";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";

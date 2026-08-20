@@ -1,21 +1,8 @@
 /**
  * Bluekey SSO authentication middleware.
  *
- * In its current form, this is a **stub** — it accepts any token in development
- * mode so that the interns can build features without being blocked.
- *
- * When you (the maintainer) set `BLUEKEY_SOFTWARE_ID` in your .env and flip
- * `AUTH_REQUIRED=true`, this middleware will:
- *
- *   1. Extract the Bearer token from the `Authorization` header.
- *   2. Call the Bluekey introspection endpoint to verify it.
- *   3. Attach the verified user to `req.user`.
- *   4. Reject unauthenticated requests with a 401.
- *
- * Bluekey introspect endpoint:
- *   POST https://iis.memphis.edu/apis/bluekey/public/sso/introspect
- *   Body: { token: string, appUuid: string }
- *   Response: { active: boolean, sub: string, email: string, exp: number }
+ * Verifies Bearer tokens against the Bluekey introspection endpoint.
+ * When AUTH_REQUIRED=true, protected routes require a valid Bluekey token.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -71,51 +58,30 @@ declare global {
 
 /**
  * Call the Bluekey introspection endpoint to verify a token.
- *
- * TODO: When you have a real `BLUEKEY_SOFTWARE_ID`, implement this with
- *       `fetch()` or `axios`. For now it returns a mock verified user so
- *       that feature development is not blocked.
  */
 async function introspectToken(token: string): Promise<AuthenticatedUser | null> {
-  // -------------------------------------------------------------------
-  // STUB: In dev mode (AUTH_REQUIRED !== true) accept any token.
-  // Remove this branch once you have a real BLUEKEY_SOFTWARE_ID.
-  // -------------------------------------------------------------------
-  if (!BLUEKEY_CONFIG.required) {
-    return {
-      sub: "acct:stub-dev",
-      email: "dev@memphis.edu",
-      exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours from now
+  try {
+    const response = await fetch(BLUEKEY_CONFIG.introspectUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, appUuid: BLUEKEY_CONFIG.softwareId }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json() as {
+      active: boolean;
+      sub: string;
+      email: string;
+      exp: number;
     };
+
+    if (!data.active) return null;
+
+    return { sub: data.sub, email: data.email, exp: data.exp };
+  } catch {
+    return null;
   }
-
-  // -------------------------------------------------------------------
-  // REAL IMPLEMENTATION (uncomment and fill in when ready):
-  // -------------------------------------------------------------------
-  // try {
-  //   const response = await fetch(BLUEKEY_CONFIG.introspectUrl, {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ token, appUuid: BLUEKEY_CONFIG.softwareId }),
-  //   });
-  //
-  //   if (!response.ok) return null;
-  //
-  //   const data = await response.json() as {
-  //     active: boolean;
-  //     sub: string;
-  //     email: string;
-  //     exp: number;
-  //   };
-  //
-  //   if (!data.active) return null;
-  //
-  //   return { sub: data.sub, email: data.email, exp: data.exp };
-  // } catch {
-  //   return null;
-  // }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------

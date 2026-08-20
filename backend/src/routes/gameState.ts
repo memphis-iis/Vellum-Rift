@@ -68,6 +68,9 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   }
 
   const player = state.addPlayer(displayName, isHost ?? false);
+  // Announce joins through the same chat surface so every client (Unity and
+  // dashboard) sees the newcomer in their text box without extra polling.
+  state.addSystemMessage(`${displayName} joined the session`);
   await repo.save(state);
   res.status(201).json(player);
 });
@@ -234,6 +237,376 @@ router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
 
   await repo.save(state);
   res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/laser
+//   Write laser state for a participant. Body: { playerId, active, origin, direction }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/laser", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const { playerId, active, origin, direction } = req.body as {
+      playerId?: string; active?: boolean;
+      origin?: { x: number; y: number; z: number };
+      direction?: { dx: number; dy: number; dz: number };
+    };
+
+    if (!playerId || typeof active !== "boolean") {
+      res.status(400).json({ error: "playerId and active (boolean) are required" });
+      return;
+    }
+
+    const player = state.getPlayer(playerId);
+    if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+    player.laserActive = active;
+    if (active && origin && direction) {
+      player.laserOrigin = { x: origin.x, y: origin.y, z: origin.z };
+      player.laserDirection = { dx: direction.dx, dy: direction.dy, dz: direction.dz };
+    }
+
+    await repo.save(state);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("PATCH laser failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to update laser" });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/lasers
+//   Return all active lasers. Color: host=red, others=green.
+// ---------------------------------------------------------------
+router.get("/:sessionId/lasers", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const lasers = state.players
+      .filter((p) => p.laserActive && p.isConnected)
+      .map((p) => ({
+        userId: p.id,
+        active: true,
+        origin: p.laserOrigin,
+        direction: p.laserDirection,
+        color: p.id === state.hostId ? "red" : "green",
+      }));
+
+    res.json(lasers);
+  } catch (err) {
+    console.error("GET lasers failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to fetch lasers" });
+  }
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/summon
+//   Host-only summon trigger. Body: { playerId }
+// ---------------------------------------------------------------
+router.post("/:sessionId/summon", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const { playerId } = req.body as { playerId?: string };
+    if (!playerId) { res.status(400).json({ error: "playerId is required" }); return; }
+    if (playerId !== state.hostId) { res.status(403).json({ error: "Only the host can summon" }); return; }
+
+    const host = state.getPlayer(playerId);
+    if (!host) { res.status(400).json({ error: "Host player not found" }); return; }
+
+    const COUNTDOWN_SECONDS = 5;
+    const others = state.players.filter((p) => p.id !== host.id && p.isConnected);
+    const ringRadius = 1.5;
+    const count = Math.max(others.length, 1);
+
+    // Assign every other player a unique slot in a ring around the host so
+    // nobody lands on top of the summoning player.
+    const slots: Record<string, { x: number; y: number; z: number }> = {};
+    others.forEach((p, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      slots[p.id] = {
+        x: host.position.x + Math.cos(angle) * ringRadius,
+        y: host.position.y,
+        z: host.position.z + Math.sin(angle) * ringRadius,
+      };
+    });
+
+    state.metadata.summon = {
+      triggerAt: new Date().toISOString(),
+      targetX: host.position.x,
+      targetY: host.position.y,
+      targetZ: host.position.z,
+      slots,
+    };
+
+    await repo.save(state);
+
+    // Return assigned slot for each player.
+    res.json({
+      ok: true,
+      playerTargets: slots,
+      summon: {
+        targetX: host.position.x, targetY: host.position.y, targetZ: host.position.z,
+        countdownSeconds: COUNTDOWN_SECONDS,
+        triggeredAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error("POST summon failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to trigger summon" });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/summon
+//   Poll current summon state. Returns { active, completed, targetX/Y/Z, remainingMs }
+// ---------------------------------------------------------------
+router.get("/:sessionId/summon", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const requestingPlayerId = typeof req.query.playerId === "string" ? req.query.playerId : "";
+    const summon = state.metadata.summon as {
+      triggerAt?: string;
+      targetX?: number;
+      targetY?: number;
+      targetZ?: number;
+      slots?: Record<string, { x: number; y: number; z: number }>;
+    } | undefined;
+    const COUNTDOWN_MS = 5000;
+
+    if (!summon?.triggerAt) { res.json({ active: false }); return; }
+
+    const elapsed = Date.now() - new Date(summon.triggerAt).getTime();
+    const remainingMs = Math.max(0, COUNTDOWN_MS - elapsed);
+
+    // Use this player's ring slot when available, else the host position.
+    const slot = summon.slots?.[requestingPlayerId];
+    const targetX = slot?.x ?? summon.targetX ?? 0;
+    const targetY = slot?.y ?? summon.targetY ?? 0;
+    const targetZ = slot?.z ?? summon.targetZ ?? 0;
+
+    if (remainingMs <= 0) {
+      state.metadata.summon = undefined;
+      await repo.save(state);
+      res.json({ active: false, completed: true, targetX, targetY, targetZ });
+      return;
+    }
+
+    res.json({ active: true, targetX, targetY, targetZ, countdownSeconds: 5, triggeredAt: summon.triggerAt, remainingMs });
+  } catch (err) {
+    console.error("GET summon failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to fetch summon state" });
+  }
+});
+
+// ---------------------------------------------------------------
+// DELETE /api/game-state/:sessionId/summon
+//   Host-only cancel. Body: { playerId }
+// ---------------------------------------------------------------
+router.delete("/:sessionId/summon", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const { playerId } = req.body as { playerId?: string };
+    if (!playerId) { res.status(400).json({ error: "playerId is required" }); return; }
+    if (playerId !== state.hostId) { res.status(403).json({ error: "Only the host can cancel summon" }); return; }
+
+    state.metadata.summon = undefined;
+    await repo.save(state);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE summon failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to cancel summon" });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/chat
+//   Return persisted text messages for a session, oldest first.
+// ---------------------------------------------------------------
+router.get("/:sessionId/chat", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    res.json({ messages: state.getChatMessages() });
+  } catch (err) {
+    console.error("GET chat failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to fetch chat" });
+  }
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/chat
+//   Post a text chat message. Body: { playerId, text }
+// ---------------------------------------------------------------
+router.post("/:sessionId/chat", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const { playerId, text } = req.body as { playerId?: string; text?: string };
+    if (!playerId || typeof text !== "string" || text.trim().length === 0) {
+      res.status(400).json({ error: "playerId and non-empty text are required" });
+      return;
+    }
+    // Cap message size so session metadata can't be ballooned toward the
+    // Postgres JSONB value limit (security review).
+    if (text.trim().length > 2000) {
+      res.status(400).json({ error: "text must be 2000 characters or fewer" });
+      return;
+    }
+
+    const message = state.addChatMessage(playerId, text.trim());
+    if (!message) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    await repo.save(state);
+    res.status(201).json({ messages: state.getChatMessages(), message });
+  } catch (err) {
+    console.error("POST chat failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to post chat" });
+  }
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/artifacts
+//   Create a spatial artifact (waypoint/pin). Body: { artifactType, label, x, y, z, createdBy }
+// ---------------------------------------------------------------
+router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const { artifactType, label, x, y, z, createdBy } = req.body as {
+      artifactType?: string; label?: string; x?: number; y?: number; z?: number; createdBy?: string;
+    };
+
+    if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
+      res.status(400).json({ error: "x, y, z (numbers) are required" });
+      return;
+    }
+    // Cap artifact metadata size (security review).
+    if (label && String(label).length > 256) {
+      res.status(400).json({ error: "label must be 256 characters or fewer" });
+      return;
+    }
+
+    const artifacts: Record<string, unknown>[] = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
+
+    // Cap artifact count (security review).
+    if (artifacts.length >= 500) {
+      res.status(400).json({ error: "Maximum of 500 artifacts per session" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const artifact = {
+      id: crypto.randomUUID(),
+      artifactType: artifactType ?? "waypoint",
+      label: label ?? "",
+      x, y, z,
+      createdBy: createdBy ?? "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    artifacts.push(artifact);
+    state.metadata.artifacts = artifacts;
+
+    await repo.save(state);
+    res.status(201).json(artifact);
+  } catch (err) {
+    console.error("POST artifact failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to create artifact" });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/artifacts
+//   List all artifacts for a session.
+// ---------------------------------------------------------------
+router.get("/:sessionId/artifacts", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
+    res.json(artifacts);
+  } catch (err) {
+    console.error("GET artifacts failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to fetch artifacts" });
+  }
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/artifacts/:artifactId
+//   Update an artifact's label or position.
+// ---------------------------------------------------------------
+router.patch("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const artifactId = param(req, "artifactId");
+    const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
+    const idx = artifacts.findIndex((a: any) => a.id === artifactId);
+    if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
+
+    const { label, x, y, z } = req.body as { label?: string; x?: number; y?: number; z?: number };
+    if (label === undefined && x === undefined && y === undefined && z === undefined) {
+      res.status(400).json({ error: "At least one field (label, x, y, z) is required" });
+      return;
+    }
+
+    const artifact = { ...artifacts[idx] } as Record<string, unknown>;
+    if (label !== undefined) artifact.label = label;
+    if (x !== undefined) artifact.x = x;
+    if (y !== undefined) artifact.y = y;
+    if (z !== undefined) artifact.z = z;
+    artifact.updatedAt = new Date().toISOString();
+    artifacts[idx] = artifact;
+    state.metadata.artifacts = artifacts;
+
+    await repo.save(state);
+    res.json(artifact);
+  } catch (err) {
+    console.error("PATCH artifact failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to update artifact" });
+  }
+});
+
+// ---------------------------------------------------------------
+// DELETE /api/game-state/:sessionId/artifacts/:artifactId
+//   Remove an artifact.
+// ---------------------------------------------------------------
+router.delete("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const artifactId = param(req, "artifactId");
+    const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
+    const idx = artifacts.findIndex((a: any) => a.id === artifactId);
+    if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
+
+    artifacts.splice(idx, 1);
+    state.metadata.artifacts = artifacts;
+
+    await repo.save(state);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE artifact failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to delete artifact" });
+  }
 });
 
 export default router;
