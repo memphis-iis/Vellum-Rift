@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
 
+/** Metadata key that stores persisted chat messages for a session. */
+const CHAT_MESSAGES_KEY = "messages";
+
+/** Upper bound on persisted chat history per session. */
+const MAX_CHAT_MESSAGES = 200;
+
 /**
  * Represents a single participant's spatial and session state
  * within a game session. This is the per-player subset of the
@@ -13,6 +19,42 @@ export interface PlayerState {
   isHost: boolean;
   isConnected: boolean;
   joinedAt: string;
+  /** Laser pointer state (FTR-009) */
+  laserActive: boolean;
+  laserOrigin: { x: number; y: number; z: number };
+  laserDirection: { dx: number; dy: number; dz: number };
+}
+
+/** A spatial artifact (waypoint/pin) within a session. */
+export interface ArtifactState {
+  id: string;
+  artifactType: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Summon state stored in GameState.metadata. */
+export interface SummonState {
+  triggerAt: string | null;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+}
+
+/** A persisted text chat message attributed to a session participant. */
+export interface ChatMessageState {
+  id: string;
+  playerId: string;
+  displayName: string;
+  text: string;
+  sentAt: string;
+  /** True for server-generated messages (e.g. "Player joined the session"). */
+  system?: boolean;
 }
 
 //describes waht the statistics object must contain
@@ -81,6 +123,9 @@ export class GameState {
       isHost,
       isConnected: true,
       joinedAt: new Date().toISOString(),
+      laserActive: false,
+      laserOrigin: { x: 0, y: 0, z: 0 },
+      laserDirection: { dx: 0, dy: 0, dz: 0 },
     };
 
     this.players.push(player);
@@ -106,6 +151,66 @@ export class GameState {
   /** Find a player by ID, or undefined. */
   getPlayer(playerId: string): PlayerState | undefined {
     return this.players.find((p) => p.id === playerId);
+  }
+
+  // ---------------------------------------------------------------
+  // Chat
+  // ---------------------------------------------------------------
+
+  /**
+   * Add a chat message attributed to a player. Returns the created message,
+   * or null when the player does not exist.
+   */
+  addChatMessage(playerId: string, text: string): ChatMessageState | null {
+    const player = this.getPlayer(playerId);
+    if (!player) return null;
+
+    const message: ChatMessageState = {
+      id: crypto.randomUUID(),
+      playerId,
+      displayName: player.displayName,
+      text,
+      sentAt: new Date().toISOString(),
+    };
+
+    const messages = this.getChatMessages();
+    messages.push(message);
+    while (messages.length > MAX_CHAT_MESSAGES) messages.shift();
+    this.metadata[CHAT_MESSAGES_KEY] = messages;
+
+    this._touch();
+    return message;
+  }
+
+  /** Return chat messages for this session, oldest first. */
+  getChatMessages(): ChatMessageState[] {
+    const raw = this.metadata[CHAT_MESSAGES_KEY];
+    if (!Array.isArray(raw)) return [];
+    return raw as ChatMessageState[];
+  }
+
+  /**
+   * Add a server-generated chat message (not attributed to a player), e.g.
+   * "Player joined the session". System messages are persisted alongside
+   * player messages and inherit the same history cap.
+   */
+  addSystemMessage(text: string): ChatMessageState {
+    const message: ChatMessageState = {
+      id: crypto.randomUUID(),
+      playerId: "",
+      displayName: "",
+      text,
+      sentAt: new Date().toISOString(),
+      system: true,
+    };
+
+    const messages = this.getChatMessages();
+    messages.push(message);
+    while (messages.length > MAX_CHAT_MESSAGES) messages.shift();
+    this.metadata[CHAT_MESSAGES_KEY] = messages;
+
+    this._touch();
+    return message;
   }
 
   // ---------------------------------------------------------------
