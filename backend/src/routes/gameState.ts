@@ -457,6 +457,12 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
       res.status(400).json({ error: "playerId and non-empty text are required" });
       return;
     }
+    // Cap message size so session metadata can't be ballooned toward the
+    // Postgres JSONB value limit (security review).
+    if (text.trim().length > 2000) {
+      res.status(400).json({ error: "text must be 2000 characters or fewer" });
+      return;
+    }
 
     const message = state.addChatMessage(playerId, text.trim());
     if (!message) {
@@ -489,8 +495,20 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
       res.status(400).json({ error: "x, y, z (numbers) are required" });
       return;
     }
+    // Cap artifact metadata size (security review).
+    if (label && String(label).length > 256) {
+      res.status(400).json({ error: "label must be 256 characters or fewer" });
+      return;
+    }
 
     const artifacts: Record<string, unknown>[] = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
+
+    // Cap artifact count (security review).
+    if (artifacts.length >= 500) {
+      res.status(400).json({ error: "Maximum of 500 artifacts per session" });
+      return;
+    }
+
     const now = new Date().toISOString();
     const artifact = {
       id: crypto.randomUUID(),
