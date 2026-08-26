@@ -3,6 +3,7 @@ import { useAuth } from "./auth/AuthContext";
 import { AmbientBackground } from "./components/AmbientBackground";
 import type { AppSection } from "./components/AppChrome";
 import { SideNav } from "./components/SideNav";
+import Documents from "./screens/Documents";
 import Home from "./screens/Home";
 import Login from "./screens/Login";
 import Upload from "./screens/Upload";
@@ -22,10 +23,16 @@ function Placeholder({ title }: { title: string }) {
 function Dashboard() {
   const { user, logout } = useAuth();
   const [section, setSection] = useState<AppSection>("home");
+  const [documentModelId, setDocumentModelId] = useState<string | null>(null);
 
   const email = user?.isLocalDev
     ? `${user.email} (local)`
     : user?.email || "signed-in@memphis.edu";
+
+  const openDocument = (modelId: string) => {
+    setDocumentModelId(modelId);
+    setSection("documents");
+  };
 
   return (
     <div className={`vr-app vr-app--shell${section === "home" ? " vr-app--home" : ""}`}>
@@ -33,7 +40,10 @@ function Dashboard() {
       <SideNav
         active={section}
         email={email}
-        onNavigate={setSection}
+        onNavigate={(next) => {
+          if (next !== "documents") setDocumentModelId(null);
+          setSection(next);
+        }}
         onSignOut={logout}
         onNewSession={() => setSection("upload")}
       />
@@ -44,7 +54,8 @@ function Dashboard() {
             onJoinSession={() => setSection("sessions")}
           />
         ) : null}
-        {section === "upload" ? <Upload /> : null}
+        {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
+        {section === "documents" ? <Documents initialModelId={documentModelId} /> : null}
         {section === "sessions" ? <Placeholder title="Sessions" /> : null}
         {section === "enter" ? <Placeholder title="Enter" /> : null}
       </div>
