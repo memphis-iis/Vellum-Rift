@@ -1,10 +1,11 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Install & build (pnpm monorepo)
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+# bookworm-slim (glibc) so canvas/sharp can use prebuilds instead of node-gyp.
+# Alpine has no canvas prebuild and fails without Python/build tooling.
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
-# Enable corepack for pnpm
 RUN corepack enable
 
 # Copy lockfile + all workspace package.json files first (layer caching)
@@ -14,8 +15,8 @@ COPY webrtc-sfu/package.json ./webrtc-sfu/
 COPY web-dashboard/package.json ./web-dashboard/
 COPY launcher/package.json ./launcher/
 
-# Install all workspace dependencies
-RUN pnpm install --frozen-lockfile
+# Install backend workspace tree only (avoids pulling unrelated packages)
+RUN pnpm install --frozen-lockfile --filter=@vellum-rift/backend...
 
 # Copy source and build the backend package
 COPY . .
@@ -24,18 +25,30 @@ RUN pnpm --filter @vellum-rift/backend build
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime (minimal)
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy only production artifacts from builder
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/backend/package.json ./package.json
+# Runtime shared libs required by node-canvas prebuilds
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libpango-1.0-0 \
+    libjpeg62-turbo \
+    libgif7 \
+    librsvg2-2 \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy shared node_modules (only what the backend needs at runtime)
+# Production node_modules for the backend filter tree
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/backend/node_modules ./backend/node_modules
+COPY --from=builder /app/backend/package.json ./backend/package.json
+COPY --from=builder /app/backend/dist ./backend/dist
+# Sample assets referenced at runtime by SampleModelIngestor
+COPY --from=builder /app/backend/src/sample ./backend/dist/sample
+
+WORKDIR /app/backend
 
 EXPOSE 4000
 

@@ -1,0 +1,40 @@
+# Keep Docker build context small and deterministic
+.git
+.github
+.deploy
+.env
+.env.*
+!**/.env.example
+
+node_modules
+**/node_modules
+**/dist
+**/dist-electron
+
+# Large / unrelated local assets
+vr-client-unity
+voynich
+infrared.zip
+TH
+THIRD-P
+vr
+
+# Local Unity/native build outputs
+**/web build
+**/windows build
+**/linux
+**/linux build
+**/macosbuild
+
+# Docs and IDE noise (not needed for image builds)
+docs
+**/*.md
+!**/.env.example
+.vscode
+.idea
+
+# Test artifacts
+**/coverage
+**/*.test.ts
+**/__tests__
+**/e2e

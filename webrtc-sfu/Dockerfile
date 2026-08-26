@@ -4,7 +4,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Enable corepack for pnpm
 RUN corepack enable
 
 # Copy lockfile + all workspace package.json files first (layer caching)
@@ -14,10 +13,9 @@ COPY webrtc-sfu/package.json ./webrtc-sfu/
 COPY web-dashboard/package.json ./web-dashboard/
 COPY launcher/package.json ./launcher/
 
-# Install all workspace dependencies
-RUN pnpm install --frozen-lockfile
+# Filter install so backend-only native deps (canvas) are not built here
+RUN pnpm install --frozen-lockfile --filter=@vellum-rift/webrtc-sfu...
 
-# Copy source and build the webrtc-sfu package
 COPY . .
 RUN pnpm --filter @vellum-rift/webrtc-sfu build
 
@@ -29,13 +27,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy only production artifacts from builder
-COPY --from=builder /app/webrtc-sfu/dist ./dist
-COPY --from=builder /app/webrtc-sfu/package.json ./package.json
-
-# Copy shared node_modules (only what the sfu needs at runtime)
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/webrtc-sfu/node_modules ./webrtc-sfu/node_modules
+COPY --from=builder /app/webrtc-sfu/package.json ./webrtc-sfu/package.json
+COPY --from=builder /app/webrtc-sfu/dist ./webrtc-sfu/dist
+
+WORKDIR /app/webrtc-sfu
 
 EXPOSE 4100
 
