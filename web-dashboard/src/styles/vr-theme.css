@@ -17,6 +17,10 @@
   --vr-primary-container: #d4b483;
   --vr-on-primary-container: #5c451e;
   --vr-primary-fixed: #ffdeac;
+  /* Logo wordmark cyan — primary CTA fill */
+  --vr-accent: #6bb7c4;
+  --vr-accent-bright: #7dd1db;
+  --vr-on-accent: #0a242b;
   --vr-outline: #998f82;
   --vr-outline-variant: #4d463b;
   --vr-gutter: 24px;
@@ -320,24 +324,25 @@
 
 .vr-btn--primary {
   border: none;
-  background: var(--vr-primary-container);
-  color: var(--vr-on-primary-container);
-  box-shadow: 0 0 20px rgba(212, 180, 131, 0.1);
+  background: var(--vr-accent);
+  color: var(--vr-on-accent);
+  box-shadow: 0 0 24px rgba(107, 183, 196, 0.22);
 }
 
 .vr-btn--primary:hover {
-  background: var(--vr-primary-fixed);
+  background: var(--vr-accent-bright);
 }
 
 .vr-btn--ghost {
-  border: 1px solid var(--vr-outline-variant);
-  background: color-mix(in srgb, var(--vr-surface-low) 60%, transparent);
-  backdrop-filter: blur(24px);
-  color: var(--vr-primary);
+  border: 1px solid color-mix(in srgb, var(--vr-primary-container) 55%, var(--vr-outline-variant));
+  background: var(--vr-primary-container);
+  color: var(--vr-on-primary-container);
+  backdrop-filter: none;
+  box-shadow: 0 0 20px rgba(212, 180, 131, 0.1);
 }
 
 .vr-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--vr-primary-fixed);
 }
 
 .vr-btn:disabled {
