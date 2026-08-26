@@ -1,0 +1,347 @@
+/**
+ * Vellum Rift post-login VR / spatial theme (Stitch home template → CSS).
+ * Scoped under `.vr-app` so Bluekey login stays on its own chrome.
+ */
+
+.vr-app {
+  --vr-background: #151310;
+  --vr-surface: #151310;
+  --vr-surface-low: #1e1b18;
+  --vr-surface-container: #221f1c;
+  --vr-surface-high: #2d2926;
+  --vr-surface-highest: #383430;
+  --vr-on-background: #e8e1db;
+  --vr-on-surface: #e8e1db;
+  --vr-on-surface-variant: #d1c5b7;
+  --vr-primary: #f1cf9c;
+  --vr-primary-container: #d4b483;
+  --vr-on-primary-container: #5c451e;
+  --vr-primary-fixed: #ffdeac;
+  --vr-outline: #998f82;
+  --vr-outline-variant: #4d463b;
+  --vr-gutter: 24px;
+  --vr-radius: 0.125rem;
+
+  --font-display: "Epilogue", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-label: "JetBrains Mono", ui-monospace, monospace;
+
+  min-height: 100vh;
+  color: var(--vr-on-background);
+  background-color: var(--vr-background);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23d4b483' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+.vr-app ::selection {
+  background: color-mix(in srgb, var(--vr-primary) 20%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-app__fog {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(circle at center, transparent 0%, #151310 100%);
+}
+
+.vr-app__material-icon {
+  font-family: "Material Symbols Outlined", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  -webkit-font-smoothing: antialiased;
+}
+
+.vr-app__material-icon--fill {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* —— Top header (md+) —— */
+.vr-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem var(--vr-gutter);
+  background: color-mix(in srgb, var(--vr-background) 80%, transparent);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-header {
+    display: flex;
+  }
+}
+
+.vr-header__brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-primary);
+}
+
+.vr-header__nav {
+  display: flex;
+  gap: var(--vr-gutter);
+}
+
+.vr-header__link {
+  background: none;
+  border: none;
+  padding: 0 0 0.25rem;
+  font: inherit;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  transition: color 0.3s ease, opacity 0.15s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.vr-header__link:hover {
+  color: var(--vr-primary);
+}
+
+.vr-header__link:active {
+  opacity: 0.7;
+}
+
+.vr-header__link--active {
+  color: var(--vr-primary);
+  font-weight: 700;
+  border-bottom-color: var(--vr-primary);
+}
+
+.vr-header__link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vr-header__user {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.vr-header__email {
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-header__sign-out {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--vr-primary);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.vr-header__sign-out:hover {
+  opacity: 0.8;
+}
+
+/* —— Home hero —— */
+.vr-home {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8rem var(--vr-gutter) 6rem;
+}
+
+.vr-home__inner {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.vr-home__copy {
+  position: relative;
+  margin-bottom: 4rem;
+}
+
+.vr-home__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16rem;
+  height: 16rem;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vr-primary) 5%, transparent);
+  filter: blur(48px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.vr-home__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--vr-primary-container);
+}
+
+@media (min-width: 768px) {
+  .vr-home__title {
+    font-size: 64px;
+  }
+
+  .vr-home__br {
+    display: block;
+  }
+}
+
+.vr-home__br {
+  display: none;
+}
+
+.vr-home__lead {
+  margin: 1.5rem auto 0;
+  max-width: 42rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-home__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .vr-home__actions {
+    flex-direction: row;
+  }
+}
+
+.vr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 1rem 2rem;
+  border-radius: var(--vr-radius);
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+@media (min-width: 640px) {
+  .vr-btn {
+    width: auto;
+  }
+}
+
+.vr-btn--primary {
+  border: none;
+  background: var(--vr-primary-container);
+  color: var(--vr-on-primary-container);
+  box-shadow: 0 0 20px rgba(212, 180, 131, 0.1);
+}
+
+.vr-btn--primary:hover {
+  background: var(--vr-primary-fixed);
+}
+
+.vr-btn--ghost {
+  border: 1px solid var(--vr-outline-variant);
+  background: color-mix(in srgb, var(--vr-surface-low) 60%, transparent);
+  backdrop-filter: blur(24px);
+  color: var(--vr-primary);
+}
+
+.vr-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vr-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* —— Mobile bottom nav —— */
+.vr-tabbar {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--vr-surface-low) 80%, transparent);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 20%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-tabbar {
+    display: none;
+  }
+}
+
+.vr-tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.vr-tabbar__item:hover,
+.vr-tabbar__item--active {
+  color: var(--vr-primary);
+}
+
+.vr-tabbar__label {
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
