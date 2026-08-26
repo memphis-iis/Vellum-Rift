@@ -187,7 +187,7 @@
 }
 
 .vr-header__link:hover {
-  color: var(--vr-primary);
+  color: var(--vr-accent-bright);
 }
 
 .vr-header__link:active {
@@ -195,9 +195,9 @@
 }
 
 .vr-header__link--active {
-  color: var(--vr-primary);
+  color: var(--vr-accent-bright);
   font-weight: 700;
-  border-bottom-color: var(--vr-primary);
+  border-bottom-color: var(--vr-accent);
 }
 
 .vr-header__link:disabled {
@@ -220,7 +220,7 @@
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--vr-primary);
+  color: var(--vr-accent-bright);
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -387,7 +387,7 @@
 
 .vr-tabbar__item:hover,
 .vr-tabbar__item--active {
-  color: var(--vr-primary);
+  color: var(--vr-accent-bright);
 }
 
 .vr-tabbar__label {
