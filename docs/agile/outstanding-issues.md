@@ -61,9 +61,9 @@ Still open related work: invite/completion **notifications** remain tracked as G
 
 | ID | Issue | Priority | Notes |
 |----|-------|----------|-------|
-| IMPL-012 | SFU is health-only placeholder | Foundational | GitHub #104 |
-| IMPL-013 | Authenticated signaling (offer/answer or join) | Foundational | GitHub #104 |
-| IMPL-014 | Presence / movement packet contract + streaming | Foundational | SDD 001 follow-up; GitHub #104 |
+| IMPL-012 | SFU is health-only placeholder | Foundational | **Partial** — signaling + auth in #104; media relay still TBD |
+| IMPL-013 | Authenticated signaling (offer/answer or join) | Foundational | **Done** via #104 (`/api/realtime/token` + SFU `/v1`) |
+| IMPL-014 | Presence / movement packet contract + streaming | Foundational | **Partial** — contract documented/typed; client streaming = IMPL-022 |
 
 ### D. Client — Web Dashboard
 
@@ -206,9 +206,9 @@ Dashboard invite/share/enter flows.
 
 | Dependency | Needed By | Status |
 |------------|-----------|--------|
-| Presence/movement packet contract | FTR-001, IMPL-014 | Undefined (SDD 001 follow-up) |
+| Presence/movement packet contract | FTR-001, IMPL-014 | Documented + typed (#104); client stream = IMPL-022 |
 | Durable `vr_spatial_artifacts` wiring | FTR-003, IMPL-011b | Schema + JSONB API; table wiring incomplete |
-| SFU signaling + media + data | FTR-001, IMPL-012–014, #104 | Placeholder only |
+| SFU signaling + media + data | FTR-001, IMPL-012–014, #104 | Signaling + auth done; media relay TBD |
 | Piper synthesis | FTR-006 | 501 / not wired |
 | Faster-Whisper chat integration | FTR-007 | Endpoint exists, not integrated |
 | Migration tooling | — | **Done** (`pnpm migrate`) |
@@ -230,9 +230,9 @@ Dashboard invite/share/enter flows.
 
 ### Foundational
 
-- IMPL-011b, IMPL-030 / #103 (artifacts durability, route auth)
-- IMPL-012, IMPL-013, IMPL-014 / #104 (SFU)
-- IMPL-021, IMPL-022 (radar, WebRTC presence)
+- IMPL-011b (artifacts durability)
+- IMPL-012 (media relay), IMPL-014 remainder / IMPL-022 (WebRTC presence)
+- IMPL-021 (radar)
 - IMPL-027 (EULA gating — Vellum-local definition)
 - IMPL-031 / #102, IMPL-032 / #105 (doc accuracy)
 - FTR-001, FTR-005; finish FTR-002/003/004/009 polish

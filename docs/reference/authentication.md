@@ -59,8 +59,18 @@ Policy: only liveness/health endpoints are anonymous. Application data and proce
 | `/api/jobs/*` | **Protected** | Job status and listing (processing progress) |
 | `/api/assets/*` | **Protected** | Asset manifests / progressive chunk discovery |
 | `/api/lod-tiers/*` | **Protected** | Platform LoD budgets |
+| `/api/realtime/*` | **Protected** | Mint short-lived SFU signaling tokens |
 
 There are **no** intentional public discovery endpoints for jobs, assets, or LoD tiers. Clients that poll job progress or load manifests must send `Authorization: Bearer <token>` whenever auth is required.
+
+### Realtime / SFU tokens
+
+1. Call `POST /api/realtime/token` with `{ "sessionId": "…", "playerId": "…" }` (Bluekey bearer when auth is required).
+2. Response includes `{ token, expiresAt, sfuUrl, sessionId, playerId }`.
+3. Use `token` as `Authorization: Bearer` on SFU `/v1/sessions/...` routes.
+4. Set the same `REALTIME_JWT_SECRET` on backend and `webrtc-sfu`. Optional: `SFU_PUBLIC_URL`, `REALTIME_TOKEN_TTL_SEC` (default 300).
+
+SFU health (`GET /health`) and packet contract discovery (`GET /v1/contracts/packets`) stay public. Session join/signal/leave require auth when SFU `AUTH_REQUIRED=true`.
 
 Wire new routers in `backend/src/index.ts` under the protected section unless there is an explicit, documented reason to leave them public.
 
