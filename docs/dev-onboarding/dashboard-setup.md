@@ -94,9 +94,20 @@ What exists now:
 What should come next:
 
 - route structure for uploads, sessions, and teams
-- API client layer for the Express backend (Bearer auth when required)
-- auth and EULA gating flows (Vellum-local; no GlyphWitch prerequisite)
-- WebGL embedding or launch flow for the browser client experience
+- fuller API client using Bearer tokens from Bluekey session
+- EULA gating flows (Vellum-local)
+- WebGL embedding or launch flow; post-login VR theme
+
+### Bluekey login (issue #114)
+
+The dashboard shows the IIS Bluekey login shell (Undertaker template) until the user signs in.
+
+1. Copy `web-dashboard/.env.example` to `web-dashboard/.env`
+2. Set `VITE_BLUEKEY_SOFTWARE_ID` for real SSO
+3. Leave `VITE_AUTH_REQUIRED` unset for local work — use **Continue as local developer**
+4. On shared hosts set `VITE_AUTH_REQUIRED=true` (hides the local skip)
+
+Logo lockup uses `https://iis.memphis.edu/static/bluekey/icons/vellumrift.png` plus the Memphis pillar.
 
 ## Working Conventions
 

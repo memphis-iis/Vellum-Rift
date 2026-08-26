@@ -120,6 +120,8 @@ interface AuthenticatedUser {
 
 ## Frontend: Bluekey Login Popup
 
+Dashboard implementation: `web-dashboard/src/screens/Login.tsx` + `web-dashboard/src/auth/` (Undertaker Bluekey template). Env: `web-dashboard/.env.example`.
+
 ```typescript
 const BLUEKEY_SOFTWARE_ID = "YOUR_APP_UUID";
 const BLUEKEY_PORTAL_URL  = "https://iis.memphis.edu/static/bluekey/";
@@ -130,8 +132,10 @@ const BLUEKEY_ORIGIN      = "https://iis.memphis.edu";
 
 1. Open a popup: `window.open(BLUEKEY_PORTAL_URL + "?appUuid=" + BLUEKEY_SOFTWARE_ID + "&mode=popup", ...)`
 2. Listen for `message` events and validate `event.origin === BLUEKEY_ORIGIN`
-3. Store the `accessToken` from the event data
+3. Store the `accessToken` from the event data (dashboard uses `sessionStorage`)
 4. Send it as `Authorization: Bearer <token>` on **all** protected API calls (including jobs / assets / lod-tiers)
+
+Local dashboard: leave `VITE_AUTH_REQUIRED` unset and use **Continue as local developer** when no IdP is available.
 
 ---
 
