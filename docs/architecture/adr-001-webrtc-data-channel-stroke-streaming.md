@@ -8,11 +8,11 @@ Approved (2026-05-29)
 
 Vellum Rift requires real-time multi-user drawing synchronization. When a VR user sketches a 3D stroke to reconstruct a faded or degraded ink trail, that path must render point-by-point for all other team members in the room across Web and native VR clients.
 
-We evaluated using the existing Hasura and WebSocket subscription layer for this high-frequency vector point streaming because it already supports room persistence and spatial artifact synchronization.
+We evaluated using database subscriptions or ordinary WebSocket persistence for this high-frequency vector point streaming because the durable layer already supports room persistence and spatial artifact synchronization.
 
 ## Decision
 
-Active in-flight stroke generation will bypass Hasura and ordinary WebSocket persistence flows. Instead, point arrays will be sent over an unreliable, unordered WebRTC data channel through the self-hosted SFU layer.
+Active in-flight stroke generation will bypass ordinary WebSocket or REST persistence flows. Instead, point arrays will be sent over an unreliable, unordered WebRTC data channel through the self-hosted SFU layer.
 
 Completed strokes will be flushed through persisted APIs only after draw completion.
 

@@ -96,7 +96,7 @@ Still open related work: invite/completion **notifications** remain tracked as G
 | IMPL-026 | Confirm Unity project tracking / CI ownership under monorepo | MVP-blocking | Project lives under `vr-client-unity/`; policy + CI decision still needed |
 | IMPL-027 | EULA gating across clients | Foundational | No GlyphWitch EULA dependency assumed for now — define Vellum-local or deferred gate |
 | IMPL-031 | Align CI/CD and agent docs with actual stack | Foundational | GitHub #102 |
-| IMPL-032 | Fix auth / reference doc drift | Foundational | GitHub #105 |
+| IMPL-032 | Fix auth / reference doc drift | Foundational | **Done** via #105 |
 
 ### H. LLM Visual Extraction (IMPL-029)
 
@@ -234,7 +234,7 @@ Dashboard invite/share/enter flows.
 - IMPL-012 (media relay), IMPL-014 remainder / IMPL-022 (WebRTC presence)
 - IMPL-021 (radar)
 - IMPL-027 (EULA gating — Vellum-local definition)
-- IMPL-031 / #102, IMPL-032 / #105 (doc accuracy)
+- IMPL-031 / #102 (doc accuracy; IMPL-032 / #105 done)
 - FTR-001, FTR-005; finish FTR-002/003/004/009 polish
 
 ### Later milestone

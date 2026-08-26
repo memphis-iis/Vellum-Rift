@@ -45,7 +45,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\onboard-all.ps1
 
 Useful local endpoints:
 
-- Hasura: `http://localhost:8080`
 - MinIO console: `http://localhost:9001`
 - Mailpit: `http://localhost:8025`
 - Adminer: `http://localhost:8081`

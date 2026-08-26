@@ -5,7 +5,7 @@
 - Sprint length: 2 weeks.
 - Initial roadmap: 10 sprints.
 - Delivery model: Web, Meta Quest, and SteamVR from a shared product definition.
-- GlyphWitch is the starting point for authentication, teams, permissions, chat, documents, and annotations.
+- Auth is Bluekey when enabled; GlyphWitch platform reuse is out of scope for now (see outstanding-issues scope note).
 
 ## Milestone 1: Asset Pipeline And Solo Exploration
 

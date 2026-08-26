@@ -38,10 +38,10 @@ Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts,
 
 ## Data In Transit
 
-### HTTPS And WSS
+### HTTPS (REST and signaling)
 
 - All REST and signaling traffic must use TLS-protected transport in non-local environments.
-- Plain HTTP or unsecured WebSocket connections are not permitted outside isolated local development.
+- Plain HTTP is not permitted outside isolated local development. There is no current GraphQL / Hasura subscription transport requirement.
 
 ### WebRTC DTLS And SRTP
 

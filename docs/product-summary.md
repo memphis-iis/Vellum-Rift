@@ -52,16 +52,16 @@ Vellum Rift is a collaborative research environment for exploring ancient manusc
 ### Data And Sync Strategy
 
 - Custom backend server for WebRTC.
-- Hosted PostgreSQL or Hasura-backed PostgreSQL for persisted state.
+- Hosted PostgreSQL for persisted state.
 - Web-friendly assets shared across Web and VR clients.
 - Speech-to-text and text-to-speech models are self-hosted rather than managed by a third-party API.
 - The default first-release speech stack is Faster-Whisper for STT and Piper for TTS.
 
 ## Integration Baseline
 
-The repository already contains GlyphWitch, an existing manuscript-oriented backend with documents, pages, annotations, chats, teams, permissions, theories, and audit surfaces. Vellum Rift should build from that baseline rather than invent a separate document domain.
+**Current:** Vellum Rift APIs use Bluekey (when `AUTH_REQUIRED=true`) and Express + Postgres for durable session/document-processing surfaces. GlyphWitch document/team ACL and related platform reuse is **out of scope for now** — see [backend-integration-summary.md](reference/backend-integration-summary.md) and the historical [GlyphWitchAPI.md](reference/GlyphWitchAPI.md) inventory.
 
-Milestone one should explicitly reuse GlyphWitch authentication, teams, permissions, and chat as the authoritative collaboration model.
+Future integration with GlyphWitch (or another manuscript platform) remains an open product decision, not a local onboarding prerequisite.
 
 ## Current Open Questions
 

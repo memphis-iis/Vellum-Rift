@@ -1,93 +1,28 @@
 # Backend Integration Summary
 
-This document summarizes how Vellum Rift should build on GlyphWitch, the existing manuscript backend and database surfaces already present in the repository and prior API reference.
+## Current direction (active)
 
-The detailed route and storage inventory lives in [GlyphWitchAPI.md](GlyphWitchAPI.md). This summary is intentionally narrower and focused on how Vellum Rift should reuse and extend that platform.
+Vellum Rift’s durable APIs are the Express + Postgres stack in `backend/`. Auth is Bluekey when `AUTH_REQUIRED=true` (see [authentication.md](authentication.md)). Realtime signaling is the SFU path in [001-webrtc-sfu.md](../architecture/001-webrtc-sfu.md). Persisted session shape is [002-persisted-state-sync.md](../architecture/002-persisted-state-sync.md).
 
-## Principle
+Migrations that apply to this repository live under `backend/src/migrations/` and are applied with `pnpm migrate`.
 
-Vellum Rift should extend the existing document collaboration platform, not replace it.
+GlyphWitch document/team ACL, chat reuse, and related manuscript-platform workflows are **out of scope for now**. Do not treat missing GlyphWitch routes as current blockers.
 
-## Existing Domain Areas To Reuse
+## Historical inventory (out of scope)
 
-### Authentication And Account
+[GlyphWitchAPI.md](GlyphWitchAPI.md) is a **historical** route and storage inventory from the GlyphWitch manuscript platform. Many listed paths and `backend/migrations/*.sql` links are **not** present in this monorepo. Use it only when comparing future integration ideas — not as the live Vellum Rift API contract.
 
-Use the existing account, profile, token, passkey, and TOTP surfaces as the starting point for identity.
+Canonical live route source: [backend/src/index.ts](../../backend/src/index.ts).
 
-Relevant capabilities already exist for:
+## What Vellum Rift owns today
 
-- registration and login
-- refresh and revocation
-- account profile and export
-- deactivation and reactivation
+- manuscript upload / preprocessing jobs and asset manifests
+- game-state session surfaces (presence polling, chat, summon, lasers, artifacts)
+- LoD tiers and model metadata
+- short-lived SFU signaling tokens (`/api/realtime/token`)
 
-### Documents And Uploads
+## Preferred extension strategy
 
-Use the existing document and page flows as the intake boundary for manuscript uploads.
-
-Relevant capabilities already exist for:
-
-- document creation
-- PDF and image upload
-- upload progress
-- page retrieval and save flows
-- document ownership and deletion
-
-### Annotations, Traces, Glyphs, And Corrections
-
-Use the existing annotation and drawing model as the baseline for persisted traces and authored stroke data.
-
-Relevant capabilities already exist for:
-
-- document and page annotations
-- annotation layers
-- drawing annotations
-- glyph grouping and grouping membership
-- correction analytics
-
-### Teams, Permissions, And Notifications
-
-Use the existing team and permission model as the baseline for session access.
-
-Relevant capabilities already exist for:
-
-- team creation and invites
-- team membership and role changes
-- direct document permissions
-- team-level document grants
-- notifications
-
-### Chat And Moderation
-
-Use existing chat and moderation concepts where possible before inventing separate room-specific systems.
-
-Relevant capabilities already exist for:
-
-- document chat history
-- bot chat route
-- abuse reports
-- flagged chat workflow
-- bans and activity tracking
-
-## New Domain Areas Vellum Rift Still Needs
-
-The current platform does not yet fully describe spatial collaboration. New surfaces are still required for:
-
-- live VR and web session lifecycle
-- host authority and host migration
-- summon-team behavior
-- participant transforms and radar state
-- spatial pins and save points
-- completed collaborative stroke sessions mapped into 3D coordinates
-- WebRTC signaling and low-latency presence transport
-
-## Preferred Extension Strategy
-
-1. Reuse existing user, team, document, and annotation identities.
-2. Add new spatial tables and APIs only where the existing backend lacks a concept.
-3. Keep document ownership and access control in the current permission model.
-4. Avoid duplicating chat, notification, or audit capabilities unless immersive UX forces a distinct model.
-
-## Confirmed Integration Decision
-
-Milestone one reuses GlyphWitch authentication, teams, permissions, and chat as the authoritative collaboration model. Vellum Rift should add spatial session capabilities on top of that system rather than introducing a parallel identity or room-permission stack.
+1. Add schema through `backend/src/migrations/` and Express routes.
+2. Keep high-frequency presence/voice/data on the WebRTC SFU lane.
+3. Introduce GlyphWitch compatibility only under an explicit future decision — not as a silent prerequisite for onboarding or MVP.

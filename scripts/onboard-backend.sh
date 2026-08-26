@@ -18,7 +18,6 @@ Next steps:
 4. Optionally start the speech stack with: docker compose --env-file .env -f docker-compose.yml -f docker-compose.speech.yml up -d
 
 Useful URLs:
-- Hasura: http://localhost:8080
 - MinIO console: http://localhost:9001
 - Mailpit: http://localhost:8025
 - Adminer: http://localhost:8081

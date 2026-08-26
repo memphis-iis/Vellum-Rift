@@ -31,7 +31,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [qa/multiplayer-demo-runbook.md](qa/multiplayer-demo-runbook.md) — Demo 1: two-client moving-cubes POC (issue #44)
 - [architecture/agents.md](architecture/agents.md)
 - [architecture/001-webrtc-sfu.md](architecture/001-webrtc-sfu.md)
-- [architecture/002-hasura-sync.md](architecture/002-hasura-sync.md)
+- [architecture/002-persisted-state-sync.md](architecture/002-persisted-state-sync.md) (supersedes historical `002-hasura-sync.md`)
 - [architecture/003-shader-pipeline.md](architecture/003-shader-pipeline.md)
 - [architecture/005-data-ingestion-pipelines.md](architecture/005-data-ingestion-pipelines.md)
 - [architecture/adr-001-webrtc-data-channel-stroke-streaming.md](architecture/adr-001-webrtc-data-channel-stroke-streaming.md)
@@ -54,8 +54,8 @@ This directory is the source of truth for product, architecture, delivery planni
 - [dev-onboarding/unity-setup.md](dev-onboarding/unity-setup.md)
 - [reference/glossary.md](reference/glossary.md)
 - [reference/backend-integration-summary.md](reference/backend-integration-summary.md)
-- [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md)
-- [reference/authentication.md](reference/authentication.md)
+- [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md) — historical GlyphWitch inventory (out of scope)
+- [reference/authentication.md](reference/authentication.md) — live Bluekey / route policy
 
 ## Local Development Files
 

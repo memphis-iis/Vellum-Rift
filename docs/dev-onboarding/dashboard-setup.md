@@ -94,13 +94,13 @@ What exists now:
 What should come next:
 
 - route structure for uploads, sessions, and teams
-- API client layer for backend and Hasura access
-- auth and EULA gating flows
+- API client layer for the Express backend (Bearer auth when required)
+- auth and EULA gating flows (Vellum-local; no GlyphWitch prerequisite)
 - WebGL embedding or launch flow for the browser client experience
 
 ## Working Conventions
 
-1. Keep the dashboard aligned with the documented GlyphWitch integration model.
+1. Keep the dashboard aligned with current Express + Bluekey contracts (GlyphWitch reuse is out of scope for now).
 2. Avoid inventing frontend-only data contracts when a backend contract should exist.
 3. Update docs when dashboard flows add new architecture or policy assumptions.
 4. Preserve the existing visual direction unless a deliberate redesign is being made.

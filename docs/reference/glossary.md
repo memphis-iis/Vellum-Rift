@@ -8,7 +8,7 @@ A durable object associated with a session or document-derived exploration space
 
 ## Backend
 
-The TypeScript application layer in `backend/` responsible for durable application behavior, integration with GlyphWitch concepts, and access to persistent data and workflow orchestration.
+The TypeScript application layer in `backend/` responsible for durable application behavior (Express REST + Postgres) and workflow orchestration. GlyphWitch platform reuse is out of scope for now.
 
 ## Dashboard
 
@@ -20,7 +20,7 @@ The document analysis bot exposed through the existing document chat surface. It
 
 ## Document
 
-A manuscript or uploaded source object managed through the existing GlyphWitch-oriented document model. Documents are the baseline resource around which uploads, permissions, annotations, and sessions are organized.
+A manuscript or uploaded source object. In Vellum Rift today, uploads and processing flow through the Express backend; richer GlyphWitch document/permission models are historical / future scope.
 
 ## Export
 
@@ -32,11 +32,7 @@ The default first-release self-hosted speech-to-text stack currently planned for
 
 ## GlyphWitch
 
-The existing manuscript-oriented backend and schema baseline that Vellum Rift is intended to extend. GlyphWitch already provides document, auth, permission, chat, annotation, and related collaboration surfaces.
-
-## Hasura
-
-The GraphQL and subscription layer over PostgreSQL used for durable state synchronization and query access.
+A manuscript-oriented platform whose APIs and schemas are documented historically in [GlyphWitchAPI.md](GlyphWitchAPI.md). **Out of scope for now** for Vellum Rift delivery; current auth is Bluekey and durable APIs are Express + Postgres.
 
 ## Host Migration
 

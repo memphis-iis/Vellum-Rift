@@ -22,7 +22,6 @@ if (withSpeech) {
 }
 
 console.log("\nVellum Rift local onboarding is complete.");
-console.log("Hasura: http://localhost:8080");
 console.log("MinIO console: http://localhost:9001");
 console.log("Mailpit: http://localhost:8025");
 console.log("Adminer: http://localhost:8081");

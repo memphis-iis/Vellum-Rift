@@ -1,19 +1,25 @@
-# API Reference
+# GlyphWitch API Reference (historical / out of scope)
 
-Last updated: 2026-05-29
+> **Status:** Historical inventory of GlyphWitch manuscript-platform routes.
+> GlyphWitch integration is **out of scope for now** for Vellum Rift delivery.
+>
+> **Do not** treat this file as the live Vellum Rift API. Live routes:
+> [backend/src/index.ts](../../backend/src/index.ts). Auth:
+> [authentication.md](authentication.md). Integration stance:
+> [backend-integration-summary.md](backend-integration-summary.md).
+>
+> **Migrations in this monorepo:** `backend/src/migrations/` (currently
+> `001_initial_schema.sql`), applied via `pnpm migrate`. The
+> `backend/migrations/*.sql` paths below were GlyphWitch-era references and are
+> **not present** in this repository.
 
-Canonical route source: [backend/src/index.ts](../../backend/src/index.ts).
+Last updated: 2026-05-29 (inventory); scope banner: 2026-08-26.
 
-Schema sources used for storage coverage:
+Historical schema sources formerly cited (missing from this repo unless noted):
 
-- [init.sql](../../init.sql)
-- [backend/migrations/001_initial_schema.sql](../../backend/migrations/001_initial_schema.sql)
-- [backend/migrations/002_audit_logging.sql](../../backend/migrations/002_audit_logging.sql)
-- [backend/migrations/003_user_reports_and_bans.sql](../../backend/migrations/003_user_reports_and_bans.sql)
-- [backend/migrations/004_eula_acceptance.sql](../../backend/migrations/004_eula_acceptance.sql)
-- [backend/migrations/005_guest_signatures.sql](../../backend/migrations/005_guest_signatures.sql)
-- [backend/migrations/006_compound_glyphs.sql](../../backend/migrations/006_compound_glyphs.sql)
-- [backend/migrations/007_bluekey_auth_compat.sql](../../backend/migrations/007_bluekey_auth_compat.sql)
+- [init.sql](../../init.sql) (repo root, if present)
+- `backend/migrations/001_initial_schema.sql` … `007_bluekey_auth_compat.sql` (GlyphWitch paths; **broken links — not in tree**)
+- Current Vellum Rift SQL: [backend/src/migrations/001_initial_schema.sql](../../backend/src/migrations/001_initial_schema.sql)
 
 ## Conventions
 
