@@ -4,7 +4,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Enable corepack for pnpm
 RUN corepack enable
 
 # Copy lockfile + all workspace package.json files first (layer caching)
@@ -14,10 +13,9 @@ COPY webrtc-sfu/package.json ./webrtc-sfu/
 COPY web-dashboard/package.json ./web-dashboard/
 COPY launcher/package.json ./launcher/
 
-# Install all workspace dependencies
-RUN pnpm install --frozen-lockfile
+# Filter install so backend-only native deps (canvas) are not built here
+RUN pnpm install --frozen-lockfile --filter=@vellum-rift/web-dashboard...
 
-# Copy source and build the web-dashboard package
 COPY . .
 RUN pnpm --filter @vellum-rift/web-dashboard build
 
@@ -27,10 +25,8 @@ RUN pnpm --filter @vellum-rift/web-dashboard build
 FROM nginx:alpine AS runner
 WORKDIR /usr/share/nginx/html
 
-# Copy built dashboard assets from builder
 COPY --from=builder /app/web-dashboard/dist .
 
-# Custom nginx config to handle SPA routing
 RUN rm /etc/nginx/conf.d/default.conf && cat > /etc/nginx/conf.d/default.conf <<'EOF'
 server {
     listen 80;
