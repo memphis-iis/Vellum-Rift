@@ -1,3 +1,4 @@
+import { BrandMark } from "../components/BrandMark";
 import { MaterialIcon } from "../components/MaterialIcon";
 
 type HomeProps = {
@@ -10,7 +11,9 @@ export default function Home({ onUpload, onJoinSession }: HomeProps) {
     <main className="vr-home">
       <div className="vr-home__inner">
         <div className="vr-home__copy">
-          <div className="vr-home__glow" aria-hidden />
+          <div className="vr-home__logo">
+            <BrandMark variant="full" size="lg" />
+          </div>
           <h1 className="vr-home__title">
             Manuscript sessions <br className="vr-home__br" />
             for web and VR

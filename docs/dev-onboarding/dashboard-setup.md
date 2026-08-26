@@ -111,7 +111,9 @@ Logo lockup uses `https://iis.memphis.edu/static/bluekey/icons/vellumrift.png` p
 
 ### Post-login home (VR theme)
 
-After sign-in, the app uses the dark spatial / VR home (Epilogue + Hanken Grotesk, parchment-gold accents). Upload / Sessions / Enter nav items are chrome placeholders until those slices land.
+After sign-in, the app uses the dark spatial / VR home (Epilogue + Hanken Grotesk, parchment-gold accents) with the Vellum logo from Bluekey static (`icons/vellumrift.png`). Upload / Sessions / Enter nav items are chrome placeholders until those slices land.
+
+Optional ambient video: add `web-dashboard/public/home-bg.webm` or set `VITE_HOME_BG_VIDEO_URL` (muted loop under the fog layer).
 
 ## Working Conventions
 

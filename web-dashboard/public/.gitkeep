@@ -1,0 +1,3 @@
+# Optional ambient loop for the post-login home (muted, playsInline, autoplay).
+# Prefer short WebM (VP9) for low latency / small decode cost.
+# Drop `home-bg.webm` here, or set VITE_HOME_BG_VIDEO_URL in `.env`.

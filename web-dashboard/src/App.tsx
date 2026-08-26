@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "./auth/AuthContext";
+import { AmbientBackground } from "./components/AmbientBackground";
 import { AppChrome, type AppSection } from "./components/AppChrome";
 import Home from "./screens/Home";
 import Login from "./screens/Login";
@@ -28,7 +29,7 @@ function Dashboard() {
 
   return (
     <div className="vr-app">
-      <div className="vr-app__fog" aria-hidden />
+      <AmbientBackground />
       <AppChrome
         active={section}
         email={email}
