@@ -36,6 +36,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [architecture/005-data-ingestion-pipelines.md](architecture/005-data-ingestion-pipelines.md)
 - [architecture/adr-001-webrtc-data-channel-stroke-streaming.md](architecture/adr-001-webrtc-data-channel-stroke-streaming.md)
 - [agile/milestones.md](agile/milestones.md)
+- [agile/outstanding-issues.md](agile/outstanding-issues.md) — reconciled implementation backlog
 - [agile/backlog-governance.md](agile/backlog-governance.md)
 - [agile/ideation-week-template.md](agile/ideation-week-template.md)
 - [agile/user-stories.md](agile/user-stories.md)
