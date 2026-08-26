@@ -5,6 +5,7 @@ import { fetchJob, uploadManuscript, type JobStatus } from "../api/upload";
 type LocalJob = {
   id: string;
   filename: string;
+  title: string;
   status: string;
   progress: number;
   stage: string;
@@ -34,6 +35,7 @@ function stageLabel(status: string, progress: number): string {
 function normalizeJob(
   jobId: string,
   filename: string,
+  title: string,
   remote?: JobStatus,
   page?: number,
 ): LocalJob {
@@ -49,6 +51,7 @@ function normalizeJob(
   return {
     id: jobId,
     filename,
+    title,
     status,
     progress,
     page,
@@ -56,6 +59,10 @@ function normalizeJob(
     stage: remote?.stage || stageLabel(status, progress),
     error: remote?.errorMessage || remote?.error || undefined,
   };
+}
+
+function labelForFile(title: string, file: File, multi: boolean): string {
+  return multi ? `${title} — ${file.name}` : title;
 }
 
 type UploadProps = {
@@ -69,6 +76,7 @@ export default function Upload({ onViewModel }: UploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [page, setPage] = useState(1);
+  const [title, setTitle] = useState("");
 
   const upsertJob = useCallback((job: LocalJob) => {
     setJobs((prev) => {
@@ -78,6 +86,7 @@ export default function Upload({ onViewModel }: UploadProps) {
       const next = [...prev];
       next[i] = {
         ...job,
+        title: job.title || existing.title,
         page: job.page ?? existing.page,
         modelId: job.modelId ?? existing.modelId,
       };
@@ -89,15 +98,32 @@ export default function Upload({ onViewModel }: UploadProps) {
     setJobs((prev) => prev.filter((j) => j.id !== id));
   }, []);
 
+  const requireTitle = (): string | null => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setError("Enter a document title before uploading.");
+      return null;
+    }
+    return trimmed;
+  };
+
   const processFiles = async (files: FileList | File[]) => {
     const list = Array.from(files);
     if (!list.length) return;
+    const docTitle = requireTitle();
+    if (!docTitle) return;
+
     const pageToProcess = Math.max(1, Math.floor(page) || 1);
+    const multi = list.length > 1;
     setError(null);
     setUploading(true);
     try {
       for (const file of list) {
-        const opts = isPdf(file) ? { page: pageToProcess } : {};
+        const label = labelForFile(docTitle, file, multi);
+        const opts = {
+          label,
+          ...(isPdf(file) ? { page: pageToProcess } : {}),
+        };
         const res = await uploadManuscript(file, opts);
         const jobId = res.jobId;
         if (!jobId) throw new Error("Upload succeeded but no jobId returned");
@@ -105,6 +131,7 @@ export default function Upload({ onViewModel }: UploadProps) {
           normalizeJob(
             jobId,
             file.name,
+            label,
             { jobId, status: res.status || "pending" },
             isPdf(file) ? pageToProcess : undefined,
           ),
@@ -117,6 +144,11 @@ export default function Upload({ onViewModel }: UploadProps) {
     }
   };
 
+  const openFilePicker = () => {
+    if (!requireTitle()) return;
+    inputRef.current?.click();
+  };
+
   useEffect(() => {
     const active = jobs.filter((j) => j.status !== "completed" && j.status !== "failed");
     if (!active.length) return;
@@ -126,7 +158,7 @@ export default function Upload({ onViewModel }: UploadProps) {
         active.map(async (job) => {
           try {
             const remote = await fetchJob(job.id);
-            upsertJob(normalizeJob(job.id, job.filename, remote, job.page));
+            upsertJob(normalizeJob(job.id, job.filename, job.title, remote, job.page));
           } catch {
             /* keep last known */
           }
@@ -142,12 +174,38 @@ export default function Upload({ onViewModel }: UploadProps) {
       <header className="vr-upload__header">
         <h1 className="vr-upload__title">Manuscript Ingestion</h1>
         <p className="vr-upload__lead">
-          Upload TIFF, JPEG, or PDF files to begin the extraction process. The rift will stabilize
-          documents automatically.
+          Name the document, then upload TIFF, JPEG, or PDF files to begin extraction. The rift will
+          stabilize documents automatically.
         </p>
       </header>
 
-      <section className="vr-upload__options" aria-label="Processing options">
+      <section className="vr-upload__options" aria-label="Document details">
+        <label className="vr-upload__title-field" htmlFor="vr-upload-title">
+          <span className="vr-upload__page-label">
+            <MaterialIcon name="title" />
+            Document title
+            <span className="vr-upload__required">Required</span>
+          </span>
+          <input
+            id="vr-upload-title"
+            className="vr-upload__title-input"
+            type="text"
+            required
+            maxLength={200}
+            autoComplete="off"
+            placeholder="e.g. Codex fragment — folio 12"
+            value={title}
+            disabled={uploading}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (error === "Enter a document title before uploading.") setError(null);
+            }}
+          />
+        </label>
+        <p className="vr-upload__page-hint">
+          This title appears in Documents and on the processed mesh record.
+        </p>
+
         <label className="vr-upload__page-field" htmlFor="vr-upload-page">
           <span className="vr-upload__page-label">
             <MaterialIcon name="filter_1" />
@@ -174,7 +232,7 @@ export default function Upload({ onViewModel }: UploadProps) {
       </section>
 
       <section
-        className={`vr-dropzone${dragging ? " vr-dropzone--active" : ""}`}
+        className={`vr-dropzone${dragging ? " vr-dropzone--active" : ""}${!title.trim() ? " vr-dropzone--locked" : ""}`}
         onDragEnter={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -186,26 +244,29 @@ export default function Upload({ onViewModel }: UploadProps) {
           setDragging(false);
           void processFiles(e.dataTransfer.files);
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={openFilePicker}
         role="button"
         tabIndex={0}
+        aria-disabled={!title.trim()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            inputRef.current?.click();
+            openFilePicker();
           }
         }}
       >
         <MaterialIcon name="cloud_upload" className="vr-dropzone__icon" />
         <h2 className="vr-dropzone__heading">Drag &amp; Drop Manuscripts</h2>
-        <p className="vr-dropzone__hint">or click to browse local files</p>
+        <p className="vr-dropzone__hint">
+          {title.trim() ? "or click to browse local files" : "Enter a document title above first"}
+        </p>
         <button
           type="button"
           className="vr-btn vr-btn--outline"
           disabled={uploading}
           onClick={(e) => {
             e.stopPropagation();
-            inputRef.current?.click();
+            openFilePicker();
           }}
         >
           {uploading ? "Uploading…" : "Select Files"}
@@ -242,7 +303,8 @@ export default function Upload({ onViewModel }: UploadProps) {
                     <MaterialIcon name="description" />
                   </div>
                   <div>
-                    <p className="vr-job-card__name">{job.filename}</p>
+                    <p className="vr-job-card__name">{job.title}</p>
+                    <p className="vr-job-card__filename">{job.filename}</p>
                     <p className="vr-job-card__status">
                       {job.status === "failed"
                         ? "Failed"

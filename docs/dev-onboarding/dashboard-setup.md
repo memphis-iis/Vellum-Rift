@@ -117,7 +117,7 @@ Optional ambient video on Home: add `web-dashboard/public/home-bg.webm` or set `
 
 ### Upload (manuscript ingestion)
 
-The Upload section is a dropzone + active job list. It posts multipart `file` to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Sessions / Enter remain placeholders.
+The Upload section is a dropzone + active job list. Users must enter a **document title** (sent as multipart `label`) before selecting files. It posts to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Sessions / Enter remain placeholders.
 
 ### Documents (3D model viewer)
 
