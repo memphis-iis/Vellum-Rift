@@ -75,6 +75,29 @@ router.post("/generate", async (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/models
+//   List processed manuscript meshes (newest first).
+// ---------------------------------------------------------------------------
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
+    const offset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
+
+    const models = await repo.list({
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 100,
+      offset: Number.isFinite(offset) && offset >= 0 ? offset : 0,
+    });
+
+    res.json(models);
+  } catch (err) {
+    console.error("GET /api/models failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to list models" });
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/models/:modelId
 //   Serve a previously-generated .glb file directly to the Unity client.
 // ---------------------------------------------------------------------------

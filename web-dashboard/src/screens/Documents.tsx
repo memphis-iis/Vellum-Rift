@@ -1,7 +1,12 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ModelViewer } from "../components/ModelViewer";
-import { fetchModelGlbObjectUrl, fetchModelMeta, type ModelMeta } from "../api/models";
+import {
+  fetchModelGlbObjectUrl,
+  fetchModelMeta,
+  fetchModels,
+  type ModelMeta,
+} from "../api/models";
 
 type DocumentsProps = {
   /** Prefill from Upload “View” or deep-link. */
@@ -15,21 +20,40 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function optionLabel(m: ModelMeta): string {
+  const name = m.label?.trim() || "Untitled manuscript";
+  const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
+  return when ? `${name} · ${when}` : name;
+}
+
 export default function Documents({ initialModelId = null }: DocumentsProps) {
-  const [inputId, setInputId] = useState(initialModelId ?? "");
+  const [catalog, setCatalog] = useState<ModelMeta[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState(initialModelId ?? "");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [meta, setMeta] = useState<ModelMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (initialModelId) {
-      setInputId(initialModelId);
-      void loadModel(initialModelId);
+  async function refreshCatalog() {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const models = await fetchModels(200);
+      setCatalog(models);
+    } catch (err) {
+      setCatalog([]);
+      setCatalogError(err instanceof Error ? err.message : "Failed to list documents");
+    } finally {
+      setCatalogLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when prop arrives
-  }, [initialModelId]);
+  }
+
+  useEffect(() => {
+    void refreshCatalog();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -37,10 +61,18 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
     };
   }, [src]);
 
+  useEffect(() => {
+    if (!initialModelId) return;
+    setSelectedId(initialModelId);
+    void loadModel(initialModelId);
+    // Intentionally only when parent passes a new model id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialModelId]);
+
   async function loadModel(rawId: string) {
     const modelId = rawId.trim();
     if (!modelId) {
-      setError("Enter a model ID from a completed upload job.");
+      setError("Select a processed document to view.");
       return;
     }
 
@@ -61,6 +93,11 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
       });
       setMeta(nextMeta);
       setActiveId(modelId);
+      setSelectedId(modelId);
+      setCatalog((prev) => {
+        if (prev.some((m) => m.modelId === nextMeta.modelId)) return prev;
+        return [nextMeta, ...prev];
+      });
     } catch (err) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       setSrc((prev) => {
@@ -74,9 +111,9 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
     }
   }
 
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    void loadModel(inputId);
+  const onSelect = (modelId: string) => {
+    setSelectedId(modelId);
+    if (modelId) void loadModel(modelId);
   };
 
   return (
@@ -84,33 +121,48 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
       <header className="vr-docs__header">
         <h1 className="vr-docs__title">Documents</h1>
         <p className="vr-docs__lead">
-          Load a processed manuscript mesh by model ID and inspect it in the 3D viewer.
+          Choose any manuscript the backend has processed and inspect its mesh in the 3D viewer.
         </p>
       </header>
 
-      <form className="vr-docs__load" onSubmit={onSubmit}>
-        <label className="vr-docs__field" htmlFor="vr-docs-model-id">
+      <div className="vr-docs__load">
+        <label className="vr-docs__field" htmlFor="vr-docs-model-select">
           <span className="vr-docs__field-label">
-            <MaterialIcon name="deployed_code" />
-            Model ID
+            <MaterialIcon name="folder_open" />
+            Processed documents
           </span>
-          <input
-            id="vr-docs-model-id"
-            className="vr-docs__input"
-            type="text"
-            spellCheck={false}
-            autoComplete="off"
-            placeholder="UUID from completed job"
-            value={inputId}
-            disabled={loading}
-            onChange={(e) => setInputId(e.target.value)}
-          />
+          <select
+            id="vr-docs-model-select"
+            className="vr-docs__select"
+            value={selectedId}
+            disabled={loading || catalogLoading}
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            <option value="">
+              {catalogLoading
+                ? "Loading documents…"
+                : catalog.length
+                  ? "Select a document…"
+                  : "No processed documents yet"}
+            </option>
+            {catalog.map((m) => (
+              <option key={m.modelId} value={m.modelId}>
+                {optionLabel(m)}
+              </option>
+            ))}
+          </select>
         </label>
-        <button type="submit" className="vr-btn vr-btn--primary" disabled={loading || !inputId.trim()}>
-          {loading ? "Loading…" : "Load model"}
+        <button
+          type="button"
+          className="vr-btn vr-btn--outline"
+          disabled={catalogLoading}
+          onClick={() => void refreshCatalog()}
+        >
+          {catalogLoading ? "Refreshing…" : "Refresh list"}
         </button>
-      </form>
+      </div>
 
+      {catalogError ? <p className="vr-docs__error">{catalogError}</p> : null}
       {error ? <p className="vr-docs__error">{error}</p> : null}
 
       <section className="vr-docs__stage" aria-live="polite">
@@ -124,7 +176,11 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
         {!loading && !src ? (
           <div className="vr-docs__empty">
             <MaterialIcon name="view_in_ar" className="vr-docs__empty-icon" />
-            <p>No model loaded yet. Paste a model ID or open one from Upload when a job is Ready.</p>
+            <p>
+              {catalog.length
+                ? "Select a document above to load its mesh."
+                : "No processed documents yet. Upload a manuscript first."}
+            </p>
           </div>
         ) : null}
 

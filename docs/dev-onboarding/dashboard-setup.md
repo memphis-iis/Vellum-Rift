@@ -121,7 +121,7 @@ The Upload section is a dropzone + active job list. It posts multipart `file` to
 
 ### Documents (3D model viewer)
 
-The Documents section loads a processed mesh by `modelId` via authenticated `GET /api/models/:modelId` (blob URL) and renders it with [`@google/model-viewer`](https://modelviewer.dev/) (orbit / zoom). Completed Upload jobs can open Documents with **View in Documents**. Metadata comes from `GET /api/models/:modelId/meta`.
+The Documents section lists processed meshes from `GET /api/models` in a dropdown, then loads the selected GLB via authenticated `GET /api/models/:modelId` (blob URL) into [`@google/model-viewer`](https://modelviewer.dev/) (orbit / zoom). Completed Upload jobs can open Documents with **View in Documents**. Metadata comes from `GET /api/models/:modelId/meta`.
 
 ## Working Conventions
 

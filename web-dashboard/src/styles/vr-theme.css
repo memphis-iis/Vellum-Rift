@@ -1092,14 +1092,29 @@
   font-size: 13px;
 }
 
+.vr-docs__select {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.vr-docs__select:focus,
 .vr-docs__input:focus {
   outline: none;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
 
+.vr-docs__select:disabled,
 .vr-docs__input:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .vr-docs__error {

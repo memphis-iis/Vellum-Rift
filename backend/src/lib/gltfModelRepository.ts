@@ -110,6 +110,19 @@ export class GlTFModelRepository {
   }
 
   /**
+   * List recent models (newest first).
+   */
+  async list(params?: { limit?: number; offset?: number }): Promise<GlTFModelRecord[]> {
+    const limit = params?.limit ?? 100;
+    const offset = params?.offset ?? 0;
+    const result = await pool.query(
+      `SELECT * FROM gltf_models ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return (result.rows as GlTFModelRow[]).map(toRecord);
+  }
+
+  /**
    * Permanently remove a model row. Returns true if a row was deleted.
    */
   async delete(modelId: string): Promise<boolean> {
