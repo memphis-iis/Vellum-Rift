@@ -1,1 +1,13 @@
 /// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_BASE_URL?: string;
+  readonly VITE_BLUEKEY_SOFTWARE_ID?: string;
+  readonly VITE_BLUEKEY_PORTAL_URL?: string;
+  readonly VITE_BLUEKEY_ORIGIN?: string;
+  readonly VITE_AUTH_REQUIRED?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

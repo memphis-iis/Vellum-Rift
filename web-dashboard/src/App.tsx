@@ -1,3 +1,6 @@
+import { useAuth } from "./auth/AuthContext";
+import Login from "./screens/Login";
+
 type ServiceCardProps = {
   name: string;
   endpoint: string;
@@ -19,33 +22,54 @@ const services: ServiceCardProps[] = [
   {
     name: "Backend API",
     endpoint: "http://localhost:4000/api/health",
-    description: "Document ingestion, persistence, and application routes."
+    description: "Document ingestion, persistence, and application routes.",
   },
   {
     name: "WebRTC SFU",
     endpoint: "http://localhost:4100/health",
-    description: "Realtime voice and data-channel coordination layer."
+    description: "Realtime voice and data-channel coordination layer.",
   },
   {
-    name: "Hasura",
-    endpoint: "http://localhost:8080",
-    description: "GraphQL and subscription layer over the local Postgres stack."
-  }
+    name: "PostgreSQL",
+    endpoint: "localhost:5432",
+    description: "Durable session state via the Express REST API.",
+  },
 ];
 
-export default function App() {
+function DashboardHome() {
+  const { user, logout } = useAuth();
+
   return (
     <main className="app-shell">
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+          marginBottom: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <p style={{ margin: 0, fontWeight: 700 }}>
+          Signed in as {user?.email}
+          {user?.isLocalDev ? " (local developer)" : ""}
+        </p>
+        <button type="button" onClick={logout} style={{ cursor: "pointer" }}>
+          Sign out
+        </button>
+      </header>
+
       <section className="hero">
         <p className="hero__eyebrow">Vellum Rift Dashboard</p>
         <h1>Web control surface for manuscript sessions, ingestion, and collaboration.</h1>
         <p className="hero__body">
-          This Vite and React scaffold is the starting point for the hosted dashboard. It is wired into the
-          monorepo and ready to grow into uploads, session browsing, team management, and document playback.
+          Bluekey sign-in is in place. Next slices: upload, session browse/entry, and the VR-themed app
+          shell.
         </p>
         <div className="hero__actions">
-          <a href="http://localhost:8080" target="_blank" rel="noreferrer">
-            Open Hasura
+          <a href="http://localhost:4000/api/health" target="_blank" rel="noreferrer">
+            Backend Health
           </a>
           <a href="http://localhost:9001" target="_blank" rel="noreferrer">
             Open MinIO Console
@@ -77,15 +101,21 @@ export default function App() {
           </ul>
         </div>
         <div className="panel panel--accent">
-          <p className="panel__eyebrow">Monorepo fit</p>
-          <h2>How this package is wired today</h2>
+          <p className="panel__eyebrow">Auth</p>
+          <h2>How sign-in works</h2>
           <ul>
-            <li>`pnpm dev` starts the dashboard alongside backend and SFU.</li>
-            <li>`pnpm build` includes the dashboard in the recursive workspace build.</li>
-            <li>The package is isolated enough to add routing, auth, or design-system work next.</li>
+            <li>Production: Bluekey popup → Bearer token for API calls.</li>
+            <li>Local: Continue as local developer when `VITE_AUTH_REQUIRED` is unset.</li>
+            <li>Post-login VR theme is a separate follow-up.</li>
           </ul>
         </div>
       </section>
     </main>
   );
+}
+
+export default function App() {
+  const { user } = useAuth();
+  if (!user) return <Login />;
+  return <DashboardHome />;
 }

@@ -55,7 +55,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [reference/glossary.md](reference/glossary.md)
 - [reference/backend-integration-summary.md](reference/backend-integration-summary.md)
 - [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md) — historical GlyphWitch inventory (out of scope)
-- [reference/authentication.md](reference/authentication.md) — live Bluekey / route policy
+- [reference/authentication.md](reference/authentication.md) — live Bluekey / route policy (backend + dashboard login #114)
 
 ## Local Development Files
 
