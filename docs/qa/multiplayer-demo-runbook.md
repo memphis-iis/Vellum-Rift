@@ -10,7 +10,7 @@ moving cube. Backend-polling only (no WebRTC).
 ```
 [Unity client A] ──HTTP──▶ [backend :4000] ◀──HTTP── [Unity client B]
                                 │
-                     [Postgres via Hasura / MinIO]
+                     [Postgres / MinIO]
 ```
 
 - The **backend** is the single source of truth for sessions, players,
@@ -22,7 +22,7 @@ moving cube. Backend-polling only (no WebRTC).
 
 ## Prerequisites
 
-- Docker (for Postgres/Hasura/MinIO)
+- Docker (for Postgres/MinIO)
 - Node.js for the backend
 - Unity 6 with the `vr-client-unity/Vellum Rift` project
 
@@ -30,7 +30,7 @@ moving cube. Backend-polling only (no WebRTC).
 
 ```bash
 make init-env          # create .env files from templates (first time)
-make infra-up          # postgres + hasura + minio
+make infra-up          # postgres + minio
 cd backend
 npm install            # first time
 npm run dev            # backend on http://localhost:4000

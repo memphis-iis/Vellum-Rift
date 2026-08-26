@@ -6,7 +6,7 @@ This document outlines the local setup instructions for engineers working on the
 
 - Node.js: v20.x or higher, preferably current LTS
 - Package manager: `pnpm` or `npm` workspaces coordinated from the repository root
-- Docker and Compose: required for local PostgreSQL, Hasura, and S3-compatible storage
+- Docker and Compose: required for local PostgreSQL and S3-compatible storage
 - Git LFS: required before pulling large manuscript fixtures or design assets
 
 ## Step-By-Step Environment Initialization
@@ -46,7 +46,7 @@ This creates:
 
 ### 4. Start Core Infrastructure
 
-Bring up PostgreSQL, Hasura, MinIO, and the bucket bootstrap job.
+Bring up PostgreSQL, MinIO, and the bucket bootstrap job.
 
 ```bash
 pnpm infra:up
@@ -67,7 +67,6 @@ pnpm speech:up
 Available local surfaces after startup:
 
 - PostgreSQL: `localhost:5432`
-- Hasura: `http://localhost:8080`
 - MinIO API: `http://localhost:9000`
 - MinIO console: `http://localhost:9001`
 - Mailpit: `http://localhost:8025`
@@ -100,7 +99,6 @@ Root `.env` example:
 POSTGRES_DB=vellum_rift
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
-HASURA_GRAPHQL_ADMIN_SECRET=local_admin_secret_dev
 S3_BUCKET_NAME=local-manuscript-cache
 RAW_ASSET_TTL_DAYS=30
 ```
@@ -123,7 +121,6 @@ pnpm dev
 Expected local surfaces:
 
 - Express REST API on the configured local port such as `http://localhost:4000/api`
-- GraphQL or Hasura development endpoint
 - WebRTC signaling or SFU service endpoint
 - optional speech service containers if the local stack includes them
 
@@ -153,10 +150,10 @@ make infra-reset
 
 ## Working Conventions
 
-1. Treat GlyphWitch document, auth, team, permission, and chat routes as the integration baseline.
-2. Add schema changes through migrations rather than direct database edits.
-3. Keep durable room state in PostgreSQL-backed services.
-4. Keep high-frequency realtime traffic out of the primary REST request path.
+1. Use Bluekey auth middleware for protected routes; GlyphWitch ACL reuse is out of scope for now.
+2. Add schema changes through `backend/src/migrations/` rather than direct database edits.
+3. Keep durable room state in PostgreSQL via Express REST.
+4. Keep high-frequency realtime traffic on the WebRTC SFU path.
 5. Update the relevant architecture or governance doc when introducing a new durable workflow.
 
 ## Initial Backend Workstreams
@@ -164,7 +161,7 @@ make infra-reset
 - preprocessing hooks for uploaded manuscript assets
 - session persistence and host migration support
 - export surfaces for spatial session artifacts
-- integration between REST, subscriptions, WebRTC signaling, and self-hosted speech services
+- integration between REST, WebRTC signaling, and self-hosted speech services
 
 ## Documentation Requirements
 

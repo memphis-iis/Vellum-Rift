@@ -24,8 +24,8 @@ For a plain statement of project maturity, see [CURRENT-STATUS.md](CURRENT-STATU
 
 Before making changes:
 
-1. treat GlyphWitch integration as the baseline document, auth, permissions, and chat model
-2. keep durable shared state in PostgreSQL-backed services
+1. use Bluekey for API auth when enabled; GlyphWitch workflows are out of scope for now
+2. keep durable shared state in PostgreSQL via the Express REST API (no Hasura prerequisite)
 3. keep high-frequency realtime behavior in the WebRTC lane, not the primary REST path
 4. update docs when architecture, policy, or workflow changes
 
@@ -133,7 +133,6 @@ The local env files created and maintained by the setup process are:
 
 After `pnpm onboard`, these local endpoints should be available:
 
-- Hasura: `http://localhost:8080`
 - MinIO API: `http://localhost:9000`
 - MinIO console: `http://localhost:9001`
 - Mailpit: `http://localhost:8025`

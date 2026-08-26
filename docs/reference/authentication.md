@@ -135,6 +135,20 @@ const BLUEKEY_ORIGIN      = "https://iis.memphis.edu";
 
 ---
 
+## Environment variables
+
+| Variable | Role |
+|----------|------|
+| `AUTH_REQUIRED` | When `true`, Bluekey introspection is enforced on protected routes |
+| `BLUEKEY_SOFTWARE_ID` | App UUID registered in Bluekey |
+| `BLUEKEY_INTROSPECT_URL` | Introspection endpoint (default: IIS public introspect URL) |
+| `BLUEKEY_PORTAL_URL` / `BLUEKEY_ORIGIN` | Frontend popup login |
+| `REALTIME_JWT_SECRET` | Shared secret for SFU signaling JWTs (with `webrtc-sfu`) |
+| `SFU_PUBLIC_URL` | Returned by `/api/realtime/token` |
+| `REALTIME_TOKEN_TTL_SEC` | Signaling token lifetime (default 300) |
+
+There is no “uncomment introspection” step — `backend/src/lib/auth.ts` always contains the live middleware; `AUTH_REQUIRED` toggles enforcement.
+
 ## File Locations
 
 | File | Purpose |

@@ -10,7 +10,6 @@ if ($args -contains "-WithSpeech") {
 
 Write-Host ""
 Write-Host "Vellum Rift local onboarding is complete."
-Write-Host "Hasura: http://localhost:8080"
 Write-Host "MinIO console: http://localhost:9001"
 Write-Host "Mailpit: http://localhost:8025"
 Write-Host "Adminer: http://localhost:8081"
