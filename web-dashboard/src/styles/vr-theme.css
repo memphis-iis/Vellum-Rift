@@ -260,7 +260,7 @@
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  color: var(--vr-primary-container);
+  color: var(--vr-accent-bright);
 }
 
 @media (min-width: 768px) {
