@@ -117,11 +117,7 @@ Optional ambient video on Home: add `web-dashboard/public/home-bg.webm` or set `
 
 ### Upload (manuscript ingestion)
 
-<<<<<<< HEAD
-The Upload section is a dropzone + active job list. Users must enter a **document title** (sent as multipart `label`) before selecting files. It posts to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Sessions / Enter remain placeholders.
-=======
-The Upload section is a dropzone + active job list. It posts multipart `file` to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Enter remains a placeholder (receives session ID from Sessions).
->>>>>>> origin/main
+The Upload section is a dropzone + active job list. Users must enter a **document title** (sent as multipart `label`) before selecting files. It posts to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Enter remains a placeholder (receives session ID from Sessions).
 
 ### Documents (3D model viewer)
 
@@ -130,6 +126,7 @@ The Documents section lists processed meshes from `GET /api/models` in a dropdow
 ### Sessions (exploration list)
 
 The Sessions section lists `GET /api/game-state` rows (name, LIVE/READY/ARCHIVED, last activity). **New Session** calls `POST /api/game-state` (optional label). Open/Enter navigates to the Enter placeholder with the session ID; archive uses `DELETE`, restore uses `POST /api/game-state/:id/resume`.
+
 ## Working Conventions
 
 1. Keep the dashboard aligned with current Express + Bluekey contracts (GlyphWitch reuse is out of scope for now).
