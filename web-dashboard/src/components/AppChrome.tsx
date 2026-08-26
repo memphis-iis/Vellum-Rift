@@ -27,7 +27,7 @@ export function AppChrome({ active, email, onNavigate, onSignOut }: AppChromePro
           onClick={() => onNavigate("home")}
           aria-label="Vellum Rift home"
         >
-          <BrandMark size="sm" />
+          <BrandMark variant="mark" size="sm" />
         </button>
         <nav className="vr-header__nav" aria-label="Primary">
           {NAV.map((item) => (

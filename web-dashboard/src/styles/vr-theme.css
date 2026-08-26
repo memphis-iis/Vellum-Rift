@@ -36,7 +36,6 @@
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   position: relative;
-  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23d4b483' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
 }
 
 .vr-app ::selection {
@@ -64,7 +63,8 @@
 .vr-ambient__fog {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, transparent 0%, #151310 72%);
+  /* Light vignette only — no muddy hero plate */
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(21, 19, 16, 0.55) 100%);
 }
 
 /* Brand lockup */
@@ -76,31 +76,13 @@
 
 .vr-brand__logo {
   display: block;
+  width: auto;
+  height: auto;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 10px;
   flex-shrink: 0;
-}
-
-.vr-brand__wordmark {
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--vr-primary);
-  white-space: nowrap;
-}
-
-.vr-brand__sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  /* no rounded plate — asset is transparent */
+  background: transparent;
 }
 
 .vr-header__brand-btn {
@@ -113,18 +95,19 @@
   color: inherit;
 }
 
-.vr-header__brand-btn:hover .vr-brand__wordmark {
-  opacity: 0.9;
+.vr-header__brand-btn .vr-brand__logo {
+  max-height: 40px;
 }
 
 .vr-home__logo {
   display: flex;
   justify-content: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .vr-home__logo .vr-brand__logo {
-  filter: drop-shadow(0 12px 28px rgba(212, 180, 131, 0.18));
+  max-height: 140px;
+  width: auto;
 }
 
 
@@ -264,20 +247,6 @@
 .vr-home__copy {
   position: relative;
   margin-bottom: 4rem;
-}
-
-.vr-home__glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16rem;
-  height: 16rem;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--vr-primary) 5%, transparent);
-  filter: blur(48px);
-  z-index: -1;
-  pointer-events: none;
 }
 
 .vr-home__title {
