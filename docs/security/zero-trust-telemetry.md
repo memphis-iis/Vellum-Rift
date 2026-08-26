@@ -54,6 +54,7 @@ Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts,
 
 - WebRTC signaling endpoints must require authenticated session context before issuing or accepting offers and answers.
 - Signaling payloads should be short-lived and scoped to a specific room or session.
+- **Implementation:** clients mint a short-lived HS256 token via backend `POST /api/realtime/token` (Bluekey-protected when `AUTH_REQUIRED=true`). The SFU validates `Authorization: Bearer` JWTs with shared `REALTIME_JWT_SECRET`, requiring `purpose: "sfu-signaling"` and matching `sessionId`. Local-only: when SFU `AUTH_REQUIRED` is unset, signaling accepts stub claims without an IdP.
 
 ## PostgreSQL Authorization
 
@@ -134,6 +135,6 @@ Quest hardware and user-managed desktops should be treated as potentially compro
 ## Follow-Up Work
 
 1. define concrete PostgreSQL RLS or equivalent server-side authorization policies for each new Vellum Rift table
-2. define signaling token minting and expiry rules
+2. ~~define signaling token minting and expiry rules~~ (done: `REALTIME_TOKEN_TTL_SEC`, default 300s; see SDD 001)
 3. define transcript field-level access and export rules for self-hosted speech services
 4. define operational alerting for suspicious session or token activity

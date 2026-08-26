@@ -19,6 +19,7 @@ import { requireAuth } from "./lib/auth.js";
 import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
 import assetManifestRouter from "./routes/assetManifest.js";
 import lodTiersRouter from "./routes/lodTiers.js";
+import realtimeRouter from "./routes/realtime.js";
 
 dotenv.config();
 
@@ -99,6 +100,7 @@ app.use("/api/upload", requireAuth, uploadRouter);
 app.use("/api/jobs", requireAuth, jobsRouter);
 app.use("/api/assets", requireAuth, assetManifestRouter);
 app.use("/api/lod-tiers", requireAuth, lodTiersRouter);
+app.use("/api/realtime", requireAuth, realtimeRouter);
 
 // ---------------------------------------------------------------------------
 // Startup

@@ -174,12 +174,21 @@ importers:
       '@types/node':
         specifier: ^22.13.10
         version: 22.19.19
+      '@types/supertest':
+        specifier: ^7.2.0
+        version: 7.2.0
+      supertest:
+        specifier: ^7.2.2
+        version: 7.2.2
       tsx:
         specifier: ^4.19.3
         version: 4.22.3
       typescript:
         specifier: ^5.8.2
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@22.19.19)(vite@6.4.2(@types/node@22.19.19)(tsx@4.22.3))
 
 packages:
 

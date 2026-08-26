@@ -30,7 +30,9 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 
 ### WebRTC SFU (`webrtc-sfu/`)
 
-- health-only placeholder service on `:4100`
+- authenticated REST signaling (join, offer/answer/ICE inbox, heartbeat/leave) on `:4100`
+- backend mints short-lived tokens via `POST /api/realtime/token`; presence/movement packet contract documented in SDD 001
+- media track relay (full SFU) not implemented yet; clients still poll HTTP for Demo 1 presence
 - container image build/publish path for GHCR
 
 ### Web Dashboard (`web-dashboard/`)
@@ -55,9 +57,9 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 
 ## What Does Not Exist Yet (Or Is Incomplete)
 
-- production-ready WebRTC SFU (signaling, media, authenticated data channels)
+- production-ready WebRTC media SFU (track relay); signaling + token auth exist
 - completed hosted dashboard (upload UI, session browse/entry, EULA gating, Unity WebGL embed)
-- WebRTC presence path (clients still use ~10 Hz HTTP polling for Demo 1-style multiplayer)
+- WebRTC presence path on clients (HTTP ~10 Hz polling still used for Demo 1 multiplayer)
 - local palette / Z-axis shader exploration pipeline in Unity
 - completed Piper TTS wiring and STT integration into collaboration flows
 - store / production hosting readiness for Quest and Steam builds
@@ -69,7 +71,7 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 |-----------|--------|--------------|
 | 1 — Asset pipeline & solo exploration | Upload, preprocess, explore assets | Backend largely in place; dashboard/WebGL/palette gaps remain |
 | 2 — Session persistence & coordination | Shared sessions, host rules, summon, artifacts | Partial via REST/polling + schema; not SFU-backed |
-| 3 — Realtime communication & accessibility | Voice, radar, speech bridge | Mostly not started (SFU placeholder; speech incomplete) |
+| 3 — Realtime communication & accessibility | Voice, radar, speech bridge | Signaling foundation landed; media SFU + speech incomplete |
 | 4 — Spatial authoring & release readiness | Strokes, optimization, store readiness | Not started |
 
 See [docs/agile/milestones.md](docs/agile/milestones.md).
