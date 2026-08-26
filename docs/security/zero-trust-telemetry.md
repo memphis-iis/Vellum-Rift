@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts, and realtime voice and drawing traffic across Web, Quest, and SteamVR clients. This document defines the security posture for transport, subscriptions, client token handling, and telemetry boundaries.
+Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts, and realtime voice and drawing traffic across Web, Quest, and SteamVR clients. This document defines the security posture for transport, durable API authorization, client token handling, and telemetry boundaries.
 
 ## Core Principles
 
@@ -27,8 +27,8 @@ Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts,
 
 ### Boundary C: Durable State Plane
 
-- GlyphWitch authentication, document permissions, team membership, EULA state, and persisted spatial artifacts live in server-controlled systems.
-- Durable state flows through PostgreSQL-backed APIs and subscription layers protected by row-level policy.
+- Bluekey authentication (when enabled), session authorization, and persisted spatial artifacts live in server-controlled systems.
+- Durable state flows through PostgreSQL-backed Express REST APIs protected by server-side authorization policy (not a GraphQL subscription layer).
 
 ### Boundary D: Self-Hosted Speech Services
 
@@ -40,7 +40,7 @@ Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts,
 
 ### HTTPS And WSS
 
-- All REST, GraphQL, and subscription traffic must use TLS-protected transport.
+- All REST and signaling traffic must use TLS-protected transport in non-local environments.
 - Plain HTTP or unsecured WebSocket connections are not permitted outside isolated local development.
 
 ### WebRTC DTLS And SRTP
@@ -55,29 +55,29 @@ Vellum Rift handles sensitive collaboration state, manuscript-derived artifacts,
 - WebRTC signaling endpoints must require authenticated session context before issuing or accepting offers and answers.
 - Signaling payloads should be short-lived and scoped to a specific room or session.
 
-## Hasura And PostgreSQL Authorization
+## PostgreSQL Authorization
 
-## Row-Level Security Objectives
+## Authorization Objectives
 
-Subscriptions, queries, and mutations for Vellum Rift must respect GlyphWitch document and team permissions before emitting state.
+Queries and mutations for Vellum Rift must authorize the caller before emitting or mutating durable state. GlyphWitch document/team ACL integration is out of scope for now; use Bluekey identity (when `AUTH_REQUIRED=true`) and session-scoped server checks.
 
-Minimum authorization checks:
+Minimum authorization checks (current direction):
 
-- user belongs to a team with document access through `user_teams` and `document_teams`, or
-- user has direct access through `document_permissions`, or
-- user is the document owner
+- caller presents a valid Bluekey token when auth is required, or
+- caller is operating in an explicitly allow-listed local/dev mode, and
+- session mutations respect host / participant rules enforced by the API
 
 ### Policy Expectations
 
-- `vr_sessions` visibility must be constrained to users authorized for the underlying document.
-- `vr_session_participants` visibility must be constrained to users authorized for the session's document.
+- `vr_sessions` visibility must be constrained to authorized participants for that session.
+- `vr_session_participants` visibility must be constrained to users authorized for the session.
 - `vr_spatial_artifacts` visibility and mutation rights must be constrained to authorized participants.
 - host migration or summon-related updates must only be writable by the current host or server-side automation acting on validated rules.
 
-### Subscription Safety
+### API Safety
 
-- Hasura subscriptions must not expose rows for unrelated documents.
-- Subscription variables must be scoped by both session and authorized document relationship.
+- REST responses must not expose rows for unrelated sessions.
+- Query parameters and path scopes must be constrained by session (and document relationship when that model is introduced later).
 - Server-side role mapping should avoid broad privileged roles in Unity or browser clients.
 
 ## Token Lifecycle
@@ -92,7 +92,7 @@ Minimum authorization checks:
 
 - Refresh tokens should be avoided in standalone Unity clients unless operationally required.
 - If refresh tokens are used on a headset, store them in the most constrained platform storage available and rotate aggressively.
-- Token revocation must be respected by signaling, REST, and subscription entry points.
+- Token revocation must be respected by signaling and REST entry points.
 
 ### Unity Memory Handling
 
@@ -129,11 +129,11 @@ Note: session transcripts retained as product history are governed as applicatio
 
 ## Device Compromise Assumption
 
-Quest hardware and user-managed desktops should be treated as potentially compromised endpoints. Security controls therefore prioritize server-side authorization, short token lifetime, strict transport encryption, and narrow subscription scopes rather than trusting client runtime secrecy.
+Quest hardware and user-managed desktops should be treated as potentially compromised endpoints. Security controls therefore prioritize server-side authorization, short token lifetime, strict transport encryption, and narrow query scopes rather than trusting client runtime secrecy.
 
 ## Follow-Up Work
 
-1. define concrete Hasura RLS policies for each new Vellum Rift table
+1. define concrete PostgreSQL RLS or equivalent server-side authorization policies for each new Vellum Rift table
 2. define signaling token minting and expiry rules
 3. define transcript field-level access and export rules for self-hosted speech services
 4. define operational alerting for suspicious session or token activity
