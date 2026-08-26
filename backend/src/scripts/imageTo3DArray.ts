@@ -66,6 +66,51 @@ export class ImageTo3DArray {
   }
 
   /**
+   * Converts a specific page of a PDF from a raw buffer into a 3D pixel array.
+   * Used by the async upload worker after downloading from MinIO.
+   * @param buffer - Raw PDF bytes
+   * @param pageNumber - Page number to convert (1-indexed)
+   * @param scale - Optional scale factor for rendering resolution (default: 2)
+   * @returns Promise resolving to an array of [x, y, RGBA] tuples
+   */
+  async pdf2ArrayFromBuffer(
+    buffer: Buffer,
+    pageNumber: number,
+    scale: number = 2,
+  ): Promise<PixelDataTuple[]> {
+    const doc = await pdfjs.getDocument({ data: buffer }).promise;
+
+    if (pageNumber < 1 || pageNumber > doc.numPages) {
+      throw new Error(
+        `Invalid page number ${pageNumber}. Document has ${doc.numPages} pages.`,
+      );
+    }
+
+    const page = await doc.getPage(pageNumber);
+    const viewport = page.getViewport({ scale });
+
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext("2d");
+
+    context.fillStyle = "#FFFFFF";
+    context.fillRect(0, 0, viewport.width, viewport.height);
+
+    await page.render({
+      canvasContext: context as any,
+      viewport,
+      canvas: canvas as any,
+    }).promise;
+
+    const imageData = context.getImageData(0, 0, viewport.width, viewport.height);
+
+    return this.convertToPixelDataTuple(
+      imageData.data,
+      viewport.width,
+      viewport.height,
+    );
+  }
+
+  /**
    * Converts an image file into a 3D pixel array.
    * @param filePath - Path to the image file
    * @returns Promise resolving to an array of [x, y, RGBA] tuples
@@ -87,6 +132,29 @@ export class ImageTo3DArray {
       new Uint8ClampedArray(data),
       info.width!,
       info.height!,
+    );
+  }
+
+  /**
+   * Converts an image from a raw buffer into a 3D pixel array.
+   * Used by the async upload worker after downloading from MinIO.
+   * @param buffer - Raw image bytes (PNG, JPEG, WebP, BMP, TIFF)
+   * @returns Promise resolving to an array of [x, y, RGBA] tuples
+   */
+  async img2ArrayFromBuffer(buffer: Buffer): Promise<PixelDataTuple[]> {
+    const { data, info } = await sharp(buffer)
+      .raw()
+      .ensureAlpha()
+      .toBuffer({ resolveWithObject: true });
+
+    if (!info.width || !info.height) {
+      throw new Error("Failed to read image dimensions from buffer.");
+    }
+
+    return this.convertToPixelDataTuple(
+      new Uint8ClampedArray(data),
+      info.width,
+      info.height,
     );
   }
 

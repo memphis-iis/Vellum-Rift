@@ -85,10 +85,10 @@ docker compose --env-file .env -f docker-compose.yml logs --tail=50
 Apply the canonical database schema and follow-on migrations before starting backend development.
 
 ```bash
-npm run migrate --prefix backend
+pnpm migrate
 ```
 
-This command is documented now and should be enabled once the backend migration tooling is committed. It should bring the environment from the base schema through the latest GlyphWitch migrations, and later Vellum Rift session extensions once those migrations are added.
+This command runs the committed migration runner (`tsx src/lib/migrate.ts`), which applies all pending `.sql` files from `backend/src/migrations/` in filename order. Each migration runs in its own transaction and is tracked in the `_migrations` table so it is never applied twice. The initial migration (`001_initial_schema.sql`) creates the core Vellum Rift tables (game_sessions, gltf_models, processing_jobs, asset_manifests, vr_sessions, vr_session_participants, vr_spatial_artifacts).
 
 ### 7. Configure Local Environment Variables
 

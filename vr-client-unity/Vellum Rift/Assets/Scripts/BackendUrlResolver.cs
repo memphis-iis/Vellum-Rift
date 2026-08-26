@@ -81,6 +81,69 @@ public static class BackendUrlResolver
         return inspectorDefault;
     }
 
+    /// <summary>
+    /// Extract the "backendUrl" query parameter from an absolute page URL
+    /// (e.g. "https://host/vellumrift/?backendUrl=https%3A%2F%2Fapi-host%3A4000").
+    ///
+    /// WebGL builds have no CLI args and no environment variables
+    /// (PlatformNotSupportedException), so the deploy URL is passed via the
+    /// page's query string instead. See <see cref="FromQueryStringParam"/> for
+    /// the underlying (parameter-agnostic) parser.
+    /// </summary>
+    public static string FromQueryString(string absoluteUrl, string fallback)
+    {
+        return FromQueryStringParam(absoluteUrl, "backendUrl", fallback);
+    }
+
+    /// <summary>
+    /// Extract a named query parameter from an absolute page URL, or return
+    /// <paramref name="fallback"/> when the parameter is absent, empty, or the
+    /// URL is malformed.
+    ///
+    /// Pure string parsing — deliberately avoids System.Uri construction so it
+    /// also works where Uri parsing of the page URL is limited. Used on WebGL
+    /// (no CLI/env) to configure the backend URL (?backendUrl=) and the shared
+    /// session id (?session=) from the page URL.
+    /// </summary>
+    public static string FromQueryStringParam(string absoluteUrl, string paramName, string fallback)
+    {
+        if (string.IsNullOrEmpty(absoluteUrl) || string.IsNullOrEmpty(paramName))
+            return fallback;
+
+        // A URL fragment (#...) is never sent to the server and must not
+        // corrupt the parsed value (RFC 3986: fragment follows the query).
+        int fragmentIndex = absoluteUrl.IndexOf('#');
+        if (fragmentIndex >= 0)
+            absoluteUrl = absoluteUrl.Substring(0, fragmentIndex);
+
+        int queryIndex = absoluteUrl.IndexOf('?');
+        if (queryIndex < 0)
+            return fallback;
+
+        string prefix = paramName + "=";
+        string query = absoluteUrl.Substring(queryIndex + 1);
+        foreach (string pair in query.Split('&'))
+        {
+            if (pair.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                string raw = pair.Substring(prefix.Length);
+                try
+                {
+                    // Treat an empty value ("?param=") as absent, matching
+                    // Resolve()'s treatment of empty CLI/env overrides.
+                    string cleaned = Clean(Uri.UnescapeDataString(raw));
+                    return string.IsNullOrEmpty(cleaned) ? fallback : cleaned;
+                }
+                catch
+                {
+                    return fallback;
+                }
+            }
+        }
+
+        return fallback;
+    }
+
     // Trims surrounding whitespace so a stray trailing space in a CLI flag or
     // env var (e.g. "VELLUM_BACKEND_URL=http://host/ ") doesn't flow into the
     // resolved URL. Null-safe: null in, null out.

@@ -28,6 +28,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [../CURRENT-STATUS.md](../CURRENT-STATUS.md)
 - [../ONBOARDING.md](../ONBOARDING.md)
 - [product-summary.md](product-summary.md)
+- [qa/multiplayer-demo-runbook.md](qa/multiplayer-demo-runbook.md) — Demo 1: two-client moving-cubes POC (issue #44)
 - [architecture/agents.md](architecture/agents.md)
 - [architecture/001-webrtc-sfu.md](architecture/001-webrtc-sfu.md)
 - [architecture/002-hasura-sync.md](architecture/002-hasura-sync.md)
@@ -35,6 +36,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [architecture/005-data-ingestion-pipelines.md](architecture/005-data-ingestion-pipelines.md)
 - [architecture/adr-001-webrtc-data-channel-stroke-streaming.md](architecture/adr-001-webrtc-data-channel-stroke-streaming.md)
 - [agile/milestones.md](agile/milestones.md)
+- [agile/outstanding-issues.md](agile/outstanding-issues.md) — reconciled implementation backlog
 - [agile/backlog-governance.md](agile/backlog-governance.md)
 - [agile/ideation-week-template.md](agile/ideation-week-template.md)
 - [agile/user-stories.md](agile/user-stories.md)

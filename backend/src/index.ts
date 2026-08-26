@@ -1,3 +1,6 @@
+// Load .env BEFORE any other module evaluates (ESM imports are hoisted, so
+// env vars read at import time in other modules would otherwise see nothing).
+import "dotenv/config";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -6,11 +9,16 @@ import winston from "winston";
 import { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
 import { SampleModelIngestor } from "./lib/sampleModelIngestor.js";
+import { JobQueue } from "./lib/jobQueue.js";
 import gameStateRouter from "./routes/gameState.js";
-import gltfModelRouter from "./routes/gltfModel.js";
+import gltfModelRouter, { setJobQueue as setGltfJobQueue } from "./routes/gltfModel.js";
+import jobsRouter, { setJobQueue as setJobsJobQueue } from "./routes/jobs.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
 import { requireAuth } from "./lib/auth.js";
+import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
+import assetManifestRouter from "./routes/assetManifest.js";
+import lodTiersRouter from "./routes/lodTiers.js";
 
 dotenv.config();
 
@@ -22,6 +30,7 @@ const gameStateRepo = new GameStateRepository();
 app.use(cors());
 // Models can carry large pixel arrays — bump the JSON body limit to 50 MB.
 app.use(express.json({ limit: "50mb" }));
+
 
 // Configure logging
 const logger = winston.createLogger({
@@ -84,6 +93,16 @@ app.get("/api/health", healthHandler);
 // ---------------------------------------------------------------------------
 app.use("/api/game-state", requireAuth, gameStateRouter);
 app.use("/api/models", requireAuth, gltfModelRouter);
+app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload — protected by requireAuth
+
+// Jobs routes (public — clients need to poll status)
+app.use("/api/jobs", jobsRouter);
+
+// Asset manifest routes (public — clients discover chunks for progressive loading)
+app.use("/api/assets", assetManifestRouter);
+
+// LoD tier routes (public — clients discover platform-specific budgets)
+app.use("/api/lod-tiers", lodTiersRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
@@ -100,6 +119,16 @@ initSchema()
     });
   })
   .then(() => {
+    // Start the async job queue (concurrency from env or default 2)
+    const concurrency = Number(process.env.JOB_QUEUE_CONCURRENCY ?? 2);
+    const jobQueue = new JobQueue(concurrency);
+    jobQueue.start();
+
+    // Register the queue with routes that need it
+    setGltfJobQueue(jobQueue);
+    setJobsJobQueue(jobQueue);
+    setUploadJobQueue(jobQueue);
+
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);
       console.log(`Health check endpoint: http://localhost:${port}/health`);

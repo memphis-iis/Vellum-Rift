@@ -276,7 +276,7 @@ Start here:
 
 - the backend and SFU are scaffolds, not full production services yet
 - the dashboard is scaffolded as a Vite and React shell rather than a production-complete application
-- `pnpm migrate` is still a placeholder until the real migration implementation is committed
+- `pnpm migrate` applies committed database migrations against the local PostgreSQL instance
 - the Piper service is scaffolded for orchestration but not yet fully wired for synthesis
 - the local speech stack is sufficient for environment setup, not final production model serving
 

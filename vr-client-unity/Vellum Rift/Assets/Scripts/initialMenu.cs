@@ -3,7 +3,7 @@ using UnityEngine; //gives script access to Unity features
 public class initialMenu : MonoBehaviour
 {
     [SerializeField] private GameObject menuRoot; //if mainmenu root is active, the menu shows if it is inactive, the menu disappears
-    [SerializeField] private playerController playerController; //lets menu talk to the player movement switch
+    [SerializeField] private PlayerMovementGate movementGate; //lets menu talk to the player movement switch
 
     private void Start()
     {
@@ -23,9 +23,9 @@ public class initialMenu : MonoBehaviour
             menuRoot.SetActive(true);
         }
 
-        if (playerController != null)
+        if (movementGate != null)
         {
-            playerController.SetMovementEnabled(false);
+            movementGate.SetMovementEnabled(false);
         }
     }
     //player can't move while menu is showing
@@ -37,9 +37,9 @@ public class initialMenu : MonoBehaviour
             menuRoot.SetActive(false);
         }
 
-        if (playerController != null)
+        if (movementGate != null)
         {
-            playerController.SetMovementEnabled(true);
+            movementGate.SetMovementEnabled(true);
         }
     }
 }
