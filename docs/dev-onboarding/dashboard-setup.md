@@ -109,6 +109,10 @@ The dashboard shows the IIS Bluekey login shell (Undertaker template) until the 
 
 Logo lockup uses `https://iis.memphis.edu/static/bluekey/icons/vellumrift.png` plus the Memphis pillar.
 
+### Post-login home (VR theme)
+
+After sign-in, the app uses the dark spatial / VR home (Epilogue + Hanken Grotesk, parchment-gold accents). Upload / Sessions / Enter nav items are chrome placeholders until those slices land.
+
 ## Working Conventions
 
 1. Keep the dashboard aligned with current Express + Bluekey contracts (GlyphWitch reuse is out of scope for now).
