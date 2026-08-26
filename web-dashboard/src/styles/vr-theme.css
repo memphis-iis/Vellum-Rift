@@ -44,13 +44,90 @@
   color: var(--vr-primary);
 }
 
-.vr-app__fog {
+.vr-ambient {
   position: fixed;
   inset: 0;
-  pointer-events: none;
   z-index: 0;
-  background: radial-gradient(circle at center, transparent 0%, #151310 100%);
+  pointer-events: none;
+  overflow: hidden;
 }
+
+.vr-ambient__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+}
+
+.vr-ambient__fog {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 0%, #151310 72%);
+}
+
+/* Brand lockup */
+.vr-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vr-brand__logo {
+  display: block;
+  object-fit: contain;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.vr-brand__wordmark {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-primary);
+  white-space: nowrap;
+}
+
+.vr-brand__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.vr-header__brand-btn {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.vr-header__brand-btn:hover .vr-brand__wordmark {
+  opacity: 0.9;
+}
+
+.vr-home__logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.vr-home__logo .vr-brand__logo {
+  filter: drop-shadow(0 12px 28px rgba(212, 180, 131, 0.18));
+}
+
+
 
 .vr-app__material-icon {
   font-family: "Material Symbols Outlined", sans-serif;
@@ -104,6 +181,7 @@
   letter-spacing: -0.01em;
   color: var(--vr-primary);
 }
+
 
 .vr-header__nav {
   display: flex;

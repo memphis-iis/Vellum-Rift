@@ -1,3 +1,4 @@
+import { BrandMark } from "./BrandMark";
 import { MaterialIcon } from "./MaterialIcon";
 
 export type AppSection = "home" | "upload" | "sessions" | "enter";
@@ -20,7 +21,14 @@ export function AppChrome({ active, email, onNavigate, onSignOut }: AppChromePro
   return (
     <>
       <header className="vr-header">
-        <p className="vr-header__brand">VELLUM RIFT</p>
+        <button
+          type="button"
+          className="vr-header__brand-btn"
+          onClick={() => onNavigate("home")}
+          aria-label="Vellum Rift home"
+        >
+          <BrandMark size="sm" />
+        </button>
         <nav className="vr-header__nav" aria-label="Primary">
           {NAV.map((item) => (
             <button
