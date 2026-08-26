@@ -36,6 +36,8 @@ export type JobStatus = {
 export type UploadOptions = {
   /** 1-based PDF page (ignored for raster images). */
   page?: number;
+  /** Human-readable document title stored on the job/model. */
+  label?: string;
 };
 
 export async function uploadManuscript(
@@ -46,6 +48,9 @@ export async function uploadManuscript(
   body.append("file", file);
   if (options.page != null) {
     body.append("page", String(options.page));
+  }
+  if (options.label != null && options.label.trim()) {
+    body.append("label", options.label.trim());
   }
 
   const res = await fetch(`${API_BASE_URL}/api/upload`, {
