@@ -37,6 +37,7 @@ These items were open on 2026-08-10 and are now done (or demo-complete on the RE
 | FTR-009 (partial) | Role-based laser pointers over REST | `/api/game-state/:id/laser*` + Unity `LaserPointer` |
 | CI bootstrap | Node CI pnpm install/lint/test/build | Issues #98 / PR #106 |
 | Image publish | GHCR Docker builds for backend/SFU/dashboard | Issues #99 / PR #107 |
+| IMPL-030 | Route auth audit: jobs/assets/lod-tiers protected | GitHub #103 |
 
 Still open related work: invite/completion **notifications** remain tracked as GitHub [#94](https://github.com/memphis-iis/Vellum-Rift/issues/94) (IMPL-007).
 
@@ -55,7 +56,6 @@ Still open related work: invite/completion **notifications** remain tracked as G
 | ID | Issue | Priority | Notes |
 |----|-------|----------|-------|
 | IMPL-011b | Promote spatial artifacts from session JSONB metadata to durable `vr_spatial_artifacts` (export/restore) | Foundational | API exists; table exists; wiring incomplete |
-| IMPL-030 | Audit public vs auth-required routes (`/api/jobs`, `/api/assets`, `/api/lod-tiers`) | Foundational | GitHub #103 |
 
 ### C. WebRTC SFU
 

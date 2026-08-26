@@ -73,6 +73,7 @@ app.get("/api/health", healthHandler);
 
 // ---------------------------------------------------------------------------
 // Protected routes (require Bluekey auth when AUTH_REQUIRED=true)
+// Policy: only /health and /api/health are public. See docs/reference/authentication.md.
 // ---------------------------------------------------------------------------
 // To add a new protected route or router:
 //
@@ -90,19 +91,14 @@ app.get("/api/health", healthHandler);
 // In development (AUTH_REQUIRED unset), requireAuth silently attaches a stub
 // user so you can build features without a real Bluekey token.
 // When AUTH_REQUIRED=true, protected routes return 401 without a valid token.
+// Shared/test hosts MUST set AUTH_REQUIRED=true.
 // ---------------------------------------------------------------------------
 app.use("/api/game-state", requireAuth, gameStateRouter);
 app.use("/api/models", requireAuth, gltfModelRouter);
-app.use("/api/upload", requireAuth, uploadRouter); // POST /api/upload — protected by requireAuth
-
-// Jobs routes (public — clients need to poll status)
-app.use("/api/jobs", jobsRouter);
-
-// Asset manifest routes (public — clients discover chunks for progressive loading)
-app.use("/api/assets", assetManifestRouter);
-
-// LoD tier routes (public — clients discover platform-specific budgets)
-app.use("/api/lod-tiers", lodTiersRouter);
+app.use("/api/upload", requireAuth, uploadRouter);
+app.use("/api/jobs", requireAuth, jobsRouter);
+app.use("/api/assets", requireAuth, assetManifestRouter);
+app.use("/api/lod-tiers", requireAuth, lodTiersRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
