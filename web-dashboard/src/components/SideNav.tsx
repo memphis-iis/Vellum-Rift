@@ -22,8 +22,13 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
     <>
       <nav className="vr-sidenav" aria-label="Primary">
         <div className="vr-sidenav__brand">
-          <button type="button" className="vr-sidenav__brand-btn" onClick={() => onNavigate("home")}>
-            <BrandMark variant="mark" size="sm" />
+          <button
+            type="button"
+            className="vr-sidenav__brand-btn"
+            onClick={() => onNavigate("home")}
+            aria-label="Vellum Rift home"
+          >
+            <BrandMark variant="full" size="md" />
           </button>
           <p className="vr-sidenav__eyebrow">Manuscript Explorer</p>
         </div>

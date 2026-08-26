@@ -8,10 +8,17 @@ type LocalJob = {
   status: string;
   progress: number;
   stage: string;
+  page?: number;
   error?: string;
 };
 
 const ACCEPT = ".tif,.tiff,.jpg,.jpeg,.png,.pdf,.webp,.bmp";
+
+function isPdf(file: File): boolean {
+  return (
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+  );
+}
 
 function stageLabel(status: string, progress: number): string {
   if (status === "completed") return "Stabilized";
@@ -23,7 +30,12 @@ function stageLabel(status: string, progress: number): string {
   return "Finalizing…";
 }
 
-function normalizeJob(jobId: string, filename: string, remote?: JobStatus): LocalJob {
+function normalizeJob(
+  jobId: string,
+  filename: string,
+  remote?: JobStatus,
+  page?: number,
+): LocalJob {
   const status = remote?.status ?? "pending";
   const progress =
     typeof remote?.progress === "number"
@@ -38,6 +50,7 @@ function normalizeJob(jobId: string, filename: string, remote?: JobStatus): Loca
     filename,
     status,
     progress,
+    page,
     stage: remote?.stage || stageLabel(status, progress),
     error: remote?.errorMessage || remote?.error || undefined,
   };
@@ -49,13 +62,15 @@ export default function Upload() {
   const [jobs, setJobs] = useState<LocalJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
 
   const upsertJob = useCallback((job: LocalJob) => {
     setJobs((prev) => {
       const i = prev.findIndex((j) => j.id === job.id);
       if (i === -1) return [job, ...prev];
+      const existing = prev[i]!;
       const next = [...prev];
-      next[i] = job;
+      next[i] = { ...job, page: job.page ?? existing.page };
       return next;
     });
   }, []);
@@ -67,14 +82,23 @@ export default function Upload() {
   const processFiles = async (files: FileList | File[]) => {
     const list = Array.from(files);
     if (!list.length) return;
+    const pageToProcess = Math.max(1, Math.floor(page) || 1);
     setError(null);
     setUploading(true);
     try {
       for (const file of list) {
-        const res = await uploadManuscript(file);
+        const opts = isPdf(file) ? { page: pageToProcess } : {};
+        const res = await uploadManuscript(file, opts);
         const jobId = res.jobId;
         if (!jobId) throw new Error("Upload succeeded but no jobId returned");
-        upsertJob(normalizeJob(jobId, file.name, { jobId, status: res.status || "queued" }));
+        upsertJob(
+          normalizeJob(
+            jobId,
+            file.name,
+            { jobId, status: res.status || "pending" },
+            isPdf(file) ? pageToProcess : undefined,
+          ),
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -92,7 +116,7 @@ export default function Upload() {
         active.map(async (job) => {
           try {
             const remote = await fetchJob(job.id);
-            upsertJob(normalizeJob(job.id, job.filename, remote));
+            upsertJob(normalizeJob(job.id, job.filename, remote, job.page));
           } catch {
             /* keep last known */
           }
@@ -112,6 +136,32 @@ export default function Upload() {
           documents automatically.
         </p>
       </header>
+
+      <section className="vr-upload__options" aria-label="Processing options">
+        <label className="vr-upload__page-field" htmlFor="vr-upload-page">
+          <span className="vr-upload__page-label">
+            <MaterialIcon name="filter_1" />
+            Page to process
+          </span>
+          <input
+            id="vr-upload-page"
+            className="vr-upload__page-input"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={page}
+            disabled={uploading}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              setPage(Number.isFinite(next) && next >= 1 ? Math.floor(next) : 1);
+            }}
+          />
+        </label>
+        <p className="vr-upload__page-hint">
+          For multi-page PDFs, choose which page to extract. Raster images ignore this setting.
+        </p>
+      </section>
 
       <section
         className={`vr-dropzone${dragging ? " vr-dropzone--active" : ""}`}
@@ -189,6 +239,7 @@ export default function Upload() {
                         : job.status === "completed"
                           ? "Ready"
                           : `Processing (${job.progress}%)`}
+                      {job.page != null ? ` · Page ${job.page}` : ""}
                     </p>
                   </div>
                 </div>

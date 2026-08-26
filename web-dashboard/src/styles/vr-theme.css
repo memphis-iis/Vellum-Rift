@@ -460,16 +460,25 @@
 }
 
 .vr-sidenav__brand-btn {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
   color: inherit;
+  text-align: left;
+}
+
+.vr-sidenav__brand-btn .vr-brand {
+  width: 100%;
 }
 
 .vr-sidenav__brand-btn .vr-brand__logo {
-  max-height: 36px;
+  max-height: 56px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
 }
 
 .vr-sidenav__eyebrow {
@@ -643,6 +652,77 @@
   font-size: 18px;
   line-height: 1.6;
   color: var(--vr-on-surface-variant);
+}
+
+.vr-upload__options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.vr-upload__page-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vr-upload__page-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-upload__page-input {
+  width: 5.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.vr-upload__page-input::-webkit-outer-spin-button,
+.vr-upload__page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.vr-upload__page-input:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-upload__page-input:disabled {
+  opacity: 0.5;
+}
+
+.vr-upload__page-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.85;
 }
 
 .vr-upload__file-input {

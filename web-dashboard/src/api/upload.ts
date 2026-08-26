@@ -32,9 +32,20 @@ export type JobStatus = {
   filename?: string;
 };
 
-export async function uploadManuscript(file: File): Promise<UploadJobResponse> {
+export type UploadOptions = {
+  /** 1-based PDF page (ignored for raster images). */
+  page?: number;
+};
+
+export async function uploadManuscript(
+  file: File,
+  options: UploadOptions = {},
+): Promise<UploadJobResponse> {
   const body = new FormData();
   body.append("file", file);
+  if (options.page != null) {
+    body.append("page", String(options.page));
+  }
 
   const res = await fetch(`${API_BASE_URL}/api/upload`, {
     method: "POST",
