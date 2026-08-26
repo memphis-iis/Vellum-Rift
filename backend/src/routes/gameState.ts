@@ -21,6 +21,21 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------
+// GET /api/game-state  —  List sessions (newest activity first)
+// ---------------------------------------------------------------
+router.get("/", async (_req: Request, res: Response) => {
+  try {
+    const sessions = await repo.findAll();
+    res.json(sessions.map((s) => s.toJSON()));
+  } catch (err) {
+    console.error("GET /api/game-state failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to list sessions" });
+    }
+  }
+});
+
+// ---------------------------------------------------------------
 // GET /api/game-state/:sessionId  —  Retrieve a session
 // ---------------------------------------------------------------
 router.get("/:sessionId", async (req: Request, res: Response) => {
@@ -45,6 +60,21 @@ router.delete("/:sessionId", async (req: Request, res: Response) => {
   state.end();
   await repo.save(state);
   res.json({ sessionId: state.sessionId, isActive: false });
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/resume  —  Restore an archived session
+// ---------------------------------------------------------------
+router.post("/:sessionId/resume", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  state.resume();
+  await repo.save(state);
+  res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
