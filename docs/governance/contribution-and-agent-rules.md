@@ -6,13 +6,13 @@ Vellum Rift is a polyglot repository with a shared backend, realtime services, U
 
 ## Continuous Integration Gates
 
-The main branch should be protected by a multi-target build and validation matrix.
+The `main` branch should be protected by the Node CI workflow that actually exists today (`.github/workflows/ci.yml` → `node-ci`).
 
 Required behavior:
 
-- if any required compilation or validation target fails, the pull request cannot merge
-- fixes for one target must not knowingly break another required target
-- Web, backend, database, and supported Unity targets are all part of the protected surface
+- if required Node lint, backend tests, or workspace build fail, the pull request cannot merge
+- fixes for one package must not knowingly break another required Node package
+- Unity EditMode / WebGL gates are **not** required GitHub Actions checks yet; XR changes still need local validation until Unity CI lands
 
 ## Review Separation
 
@@ -26,10 +26,10 @@ Database schemas remain the source of truth for durable shared state.
 
 Rules:
 
-- migrations under `backend/migrations/` require developer-lead approval
+- migrations under `backend/src/migrations/` require developer-lead approval
 - frontend-only changes must not silently redefine durable data contracts
 - automated agents should not apply production schema changes autonomously
-- production migrations should be executed only through approved deployment workflows
+- production migrations should be executed only through approved deployment workflows (`pnpm migrate` against the target DB after review)
 
 ## Documentation Coupling
 
