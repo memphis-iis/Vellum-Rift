@@ -9,6 +9,7 @@ type LocalJob = {
   progress: number;
   stage: string;
   page?: number;
+  modelId?: string;
   error?: string;
 };
 
@@ -51,12 +52,17 @@ function normalizeJob(
     status,
     progress,
     page,
+    modelId: remote?.modelId || undefined,
     stage: remote?.stage || stageLabel(status, progress),
     error: remote?.errorMessage || remote?.error || undefined,
   };
 }
 
-export default function Upload() {
+type UploadProps = {
+  onViewModel?: (modelId: string) => void;
+};
+
+export default function Upload({ onViewModel }: UploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [jobs, setJobs] = useState<LocalJob[]>([]);
@@ -70,7 +76,11 @@ export default function Upload() {
       if (i === -1) return [job, ...prev];
       const existing = prev[i]!;
       const next = [...prev];
-      next[i] = { ...job, page: job.page ?? existing.page };
+      next[i] = {
+        ...job,
+        page: job.page ?? existing.page,
+        modelId: job.modelId ?? existing.modelId,
+      };
       return next;
     });
   }, []);
@@ -260,7 +270,18 @@ export default function Upload() {
               </div>
               <div className="vr-job-card__footer">
                 <span>{job.error || job.stage}</span>
-                <span>{job.id.slice(0, 8)}</span>
+                <span className="vr-job-card__footer-actions">
+                  {job.status === "completed" && job.modelId && onViewModel ? (
+                    <button
+                      type="button"
+                      className="vr-job-card__view"
+                      onClick={() => onViewModel(job.modelId!)}
+                    >
+                      View in Documents
+                    </button>
+                  ) : null}
+                  <span>{job.id.slice(0, 8)}</span>
+                </span>
               </div>
             </article>
           ))

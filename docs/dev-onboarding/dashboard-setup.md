@@ -119,6 +119,10 @@ Optional ambient video on Home: add `web-dashboard/public/home-bg.webm` or set `
 
 The Upload section is a dropzone + active job list. It posts multipart `file` to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Sessions / Enter remain placeholders.
 
+### Documents (3D model viewer)
+
+The Documents section lists processed meshes from `GET /api/models` in a dropdown, then loads the selected GLB via authenticated `GET /api/models/:modelId` (blob URL) into [`@google/model-viewer`](https://modelviewer.dev/) (orbit / zoom). Completed Upload jobs can open Documents with **View in Documents**. Metadata comes from `GET /api/models/:modelId/meta`.
+
 ## Working Conventions
 
 1. Keep the dashboard aligned with current Express + Bluekey contracts (GlyphWitch reuse is out of scope for now).

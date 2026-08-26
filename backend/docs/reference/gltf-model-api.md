@@ -92,6 +92,21 @@ The `downloadUrl` is a presigned MinIO URL valid for 24 hours. Alternatively, us
 
 ---
 
+### GET `/api/models`
+
+List processed manuscript meshes (newest first). Used by the dashboard Documents dropdown.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | number | `100` | Max rows (capped at 500) |
+| `offset` | number | `0` | Pagination offset |
+
+**Success Response (200):** Array of model metadata records (same shape as `GET /:modelId/meta`).
+
+---
+
 ### GET `/api/models/:modelId`
 
 Stream a previously-generated `.glb` file directly from MinIO to the client. This is the primary endpoint for Unity clients to download models.

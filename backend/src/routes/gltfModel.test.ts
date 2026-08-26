@@ -215,6 +215,34 @@ describe("gltfModel routes", () => {
   });
 
   // -----------------------------------------------------------------------
+  // GET /  (list models)
+  // -----------------------------------------------------------------------
+
+  describe("GET /", () => {
+    it("returns an empty list when no models exist", async () => {
+      mocks.query.mockResolvedValueOnce({ rows: [] });
+
+      const res = await request(app).get("/").expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    it("returns mapped model records newest-first", async () => {
+      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+
+      const res = await request(app).get("/?limit=50").expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].modelId).toBe(SAMPLE_MODEL_ID);
+      expect(res.body[0].label).toBe("test");
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("ORDER BY created_at DESC"),
+        [50, 0],
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // GET /:modelId/meta
   // -----------------------------------------------------------------------
 

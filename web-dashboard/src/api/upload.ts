@@ -28,6 +28,7 @@ export type JobStatus = {
   stage?: string;
   error?: string;
   errorMessage?: string | null;
+  modelId?: string | null;
   result?: unknown;
   filename?: string;
 };

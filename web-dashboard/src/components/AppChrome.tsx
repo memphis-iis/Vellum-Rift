@@ -1,7 +1,7 @@
 import { BrandMark } from "./BrandMark";
 import { MaterialIcon } from "./MaterialIcon";
 
-export type AppSection = "home" | "upload" | "sessions" | "enter";
+export type AppSection = "home" | "upload" | "documents" | "sessions" | "enter";
 
 type AppChromeProps = {
   active: AppSection;
@@ -13,6 +13,7 @@ type AppChromeProps = {
 const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "upload", label: "Upload", icon: "upload_file" },
+  { id: "documents", label: "Documents", icon: "view_in_ar" },
   { id: "sessions", label: "Sessions", icon: "history_edu" },
   { id: "enter", label: "Enter", icon: "login" },
 ];
