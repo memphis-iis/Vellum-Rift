@@ -45,6 +45,15 @@ describe("GameState route logic", () => {
     });
   });
 
+  describe("POST /api/game-state/:sessionId/resume", () => {
+    it("restores an ended session", () => {
+      const state = buildSession();
+      state.end();
+      state.resume();
+      expect(state.isActive).toBe(true);
+    });
+  });
+
   describe("POST /api/game-state/:sessionId/players", () => {
     it("adds a non-host player", () => {
       const state = buildSession();
