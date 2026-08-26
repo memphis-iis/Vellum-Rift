@@ -111,9 +111,13 @@ Logo lockup uses `https://iis.memphis.edu/static/bluekey/icons/vellumrift.png` p
 
 ### Post-login home (VR theme)
 
-After sign-in, the app uses the dark spatial / VR home (Epilogue + Hanken Grotesk, parchment-gold accents) with the Vellum logo from Bluekey static (`icons/vellumrift.png`). Upload / Sessions / Enter nav items are chrome placeholders until those slices land.
+After sign-in, the app uses a black shell with side nav (desktop) / top bar (mobile), Epilogue + Hanken Grotesk, cyan logo accents for primary CTAs, and parchment-gold secondary buttons. Brand mark: `/vellumrift-mark.png`.
 
-Optional ambient video: add `web-dashboard/public/home-bg.webm` or set `VITE_HOME_BG_VIDEO_URL` (muted loop under the fog layer).
+Optional ambient video on Home: add `web-dashboard/public/home-bg.webm` or set `VITE_HOME_BG_VIDEO_URL` (muted loop under the fog layer).
+
+### Upload (manuscript ingestion)
+
+The Upload section is a dropzone + active job list. It posts multipart `file` to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Sessions / Enter remain placeholders.
 
 ## Working Conventions
 

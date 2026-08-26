@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AmbientBackground } from "./components/AmbientBackground";
-import { AppChrome, type AppSection } from "./components/AppChrome";
+import type { AppSection } from "./components/AppChrome";
+import { SideNav } from "./components/SideNav";
 import Home from "./screens/Home";
 import Login from "./screens/Login";
+import Upload from "./screens/Upload";
 import "./styles/vr-theme.css";
 
 function Placeholder({ title }: { title: string }) {
   return (
-    <main className="vr-home">
-      <div className="vr-home__inner">
-        <h1 className="vr-home__title" style={{ fontSize: "clamp(1.75rem, 4vw, 2.5rem)" }}>
-          {title}
-        </h1>
-        <p className="vr-home__lead">This surface is next — home chrome and CTAs are wired.</p>
-      </div>
+    <main className="vr-upload">
+      <header className="vr-upload__header">
+        <h1 className="vr-upload__title">{title}</h1>
+        <p className="vr-upload__lead">This surface is next — chrome and upload are wired.</p>
+      </header>
     </main>
   );
 }
@@ -28,23 +28,26 @@ function Dashboard() {
     : user?.email || "signed-in@memphis.edu";
 
   return (
-    <div className="vr-app">
-      <AmbientBackground />
-      <AppChrome
+    <div className={`vr-app vr-app--shell${section === "home" ? " vr-app--home" : ""}`}>
+      {section === "home" ? <AmbientBackground /> : null}
+      <SideNav
         active={section}
         email={email}
         onNavigate={setSection}
         onSignOut={logout}
+        onNewSession={() => setSection("upload")}
       />
-      {section === "home" ? (
-        <Home
-          onUpload={() => setSection("upload")}
-          onJoinSession={() => setSection("sessions")}
-        />
-      ) : null}
-      {section === "upload" ? <Placeholder title="Upload" /> : null}
-      {section === "sessions" ? <Placeholder title="Sessions" /> : null}
-      {section === "enter" ? <Placeholder title="Enter" /> : null}
+      <div className="vr-shell-main">
+        {section === "home" ? (
+          <Home
+            onUpload={() => setSection("upload")}
+            onJoinSession={() => setSection("sessions")}
+          />
+        ) : null}
+        {section === "upload" ? <Upload /> : null}
+        {section === "sessions" ? <Placeholder title="Sessions" /> : null}
+        {section === "enter" ? <Placeholder title="Enter" /> : null}
+      </div>
     </div>
   );
 }
