@@ -141,6 +141,10 @@ Enter is the pre-flight lobby for a selected session (not a blank placeholder):
 - Deep link: `?session=<sessionId>` opens Session Room after sign-in.
 - **Visibility (#136):** create with Public/Private; private sessions need an allowlist entry (email invite checkbox can add). Host can flip visibility anytime without auto-kick.
 - **Host moderation (#137):** Session Room roster (host only) — Mute / Make host / Kick. Kick blocks rejoin by Bluekey identity when stamped.
+- **Manuscript playlist (#141):** `GET /api/game-state/:id` returns top-level `playlist` (model id array) and `activeModelId` (also under `metadata`). Host-only:
+  - `PATCH /api/game-state/:sessionId/playlist` — `{ playlist?, append?, remove?, activeModelId? }`
+  - `PATCH /api/game-state/:sessionId/active-model` — `{ modelId }` (must be in playlist; `null` clears)
+  Unity / WebGL should load `/api/models/:activeModelId` and poll for switches (#144).
 
 Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`). Signed-in users get a **postMessage auth handoff** into WebGL (no second Bluekey popup when the token is valid); see [authentication.md](../reference/authentication.md#dashboard--webgl-auth-handoff-129).
 

@@ -1,10 +1,16 @@
 import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
+import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
 import { NotificationService } from "../lib/notificationService.js";
 import { SessionAllowlistRepository } from "../lib/sessionAllowlistRepository.js";
 import { SessionModerationRepository } from "../lib/sessionModerationRepository.js";
+import {
+  applyActiveModelPatch,
+  applyPlaylistPatch,
+  writePlaylist,
+} from "../lib/sessionPlaylist.js";
 import {
   canAccessSession,
   isSessionHost,
@@ -14,6 +20,7 @@ import {
 
 const router = Router();
 const repo = new GameStateRepository();
+const modelRepo = new GlTFModelRepository();
 const jobRepo = new JobRepository();
 const notificationService = new NotificationService();
 const allowlistRepo = new SessionAllowlistRepository();
@@ -45,6 +52,21 @@ function requireHost(req: Request, res: Response, state: GameState): boolean {
   if (!isSessionHost(req.user, state)) {
     res.status(403).json({ error: "Only the session host can do that" });
     return false;
+  }
+  return true;
+}
+
+/** Ensure every model id exists in gltf_models. */
+async function assertModelsExist(
+  res: Response,
+  modelIds: string[],
+): Promise<boolean> {
+  for (const modelId of modelIds) {
+    const record = await modelRepo.findById(modelId);
+    if (!record) {
+      res.status(400).json({ error: `Unknown modelId: ${modelId}` });
+      return false;
+    }
   }
   return true;
 }
@@ -220,6 +242,100 @@ router.patch("/:sessionId/visibility", async (req: Request, res: Response) => {
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
   res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/playlist  —  Host mutates manuscript set (#141)
+// Body: { playlist?: string[], append?: string|string[], remove?: string|string[],
+//         activeModelId?: string|null }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/playlist", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const body = req.body as {
+      playlist?: unknown;
+      append?: unknown;
+      remove?: unknown;
+      activeModelId?: unknown;
+    };
+    if (
+      body.playlist === undefined &&
+      body.append === undefined &&
+      body.remove === undefined &&
+      body.activeModelId === undefined
+    ) {
+      res.status(400).json({
+        error: "Provide playlist, append, remove, and/or activeModelId",
+      });
+      return;
+    }
+
+    const patched = applyPlaylistPatch(state.metadata, body);
+    if (!patched.ok) {
+      res.status(patched.statusCode).json({ error: patched.error });
+      return;
+    }
+
+    if (!(await assertModelsExist(res, patched.state.playlist))) return;
+
+    state.metadata = writePlaylist(state.metadata, patched.state);
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    await modelRepo.syncSessionPlaylist(state.sessionId, patched.state.playlist);
+    res.json(state.toJSON());
+  } catch (err) {
+    console.error("PATCH /api/game-state/:sessionId/playlist failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to update playlist" });
+    }
+  }
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/active-model  —  Host sets active manuscript (#141)
+// Body: { modelId: string | null }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/active-model", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const { modelId } = req.body as { modelId?: unknown };
+    if (modelId === undefined) {
+      res.status(400).json({ error: "modelId is required (string or null)" });
+      return;
+    }
+
+    const patched = applyActiveModelPatch(state.metadata, modelId);
+    if (!patched.ok) {
+      res.status(patched.statusCode).json({ error: patched.error });
+      return;
+    }
+
+    if (patched.state.activeModelId) {
+      if (!(await assertModelsExist(res, [patched.state.activeModelId]))) return;
+    }
+
+    state.metadata = writePlaylist(state.metadata, patched.state);
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    res.json(state.toJSON());
+  } catch (err) {
+    console.error("PATCH /api/game-state/:sessionId/active-model failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to update active model" });
+    }
+  }
 });
 
 // ---------------------------------------------------------------

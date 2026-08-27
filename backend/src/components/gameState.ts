@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { readPlaylist } from "../lib/sessionPlaylist.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
@@ -304,6 +305,7 @@ export class GameState {
 
   /** Produce a serialisable snapshot of the current state. */
   toJSON(): Record<string, unknown> {
+    const { playlist, activeModelId } = readPlaylist(this.metadata);
     return {
       sessionId: this.sessionId,
       label: this.label,
@@ -315,6 +317,10 @@ export class GameState {
       visibility: this.visibility,
       createdBySub: this.createdBySub,
       createdByEmail: this.createdByEmail,
+      /** Manuscript playlist model ids (#141) — also mirrored under metadata.playlist. */
+      playlist,
+      /** Currently loaded manuscript (#141) — also mirrored under metadata.activeModelId. */
+      activeModelId,
       metadata: { ...this.metadata },
     };
   }
