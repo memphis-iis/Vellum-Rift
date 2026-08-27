@@ -132,4 +132,33 @@ export class GlTFModelRepository {
     );
     return (result.rowCount ?? 0) > 0;
   }
+
+  /**
+   * Bind a model to a session (or clear with null). Used by playlist sync (#141).
+   */
+  async setSessionId(modelId: string, sessionId: string | null): Promise<boolean> {
+    const result = await pool.query(
+      `UPDATE gltf_models SET session_id = $2 WHERE model_id = $1`,
+      [modelId, sessionId],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Align gltf_models.session_id with a session playlist:
+   * playlist members → this session; prior members of this session not in
+   * playlist → session_id cleared.
+   */
+  async syncSessionPlaylist(sessionId: string, playlist: string[]): Promise<void> {
+    const previous = await this.findBySession(sessionId);
+    const keep = new Set(playlist);
+    for (const model of previous) {
+      if (!keep.has(model.modelId)) {
+        await this.setSessionId(model.modelId, null);
+      }
+    }
+    for (const modelId of playlist) {
+      await this.setSessionId(modelId, sessionId);
+    }
+  }
 }
