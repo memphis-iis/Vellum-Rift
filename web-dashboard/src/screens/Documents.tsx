@@ -7,10 +7,18 @@ import {
   fetchModels,
   type ModelMeta,
 } from "../api/models";
+import {
+  createSession,
+  fetchSessions,
+  patchSessionPlaylist,
+  type GameSession,
+} from "../api/sessions";
 
 type DocumentsProps = {
   /** Prefill from Upload “View” or deep-link. */
   initialModelId?: string | null;
+  /** After “Open in new space”, navigate to Enter for that space. */
+  onOpenInSpace?: (sessionId: string) => void;
 };
 
 function formatBytes(n: number): string {
@@ -26,7 +34,17 @@ function optionLabel(m: ModelMeta): string {
   return when ? `${name} · ${when}` : name;
 }
 
-export default function Documents({ initialModelId = null }: DocumentsProps) {
+function spaceOptionLabel(s: GameSession): string {
+  const name = s.label?.trim() || "Untitled space";
+  const playlistLen = Array.isArray(s.playlist) ? s.playlist.length : 0;
+  const vis = (s.visibility ?? "public") === "private" ? "Private" : "Public";
+  return `${name} · ${vis} · ${playlistLen} manuscript${playlistLen === 1 ? "" : "s"}`;
+}
+
+export default function Documents({
+  initialModelId = null,
+  onOpenInSpace,
+}: DocumentsProps) {
   const [catalog, setCatalog] = useState<ModelMeta[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -36,6 +54,13 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
   const [meta, setMeta] = useState<ModelMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [spaces, setSpaces] = useState<GameSession[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(false);
+  const [addTargetId, setAddTargetId] = useState("");
+  const [setAsActive, setSetAsActive] = useState(true);
+  const [bindBusy, setBindBusy] = useState(false);
+  const [bindStatus, setBindStatus] = useState<string | null>(null);
 
   async function refreshCatalog() {
     setCatalogLoading(true);
@@ -48,6 +73,20 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
       setCatalogError(err instanceof Error ? err.message : "Failed to list manuscripts");
     } finally {
       setCatalogLoading(false);
+    }
+  }
+
+  async function refreshSpaces() {
+    setSpacesLoading(true);
+    try {
+      const list = await fetchSessions();
+      const active = list.filter((s) => s.isActive);
+      setSpaces(active);
+      setAddTargetId((prev) => (prev && active.some((s) => s.sessionId === prev) ? prev : ""));
+    } catch {
+      setSpaces([]);
+    } finally {
+      setSpacesLoading(false);
     }
   }
 
@@ -69,6 +108,11 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialModelId]);
 
+  useEffect(() => {
+    if (!activeId) return;
+    void refreshSpaces();
+  }, [activeId]);
+
   async function loadModel(rawId: string) {
     const modelId = rawId.trim();
     if (!modelId) {
@@ -78,6 +122,7 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
 
     setLoading(true);
     setError(null);
+    setBindStatus(null);
     setMeta(null);
 
     let objectUrl: string | null = null;
@@ -116,13 +161,65 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
     if (modelId) void loadModel(modelId);
   };
 
+  const modelId = activeId || selectedId.trim();
+
+  const onOpenInNewSpace = async () => {
+    if (!modelId || bindBusy) return;
+    setBindBusy(true);
+    setError(null);
+    setBindStatus(null);
+    try {
+      const title = meta?.label?.trim() || "Learning space";
+      const created = await createSession(title, "private");
+      await patchSessionPlaylist(created.sessionId, {
+        playlist: [modelId],
+        activeModelId: modelId,
+      });
+      setBindStatus(`Opened in new space “${title}”.`);
+      await refreshSpaces();
+      onOpenInSpace?.(created.sessionId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open in new space");
+    } finally {
+      setBindBusy(false);
+    }
+  };
+
+  const onAddToSpace = async () => {
+    if (!modelId || !addTargetId || bindBusy) return;
+    setBindBusy(true);
+    setError(null);
+    setBindStatus(null);
+    try {
+      const updated = await patchSessionPlaylist(addTargetId, {
+        append: modelId,
+        ...(setAsActive ? { activeModelId: modelId } : {}),
+      });
+      const name = updated.label?.trim() || "space";
+      setBindStatus(
+        setAsActive
+          ? `Added and set active in “${name}”.`
+          : `Added to “${name}” playlist.`,
+      );
+      await refreshSpaces();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to add to space (you must be the host)",
+      );
+    } finally {
+      setBindBusy(false);
+    }
+  };
+
   return (
     <main className="vr-docs">
       <header className="vr-docs__header">
         <h1 className="vr-docs__title">Manuscript library</h1>
         <p className="vr-docs__lead">
-          Browse processed manuscripts and preview their meshes. This library is where learning spaces
-          pull their documents from.
+          Browse processed manuscripts and preview their meshes. Open a new learning space from a
+          manuscript, or add it to an existing space’s playlist.
         </p>
       </header>
 
@@ -165,6 +262,84 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
 
       {catalogError ? <p className="vr-docs__error">{catalogError}</p> : null}
       {error ? <p className="vr-docs__error">{error}</p> : null}
+      {bindStatus ? (
+        <p className="vr-docs__status" role="status">
+          {bindStatus}
+        </p>
+      ) : null}
+
+      {modelId && !loading ? (
+        <section className="vr-docs__bind" aria-label="Use in a learning space">
+          <h2 className="vr-docs__bind-title">Use in a learning space</h2>
+          <div className="vr-docs__bind-row">
+            <button
+              type="button"
+              className="vr-btn vr-btn--primary"
+              disabled={bindBusy || !modelId}
+              onClick={() => void onOpenInNewSpace()}
+            >
+              <MaterialIcon name="add" filled />
+              {bindBusy ? "Working…" : "Open in new space"}
+            </button>
+          </div>
+          <div className="vr-docs__bind-add">
+            <label className="vr-docs__field" htmlFor="vr-docs-space-select">
+              <span className="vr-docs__field-label">
+                <MaterialIcon name="hub" />
+                Add to existing space
+              </span>
+              <select
+                id="vr-docs-space-select"
+                className="vr-docs__select"
+                value={addTargetId}
+                disabled={bindBusy || spacesLoading}
+                onChange={(e) => setAddTargetId(e.target.value)}
+              >
+                <option value="">
+                  {spacesLoading
+                    ? "Loading spaces…"
+                    : spaces.length
+                      ? "Select a space…"
+                      : "No active spaces yet"}
+                </option>
+                {spaces.map((s) => (
+                  <option key={s.sessionId} value={s.sessionId}>
+                    {spaceOptionLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="vr-docs__bind-check">
+              <input
+                type="checkbox"
+                checked={setAsActive}
+                disabled={bindBusy}
+                onChange={(e) => setSetAsActive(e.target.checked)}
+              />
+              Set as active manuscript
+            </label>
+            <button
+              type="button"
+              className="vr-btn vr-btn--outline"
+              disabled={bindBusy || !addTargetId || !modelId}
+              onClick={() => void onAddToSpace()}
+            >
+              {bindBusy ? "Adding…" : "Add to space"}
+            </button>
+            <button
+              type="button"
+              className="vr-btn vr-btn--ghost"
+              disabled={spacesLoading || bindBusy}
+              onClick={() => void refreshSpaces()}
+            >
+              Refresh spaces
+            </button>
+          </div>
+          <p className="vr-docs__bind-hint">
+            You must be the space host to change its playlist. Non-host attempts return an error.
+          </p>
+        </section>
+      ) : null}
 
       <section className="vr-docs__stage" aria-live="polite">
         {loading ? (

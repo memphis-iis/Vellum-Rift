@@ -75,7 +75,9 @@ function Dashboard() {
           />
         ) : null}
         {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
-        {section === "documents" ? <Documents initialModelId={documentModelId} /> : null}
+        {section === "documents" ? (
+          <Documents initialModelId={documentModelId} onOpenInSpace={enterSession} />
+        ) : null}
         {section === "sessions" ? (
           <Sessions
             onEnterSession={enterSession}
