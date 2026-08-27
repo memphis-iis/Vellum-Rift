@@ -105,6 +105,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_session_allowlist_session_sub
 
 CREATE INDEX IF NOT EXISTS idx_session_allowlist_session
   ON session_allowlist (session_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS session_bans (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id    UUID NOT NULL REFERENCES game_sessions(session_id) ON DELETE CASCADE,
+  subject_sub   TEXT,
+  email         TEXT,
+  player_id     TEXT,
+  display_name  TEXT,
+  reason        TEXT,
+  created_by_sub TEXT,
+  created_by_email TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT session_bans_identity_chk CHECK (
+    (subject_sub IS NOT NULL AND btrim(subject_sub) <> '')
+    OR (email IS NOT NULL AND btrim(email) <> '')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_bans_session
+  ON session_bans (session_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS session_moderation_events (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id    UUID NOT NULL REFERENCES game_sessions(session_id) ON DELETE CASCADE,
+  action        TEXT NOT NULL,
+  actor_sub     TEXT,
+  actor_email   TEXT,
+  target_player_id TEXT,
+  target_sub    TEXT,
+  target_email  TEXT,
+  detail        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_moderation_events_session
+  ON session_moderation_events (session_id, created_at DESC);
 `;
 
 /**

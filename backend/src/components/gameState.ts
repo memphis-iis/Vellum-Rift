@@ -26,6 +26,8 @@ export interface PlayerState {
   /** Bluekey identity stamped at join (#136). */
   bluekeySub?: string | null;
   bluekeyEmail?: string | null;
+  /** Session-scoped chat mute (#137). */
+  chatMuted?: boolean;
 }
 
 export type SessionVisibility = "public" | "private";
@@ -141,6 +143,7 @@ export class GameState {
       laserActive: false,
       laserOrigin: { x: 0, y: 0, z: 0 },
       laserDirection: { dx: 0, dy: 0, dz: 0 },
+      chatMuted: false,
     };
 
     this.players.push(player);

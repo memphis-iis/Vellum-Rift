@@ -18,6 +18,9 @@ export interface PlayerState {
   laserActive?: boolean;
   laserOrigin?: Vec3;
   laserDirection?: { dx: number; dy: number; dz: number };
+  bluekeySub?: string | null;
+  bluekeyEmail?: string | null;
+  chatMuted?: boolean;
 }
 
 export interface ChatMessage {
@@ -179,6 +182,37 @@ export function setSessionVisibility(
     {
       method: "PATCH",
       body: JSON.stringify({ visibility }),
+    },
+  );
+}
+
+export function kickPlayer(sessionId: string, playerId: string): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/kick`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function mutePlayer(sessionId: string, playerId: string): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/mute`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function unmutePlayer(sessionId: string, playerId: string): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/unmute`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function transferHost(sessionId: string, playerId: string): Promise<GameSession> {
+  return request<GameSession>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/host`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ playerId }),
     },
   );
 }

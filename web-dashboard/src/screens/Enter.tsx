@@ -4,8 +4,12 @@ import {
   addAllowlistEmail,
   fetchAllowlist,
   inviteToSession,
+  kickPlayer,
+  mutePlayer,
   removeAllowlistEntry,
   setSessionVisibility,
+  transferHost,
+  unmutePlayer,
   type AllowlistEntry,
 } from "../api/gameState";
 import { MaterialIcon } from "../components/MaterialIcon";
@@ -261,6 +265,52 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
     }
   };
 
+  const refreshRoom = async () => {
+    await retry();
+  };
+
+  const onKick = async (playerId: string) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await kickPlayer(sessionId, playerId);
+      await refreshRoom();
+      setInviteStatus("Player removed");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Kick failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onMuteToggle = async (playerId: string, muted: boolean) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      if (muted) await unmutePlayer(sessionId, playerId);
+      else await mutePlayer(sessionId, playerId);
+      await refreshRoom();
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Mute update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onMakeHost = async (playerId: string) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await transferHost(sessionId, playerId);
+      await refreshRoom();
+      setInviteStatus("Host transferred");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Host transfer failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
   const onSend = (e: FormEvent) => {
     e.preventDefault();
     if (!draft.trim()) return;
@@ -494,6 +544,52 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
               ))}
             </div>
           </div>
+
+          {isHost ? (
+            <ul className="vr-enter__roster" aria-label="Participants">
+              {players.map((player) => {
+                const isMe = player.id === me?.playerId;
+                const canModerate = !player.isHost && !isMe;
+                return (
+                  <li key={player.id} className="vr-enter__roster-row">
+                    <span className="vr-enter__roster-name">
+                      {isMe ? "You" : player.displayName}
+                      {player.isHost ? " · host" : ""}
+                      {player.chatMuted ? " · muted" : ""}
+                    </span>
+                    {canModerate ? (
+                      <span className="vr-enter__roster-actions">
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
+                        >
+                          {player.chatMuted ? "Unmute" : "Mute"}
+                        </button>
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onMakeHost(player.id)}
+                        >
+                          Make host
+                        </button>
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onKick(player.id)}
+                        >
+                          Kick
+                        </button>
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
 
           <div className="vr-enter__controls-hint" aria-label="Controls">
             <span>

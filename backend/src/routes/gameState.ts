@@ -4,6 +4,7 @@ import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
 import { NotificationService } from "../lib/notificationService.js";
 import { SessionAllowlistRepository } from "../lib/sessionAllowlistRepository.js";
+import { SessionModerationRepository } from "../lib/sessionModerationRepository.js";
 import {
   canAccessSession,
   isSessionHost,
@@ -16,6 +17,7 @@ const repo = new GameStateRepository();
 const jobRepo = new JobRepository();
 const notificationService = new NotificationService();
 const allowlistRepo = new SessionAllowlistRepository();
+const moderationRepo = new SessionModerationRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
@@ -136,6 +138,15 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
   if (!state) return;
 
+  const banned = await moderationRepo.isBanned(state.sessionId, {
+    sub: req.user?.sub,
+    email: req.user?.email,
+  });
+  if (banned) {
+    res.status(403).json({ error: "You are banned from this session" });
+    return;
+  }
+
   const { displayName, isHost } = req.body as {
     displayName?: string;
     isHost?: boolean;
@@ -156,6 +167,7 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   const player = state.addPlayer(displayName, wantHost);
   player.bluekeySub = req.user?.sub ?? null;
   player.bluekeyEmail = normalizeEmail(req.user?.email) || null;
+  player.chatMuted = false;
 
   if (player.isHost && req.user?.email) {
     state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
@@ -401,15 +413,23 @@ router.patch("/:sessionId/rotation", async (req: Request, res: Response) => {
 // PATCH /api/game-state/:sessionId/host  —  Transfer host authority
 // ---------------------------------------------------------------
 router.patch("/:sessionId/host", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
 
   const { playerId } = req.body as { playerId?: string };
   if (!playerId) {
     res.status(400).json({ error: "playerId is required" });
+    return;
+  }
+
+  const target = state.getPlayer(playerId);
+  if (!target) {
+    res.status(404).json({ error: "Player not found" });
+    return;
+  }
+  if (target.id === state.hostId) {
+    res.json(state.toJSON());
     return;
   }
 
@@ -419,8 +439,140 @@ router.patch("/:sessionId/host", async (req: Request, res: Response) => {
     return;
   }
 
+  state.addSystemMessage(`${target.displayName} is now the session host`);
+  await moderationRepo.recordEvent({
+    sessionId: state.sessionId,
+    action: "transfer_host",
+    actorSub: req.user?.sub,
+    actorEmail: req.user?.email,
+    targetPlayerId: target.id,
+    targetSub: target.bluekeySub,
+    targetEmail: target.bluekeyEmail,
+  });
   await repo.save(state);
   res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// POST .../players/:playerId/kick — remove + ban rejoin (host only)
+// ---------------------------------------------------------------
+router.post("/:sessionId/players/:playerId/kick", async (req: Request, res: Response) => {
+  try {
+    const sessionId = param(req, "sessionId");
+    const playerId = param(req, "playerId");
+    const state = await loadAccessibleSession(req, res, sessionId);
+    if (!state) return;
+    if (!requireHost(req, res, state)) return;
+
+    const target = state.getPlayer(playerId);
+    if (!target) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+    if (target.id === state.hostId || target.isHost) {
+      res.status(400).json({ error: "Cannot kick the current host" });
+      return;
+    }
+
+    const reason =
+      typeof (req.body as { reason?: string }).reason === "string"
+        ? (req.body as { reason?: string }).reason!.trim()
+        : null;
+
+    const canBan = Boolean(target.bluekeySub?.trim() || target.bluekeyEmail?.trim());
+    if (canBan) {
+      await moderationRepo.addBan({
+        sessionId,
+        subjectSub: target.bluekeySub,
+        email: target.bluekeyEmail,
+        playerId: target.id,
+        displayName: target.displayName,
+        reason,
+        createdBySub: req.user?.sub,
+        createdByEmail: req.user?.email,
+      });
+    }
+
+    state.removePlayer(playerId);
+    state.addSystemMessage(`${target.displayName} was removed from the session`);
+    await moderationRepo.recordEvent({
+      sessionId,
+      action: "kick",
+      actorSub: req.user?.sub,
+      actorEmail: req.user?.email,
+      targetPlayerId: target.id,
+      targetSub: target.bluekeySub,
+      targetEmail: target.bluekeyEmail,
+      detail: { reason: reason || null, banned: canBan },
+    });
+    await repo.save(state);
+    res.json({ kicked: true, banned: canBan, session: state.toJSON() });
+  } catch (err) {
+    const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
+    if (statusCode >= 500) console.error("kick failed:", err);
+    if (!res.headersSent) {
+      res.status(statusCode).json({
+        error: err instanceof Error ? err.message : "Failed to kick player",
+      });
+    }
+  }
+});
+
+// ---------------------------------------------------------------
+// POST .../players/:playerId/mute|unmute — chat mute (host only)
+// ---------------------------------------------------------------
+router.post("/:sessionId/players/:playerId/mute", async (req: Request, res: Response) => {
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
+
+  const player = state.getPlayer(param(req, "playerId"));
+  if (!player) {
+    res.status(404).json({ error: "Player not found" });
+    return;
+  }
+
+  player.chatMuted = true;
+  state.updatedAt = new Date().toISOString();
+  state.addSystemMessage(`${player.displayName} was muted in chat`);
+  await moderationRepo.recordEvent({
+    sessionId: state.sessionId,
+    action: "mute",
+    actorSub: req.user?.sub,
+    actorEmail: req.user?.email,
+    targetPlayerId: player.id,
+    targetSub: player.bluekeySub,
+    targetEmail: player.bluekeyEmail,
+  });
+  await repo.save(state);
+  res.json({ muted: true, player });
+});
+
+router.post("/:sessionId/players/:playerId/unmute", async (req: Request, res: Response) => {
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
+
+  const player = state.getPlayer(param(req, "playerId"));
+  if (!player) {
+    res.status(404).json({ error: "Player not found" });
+    return;
+  }
+
+  player.chatMuted = false;
+  state.updatedAt = new Date().toISOString();
+  state.addSystemMessage(`${player.displayName} was unmuted in chat`);
+  await moderationRepo.recordEvent({
+    sessionId: state.sessionId,
+    action: "unmute",
+    actorSub: req.user?.sub,
+    actorEmail: req.user?.email,
+    targetPlayerId: player.id,
+    targetSub: player.bluekeySub,
+    targetEmail: player.bluekeyEmail,
+  });
+  await repo.save(state);
+  res.json({ muted: false, player });
 });
 
 // ---------------------------------------------------------------
@@ -663,8 +815,8 @@ router.get("/:sessionId/chat", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.post("/:sessionId/chat", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const { playerId, text } = req.body as { playerId?: string; text?: string };
     if (!playerId || typeof text !== "string" || text.trim().length === 0) {
@@ -675,6 +827,16 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
     // Postgres JSONB value limit (security review).
     if (text.trim().length > 2000) {
       res.status(400).json({ error: "text must be 2000 characters or fewer" });
+      return;
+    }
+
+    const player = state.getPlayer(playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+    if (player.chatMuted) {
+      res.status(403).json({ error: "You are muted in this session" });
       return;
     }
 
