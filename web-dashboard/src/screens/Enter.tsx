@@ -7,6 +7,7 @@ import {
   kickPlayer,
   mutePlayer,
   removeAllowlistEntry,
+  setSessionKiosk,
   setSessionVisibility,
   transferHost,
   unmutePlayer,
@@ -123,7 +124,7 @@ export default function Enter({
     useSessionRoom(sessionId, displayName);
 
   const [draft, setDraft] = useState("");
-  const [copied, setCopied] = useState<"invite" | "desktop" | null>(null);
+  const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
@@ -138,6 +139,9 @@ export default function Enter({
 
   const isHost = Boolean(me?.isHost);
   const visibility = session?.visibility === "private" ? "private" : "public";
+  const kioskEnabled = Boolean(
+    session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
+  );
 
   useEffect(() => {
     setAddInviteToAllowlist(visibility === "private");
@@ -244,7 +248,21 @@ export default function Enter({
     }
   }, [sessionId]);
 
-  const copy = async (kind: "invite" | "desktop", text: string) => {
+  const kioskJoinText = useMemo(() => {
+    if (!sessionId) return "";
+    try {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("session", sessionId);
+      url.searchParams.set("kiosk", "1");
+      return url.toString();
+    } catch {
+      return sessionId;
+    }
+  }, [sessionId]);
+
+  const copy = async (kind: "invite" | "desktop" | "kiosk", text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(kind);
@@ -297,6 +315,24 @@ export default function Enter({
       setInviteStatus(`Space is now ${next}`);
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Visibility update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const toggleKiosk = async () => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const updated = await setSessionKiosk(sessionId, !kioskEnabled);
+      applySession(updated);
+      setInviteStatus(
+        !kioskEnabled
+          ? "Kiosk join on — guests can enter without Bluekey via the public link"
+          : "Kiosk join off — Bluekey required again",
+      );
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Kiosk update failed");
     } finally {
       setHostBusy(false);
     }
@@ -445,6 +481,27 @@ export default function Enter({
                 <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
                 {visibility === "private" ? "Private" : "Public"}
               </button>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void toggleKiosk()}
+                disabled={hostBusy}
+                title="Let museum guests join without Bluekey"
+              >
+                <MaterialIcon name={kioskEnabled ? "storefront" : "store"} />
+                {kioskEnabled ? "Kiosk on" : "Kiosk off"}
+              </button>
+              {kioskEnabled ? (
+                <button
+                  type="button"
+                  className="vr-enter__text-btn"
+                  onClick={() => void copy("kiosk", kioskJoinText)}
+                  disabled={!kioskJoinText}
+                >
+                  <MaterialIcon name="qr_code_2" />
+                  {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
+                </button>
+              ) : null}
               <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
                 <input
                   type="email"

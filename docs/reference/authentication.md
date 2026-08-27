@@ -47,21 +47,37 @@ Introspection is implemented in `backend/src/lib/auth.ts` (no uncomment step req
 
 ## Public vs Protected Routes
 
-Policy: only liveness/health endpoints are anonymous. Application data and processing surfaces require auth when `AUTH_REQUIRED=true`.
+Policy: only liveness/health endpoints and the scoped kiosk mint surface are anonymous. Application data and processing surfaces require auth when `AUTH_REQUIRED=true`.
 
 | Route family | Status | Rationale |
 |--------------|--------|-----------|
 | `GET /health` | **Public** | Load balancer / ops liveness |
 | `GET /api/health` | **Public** | Same (includes coarse game-state stats) |
-| `/api/game-state/*` | **Protected** | Session presence, chat, summon, lasers, artifacts |
-| `/api/models/*` | **Protected** | Model metadata and generation |
-| `/api/upload` | **Protected** | Manuscript upload / processing start |
-| `/api/jobs/*` | **Protected** | Job status and listing (processing progress) |
-| `/api/assets/*` | **Protected** | Asset manifests / progressive chunk discovery |
-| `/api/lod-tiers/*` | **Protected** | Platform LoD budgets |
-| `/api/realtime/*` | **Protected** | Mint short-lived SFU signaling tokens |
+| `GET /api/kiosk/:sessionId/status` | **Public** | Museum QR discovery when host enabled kiosk (#145) |
+| `POST /api/kiosk/:sessionId/token` | **Public** | Rate-limited mint of short-lived kiosk JWT (#145) |
+| `/api/game-state/*` | **Protected** (Bluekey **or** kiosk JWT) | Session presence, chat, summon, lasers, artifacts |
+| `/api/models/*` | **Protected** (Bluekey **or** kiosk JWT) | Model metadata and download; generate stays Bluekey-effective via guest denials |
+| `/api/upload` | **Protected** (Bluekey only) | Manuscript upload / processing start |
+| `/api/jobs/*` | **Protected** (Bluekey only) | Job status and listing (processing progress) |
+| `/api/assets/*` | **Protected** (Bluekey only) | Asset manifests / progressive chunk discovery |
+| `/api/lod-tiers/*` | **Protected** (Bluekey only) | Platform LoD budgets |
+| `/api/realtime/*` | **Protected** (Bluekey **or** kiosk JWT) | Mint short-lived SFU signaling tokens |
 
 There are **no** intentional public discovery endpoints for jobs, assets, or LoD tiers. Clients that poll job progress or load manifests must send `Authorization: Bearer <token>` whenever auth is required.
+
+### Kiosk / public join (#145)
+
+Museum guests join **without** Bluekey. Do **not** set `AUTH_REQUIRED=false` for this.
+
+1. Host toggles kiosk on the space: `PATCH /api/game-state/:sessionId/kiosk` `{ "enabled": true }` (host only). Flag is `metadata.kioskEnabled` / top-level `kioskEnabled`.
+2. Guest opens dashboard `?session=<id>&kiosk=1` (QR / share link).
+3. Dashboard calls `POST /api/kiosk/:sessionId/token` (no auth) → short-lived HS256 JWT (`KIOSK_JWT_SECRET`, default TTL 1h via `KIOSK_TOKEN_TTL_SEC`).
+4. Guest uses that Bearer on `/api/game-state` and `/api/models` (middleware: `requireAuthOrKiosk`). Guests **cannot** mutate playlist, visibility, allowlist, moderation, or upload.
+5. Model downloads for kiosk tokens are limited to the session playlist. Token mint is rate-limited per IP+session (`KIOSK_RATE_LIMIT`, `KIOSK_RATE_WINDOW_MS`).
+
+Smoke path: host enables **Kiosk on** → **Copy kiosk link** → open link in a private window → nametag → Join → Enter 3D space (WebGL handoff uses the kiosk token).
+
+Non-kiosk sessions still require Bluekey as before.
 
 ### Realtime / SFU tokens
 
@@ -170,6 +186,9 @@ Use CLI/env (`-accessToken=` / `VELLUM_ACCESS_TOKEN`). Electron launcher is defe
 | `REALTIME_JWT_SECRET` | Shared secret for SFU signaling JWTs (with `webrtc-sfu`) |
 | `SFU_PUBLIC_URL` | Returned by `/api/realtime/token` |
 | `REALTIME_TOKEN_TTL_SEC` | Signaling token lifetime (default 300) |
+| `KIOSK_JWT_SECRET` | HS256 secret for museum kiosk join tokens (#145); falls back to `JWT_SECRET` |
+| `KIOSK_TOKEN_TTL_SEC` | Kiosk token lifetime (default 3600) |
+| `KIOSK_RATE_LIMIT` / `KIOSK_RATE_WINDOW_MS` | Public token mint rate limit (default 30 / 5 minutes) |
 
 There is no “uncomment introspection” step — `backend/src/lib/auth.ts` always contains the live middleware; `AUTH_REQUIRED` toggles enforcement.
 

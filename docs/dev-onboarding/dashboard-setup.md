@@ -145,6 +145,7 @@ Enter is the pre-flight lobby for a selected session (not a blank placeholder):
 - Deep link: `?session=<sessionId>` opens Session Room after sign-in.
 - **Visibility (#136):** create with Public/Private; private sessions need an allowlist entry (email invite checkbox can add). Host can flip visibility anytime without auto-kick.
 - **Host moderation (#137):** Session Room roster (host only) — Mute / Make host / Kick. Kick blocks rejoin by Bluekey identity when stamped.
+- **Kiosk / public join (#145):** Host toggles **Kiosk on** → **Copy kiosk link** (`?session=&kiosk=1`). Guests skip Bluekey, pick a nametag, join, and launch WebGL with a short-lived kiosk token. Playlist / moderation / visibility stay host-only.
 - **Manuscript playlist (#141):** `GET /api/game-state/:id` returns top-level `playlist` (model id array) and `activeModelId` (also under `metadata`). Host-only:
   - `PATCH /api/game-state/:sessionId/playlist` — `{ playlist?, append?, remove?, activeModelId? }`
   - `PATCH /api/game-state/:sessionId/active-model` — `{ modelId }` (must be in playlist; `null` clears)

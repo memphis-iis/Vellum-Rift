@@ -16,12 +16,13 @@ import gltfModelRouter, { setJobQueue as setGltfJobQueue } from "./routes/gltfMo
 import jobsRouter, { setJobQueue as setJobsJobQueue } from "./routes/jobs.js";
 import { getGameStateStats } from "./components/gameState.js";
 import { GameStateRepository } from "./lib/gameStateRepository.js";
-import { requireAuth } from "./lib/auth.js";
+import { requireAuth, requireAuthOrKiosk } from "./lib/auth.js";
 import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.js";
 import assetManifestRouter from "./routes/assetManifest.js";
 import lodTiersRouter from "./routes/lodTiers.js";
 import realtimeRouter from "./routes/realtime.js";
 import notificationsRouter from "./routes/notifications.js";
+import kioskRouter from "./routes/kiosk.js";
 
 dotenv.config();
 
@@ -73,10 +74,14 @@ const healthHandler = async (
 // Public routes (no auth required)
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
+// Museum kiosk: status + short-lived join token (#145). Scoped per session.
+app.use("/api/kiosk", kioskRouter);
 
 // ---------------------------------------------------------------------------
 // Protected routes (require Bluekey auth when AUTH_REQUIRED=true)
-// Policy: only /health and /api/health are public. See docs/reference/authentication.md.
+// Policy: only /health, /api/health, and /api/kiosk/* are anonymous.
+// Session/model/realtime also accept a session-scoped kiosk JWT (#145).
+// See docs/reference/authentication.md.
 // ---------------------------------------------------------------------------
 // To add a new protected route or router:
 //
@@ -96,13 +101,13 @@ app.get("/api/health", healthHandler);
 // When AUTH_REQUIRED=true, protected routes return 401 without a valid token.
 // Shared/test hosts MUST set AUTH_REQUIRED=true.
 // ---------------------------------------------------------------------------
-app.use("/api/game-state", requireAuth, gameStateRouter);
-app.use("/api/models", requireAuth, gltfModelRouter);
+app.use("/api/game-state", requireAuthOrKiosk, gameStateRouter);
+app.use("/api/models", requireAuthOrKiosk, gltfModelRouter);
 app.use("/api/upload", requireAuth, uploadRouter);
 app.use("/api/jobs", requireAuth, jobsRouter);
 app.use("/api/assets", requireAuth, assetManifestRouter);
 app.use("/api/lod-tiers", requireAuth, lodTiersRouter);
-app.use("/api/realtime", requireAuth, realtimeRouter);
+app.use("/api/realtime", requireAuthOrKiosk, realtimeRouter);
 app.use("/api/notifications", requireAuth, notificationsRouter);
 
 // ---------------------------------------------------------------------------

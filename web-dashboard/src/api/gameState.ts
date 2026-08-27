@@ -46,6 +46,8 @@ export interface GameSession {
   createdByEmail?: string;
   playlist?: string[];
   activeModelId?: string | null;
+  /** Museum public join without Bluekey (#145). */
+  kioskEnabled?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -184,6 +186,20 @@ export function setSessionVisibility(
     {
       method: "PATCH",
       body: JSON.stringify({ visibility }),
+    },
+  );
+}
+
+/** Host enables/disables museum kiosk public join (#145). */
+export function setSessionKiosk(
+  sessionId: string,
+  enabled: boolean,
+): Promise<GameSession> {
+  return request<GameSession>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/kiosk`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
     },
   );
 }

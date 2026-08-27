@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
+import { isKioskGuest } from "../lib/auth.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
@@ -17,6 +18,7 @@ import {
   normalizeEmail,
   parseVisibility,
 } from "../lib/sessionAccess.js";
+import { writeKioskEnabled } from "../lib/sessionKiosk.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -56,6 +58,25 @@ function requireHost(req: Request, res: Response, state: GameState): boolean {
   return true;
 }
 
+/** Block museum kiosk guests from host/admin mutations (#145). */
+function rejectKioskGuest(req: Request, res: Response): boolean {
+  if (isKioskGuest(req.user)) {
+    res.status(403).json({ error: "Kiosk guests cannot do that" });
+    return true;
+  }
+  return false;
+}
+
+/** Sanitize nametag for kiosk / public join. */
+function sanitizeDisplayName(raw: string | undefined, kiosk: boolean): string {
+  const cleaned = String(raw ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, 40);
+  if (cleaned) return cleaned;
+  return kiosk ? "Guest" : "";
+}
+
 /** Ensure every model id exists in gltf_models. */
 async function assertModelsExist(
   res: Response,
@@ -75,6 +96,8 @@ async function assertModelsExist(
 // POST /api/game-state  —  Create a new game session
 // ---------------------------------------------------------------
 router.post("/", async (req: Request, res: Response) => {
+  if (rejectKioskGuest(req, res)) return;
+
   const { label, visibility: visibilityRaw } = req.body as {
     label?: string;
     visibility?: string;
@@ -160,6 +183,12 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
   if (!state) return;
 
+  const kiosk = isKioskGuest(req.user);
+  if (kiosk && req.user?.kioskSessionId !== state.sessionId) {
+    res.status(403).json({ error: "Kiosk token does not match this space" });
+    return;
+  }
+
   const banned = await moderationRepo.isBanned(state.sessionId, {
     sub: req.user?.sub,
     email: req.user?.email,
@@ -169,22 +198,24 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName, isHost } = req.body as {
+  const { displayName: rawName, isHost } = req.body as {
     displayName?: string;
     isHost?: boolean;
   };
 
+  const displayName = sanitizeDisplayName(rawName, kiosk);
   if (!displayName) {
     res.status(400).json({ error: "displayName is required" });
     return;
   }
 
-  // First joiner on a public session may adopt host; otherwise only the
-  // durable creator / current host identity may claim host.
+  // Kiosk guests never become host. First joiner on a public session may
+  // adopt host; otherwise only the durable creator / current host identity.
   const wantHost =
-    (!state.hostId &&
+    !kiosk &&
+    ((!state.hostId &&
       (isSessionHost(req.user, state) || state.visibility === "public")) ||
-    (Boolean(isHost) && isSessionHost(req.user, state));
+      (Boolean(isHost) && isSessionHost(req.user, state)));
 
   const player = state.addPlayer(displayName, wantHost);
   player.bluekeySub = req.user?.sub ?? null;
@@ -211,6 +242,24 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
   const state = await loadAccessibleSession(req, res, sessionId);
   if (!state) return;
 
+  const target = state.getPlayer(playerId);
+  if (!target) {
+    res.status(404).json({ error: "Player not found" });
+    return;
+  }
+
+  const host = isSessionHost(req.user, state);
+  const self =
+    Boolean(req.user?.sub && target.bluekeySub && target.bluekeySub === req.user.sub) ||
+    Boolean(
+      normalizeEmail(req.user?.email) &&
+        normalizeEmail(target.bluekeyEmail) === normalizeEmail(req.user?.email),
+    );
+  if (!host && !self) {
+    res.status(403).json({ error: "You can only remove yourself" });
+    return;
+  }
+
   const removed = state.removePlayer(playerId);
   if (!removed) {
     res.status(404).json({ error: "Player not found" });
@@ -219,6 +268,29 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
 
   await repo.save(state);
   res.json({ removed: true });
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/kiosk — Host enables museum public join (#145)
+// ---------------------------------------------------------------
+router.patch("/:sessionId/kiosk", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const enabled = (req.body as { enabled?: unknown }).enabled;
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+
+  state.metadata = writeKioskEnabled(state.metadata, enabled);
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
