@@ -125,7 +125,20 @@ The Documents section lists processed meshes from `GET /api/models` in a dropdow
 
 ### Sessions (exploration list)
 
-The Sessions section lists `GET /api/game-state` rows (name, LIVE/READY/ARCHIVED, last activity). **New Session** calls `POST /api/game-state` (optional label). Open/Enter navigates to the Enter placeholder with the session ID; archive uses `DELETE`, restore uses `POST /api/game-state/:id/resume`.
+The Sessions section lists `GET /api/game-state` rows (name, LIVE/READY/ARCHIVED, last activity). **New Session** calls `POST /api/game-state` (optional label). **Launch** opens the Enter Session Room for that id; archive uses `DELETE`, restore uses `POST /api/game-state/:id/resume`.
+
+### Enter (Session Room loadout)
+
+Enter is the pre-flight lobby for a selected session (not a blank placeholder):
+
+- Auto-joins as the signed-in Bluekey user (email local-part as display name); first joiner adopts host when `hostId` is empty
+- Spatial presence map + live/ready badges from polled `GET /api/game-state/:id`
+- Session chat via `/api/game-state/:id/chat`
+- **Enter 3D Experience** opens `VITE_WEBGL_BASE_URL` with `?session=&playerName=&isHost=&backendUrl=` (#128 contract)
+- **Desktop** reveals a copyable CLI command (`-session=` / `-playerName=` / `-isHost=`)
+- **Copy Invite** / **Leave Session** (back to Sessions)
+
+Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`).
 
 ### Enter launcher contract (desktop handoff)
 

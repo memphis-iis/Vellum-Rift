@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_BLUEKEY_ORIGIN?: string;
   readonly VITE_AUTH_REQUIRED?: string;
   readonly VITE_HOME_BG_VIDEO_URL?: string;
+  readonly VITE_WEBGL_BASE_URL?: string;
 }
 
 interface ImportMeta {
