@@ -44,6 +44,8 @@ export interface GameSession {
   visibility?: "public" | "private";
   createdBySub?: string;
   createdByEmail?: string;
+  playlist?: string[];
+  activeModelId?: string | null;
   metadata?: Record<string, unknown>;
 }
 

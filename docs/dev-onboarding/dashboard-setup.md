@@ -119,9 +119,13 @@ Optional ambient video on Home: add `web-dashboard/public/home-bg.webm` or set `
 
 The Upload section is a dropzone + active job list. Users must enter a **document title** (sent as multipart `label`) before selecting files. It posts to `POST /api/upload` and polls `GET /api/jobs/:jobId`. Point `VITE_API_BASE_URL` at the backend (default `http://localhost:4000`). Enter remains a placeholder (receives session ID from Sessions).
 
-### Documents (3D model viewer)
+### Documents (manuscript library)
 
-The Documents section lists processed meshes from `GET /api/models` in a dropdown, then loads the selected GLB via authenticated `GET /api/models/:modelId` (blob URL) into [`@google/model-viewer`](https://modelviewer.dev/) (orbit / zoom). Completed Upload jobs can open Documents with **View in Documents**. Metadata comes from `GET /api/models/:modelId/meta`.
+The Documents section lists processed meshes from `GET /api/models` in a dropdown, then loads the selected GLB via authenticated `GET /api/models/:modelId` (blob URL) into [`@google/model-viewer`](https://modelviewer.dev/) (orbit / zoom). Completed Upload jobs can open Documents with **View in library**. Metadata comes from `GET /api/models/:modelId/meta`.
+
+**Bind to a learning space (#142):** with a manuscript selected —
+- **Open in new space** — `POST /api/game-state` then `PATCH …/playlist` with `playlist: [modelId]` and `activeModelId`, then navigates to Enter
+- **Add to existing space** — `PATCH …/playlist` with `append` (optional set active). Host-only; non-host errors are shown in the UI.
 
 ### Sessions (exploration list)
 

@@ -33,6 +33,9 @@ export type GameSession = {
   visibility?: "public" | "private";
   createdBySub?: string;
   createdByEmail?: string;
+  /** Manuscript model ids (#141). */
+  playlist?: string[];
+  activeModelId?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -88,4 +91,51 @@ export async function endSession(sessionId: string): Promise<void> {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error || `End session failed (${res.status})`);
   }
+}
+
+export type PlaylistPatch = {
+  playlist?: string[];
+  append?: string | string[];
+  remove?: string | string[];
+  activeModelId?: string | null;
+};
+
+/** Host-only: mutate manuscript playlist (#141 / #142). */
+export async function patchSessionPlaylist(
+  sessionId: string,
+  patch: PlaylistPatch,
+): Promise<GameSession> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/playlist`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify(patch),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Update playlist failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Host-only: set or clear active manuscript (#141). */
+export async function patchSessionActiveModel(
+  sessionId: string,
+  modelId: string | null,
+): Promise<GameSession> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/active-model`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify({ modelId }),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Update active model failed (${res.status})`);
+  }
+  return data;
 }
