@@ -11,7 +11,15 @@ import {
   transferHost,
   unmutePlayer,
   type AllowlistEntry,
+  type GameSession,
 } from "../api/gameState";
+import { fetchModels } from "../api/models";
+import {
+  sessionActiveModelId,
+  sessionPlaylist,
+  shortModelLabel,
+} from "../api/playlistHelpers";
+import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -27,6 +35,8 @@ type EnterProps = {
   sessionId: string | null;
   onLeave: () => void;
   onBrowseSessions: () => void;
+  /** Host CTA: add manuscript via Library with this space preselected. */
+  onAddFromLibrary?: (sessionId: string) => void;
 };
 
 function displayNameFromEmail(email: string): string {
@@ -101,10 +111,15 @@ function avatarStyle(player: PlayerState, index: number, total: number): CSSProp
   };
 }
 
-export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterProps) {
+export default function Enter({
+  sessionId,
+  onLeave,
+  onBrowseSessions,
+  onAddFromLibrary,
+}: EnterProps) {
   const { user } = useAuth();
   const displayName = displayNameFromEmail(user?.email ?? "Learner");
-  const { session, messages, me, status, error, sendMessage, retry, players } =
+  const { session, messages, me, status, error, sendMessage, retry, players, applySession } =
     useSessionRoom(sessionId, displayName);
 
   const [draft, setDraft] = useState("");
@@ -117,6 +132,9 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
   const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
   const [allowlistEmail, setAllowlistEmail] = useState("");
   const [hostBusy, setHostBusy] = useState(false);
+  const [playlistBusy, setPlaylistBusy] = useState(false);
+  const [playlistError, setPlaylistError] = useState<string | null>(null);
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
 
   const isHost = Boolean(me?.isHost);
   const visibility = session?.visibility === "private" ? "private" : "public";
@@ -142,6 +160,54 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       cancelled = true;
     };
   }, [sessionId, isHost]);
+
+  useEffect(() => {
+    void fetchModels(200)
+      .then((models) => {
+        const map: Record<string, string> = {};
+        for (const m of models) {
+          if (m.modelId) map[m.modelId] = m.label?.trim() || m.modelId;
+        }
+        setModelLabels(map);
+      })
+      .catch(() => {
+        /* optional */
+      });
+  }, []);
+
+  const playlist = sessionPlaylist(session as GameSession | null);
+  const activeModelId = sessionActiveModelId(session as GameSession | null);
+  const activeTitle = activeModelId
+    ? shortModelLabel(activeModelId, modelLabels[activeModelId])
+    : null;
+
+  const onSetActiveModel = async (modelId: string) => {
+    if (!sessionId || !isHost || playlistBusy) return;
+    setPlaylistBusy(true);
+    setPlaylistError(null);
+    try {
+      const updated = await patchSessionActiveModel(sessionId, modelId);
+      applySession(updated as GameSession);
+    } catch (err) {
+      setPlaylistError(err instanceof Error ? err.message : "Failed to set active manuscript");
+    } finally {
+      setPlaylistBusy(false);
+    }
+  };
+
+  const onRemoveFromPlaylist = async (modelId: string) => {
+    if (!sessionId || !isHost || playlistBusy) return;
+    setPlaylistBusy(true);
+    setPlaylistError(null);
+    try {
+      const updated = await patchSessionPlaylist(sessionId, { remove: modelId });
+      applySession(updated as GameSession);
+    } catch (err) {
+      setPlaylistError(err instanceof Error ? err.message : "Failed to remove manuscript");
+    } finally {
+      setPlaylistBusy(false);
+    }
+  };
 
   const connectedCount = useMemo(
     () => players.filter((p) => p.isConnected !== false).length || players.length,
@@ -485,6 +551,103 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
         </section>
       ) : null}
 
+      {status === "ready" || session ? (
+        <section className="vr-enter__playlist" aria-label="Manuscript playlist">
+          <div className="vr-enter__playlist-head">
+            <h2 className="vr-enter__playlist-title">
+              <MaterialIcon name="menu_book" />
+              Manuscripts
+            </h2>
+            {isHost && sessionId && onAddFromLibrary ? (
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => onAddFromLibrary(sessionId)}
+                disabled={playlistBusy}
+              >
+                <MaterialIcon name="library_add" />
+                Add from library
+              </button>
+            ) : null}
+          </div>
+          {playlistError ? (
+            <p className="vr-enter__error" role="alert">
+              {playlistError}
+            </p>
+          ) : null}
+          {!playlist.length ? (
+            <p className="vr-enter__playlist-empty">
+              No documents in this space yet.
+              {isHost && onAddFromLibrary && sessionId ? (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    className="vr-enter__retry"
+                    onClick={() => onAddFromLibrary(sessionId)}
+                  >
+                    Add from library
+                  </button>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <>
+              {!isHost ? (
+                <p className="vr-enter__playlist-active">
+                  Active: <strong>{activeTitle ?? "None"}</strong>
+                </p>
+              ) : null}
+              <ul className="vr-enter__playlist-list">
+                {playlist.map((modelId) => {
+                  const isActive = modelId === activeModelId;
+                  const title = shortModelLabel(modelId, modelLabels[modelId]);
+                  return (
+                    <li
+                      key={modelId}
+                      className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}`}
+                    >
+                      <span className="vr-enter__playlist-name" title={modelId}>
+                        {isActive ? (
+                          <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
+                        ) : (
+                          <MaterialIcon name="radio_button_unchecked" />
+                        )}
+                        {title}
+                      </span>
+                      {isHost ? (
+                        <span className="vr-enter__playlist-actions">
+                          {!isActive ? (
+                            <button
+                              type="button"
+                              className="vr-enter__text-btn"
+                              disabled={playlistBusy}
+                              onClick={() => void onSetActiveModel(modelId)}
+                            >
+                              Set active
+                            </button>
+                          ) : (
+                            <span className="vr-enter__playlist-badge">Active</span>
+                          )}
+                          <button
+                            type="button"
+                            className="vr-enter__text-btn"
+                            disabled={playlistBusy}
+                            onClick={() => void onRemoveFromPlaylist(modelId)}
+                          >
+                            Remove
+                          </button>
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </section>
+      ) : null}
+
       {error ? (
         <p className="vr-enter__error" role="alert">
           {error}{" "}
@@ -523,7 +686,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
                 <div className="vr-enter__ring vr-enter__ring--inner">
                   <div className="vr-enter__core">
                     <MaterialIcon name="menu_book" />
-                    <span>Learning space</span>
+                    <span>{activeTitle ?? "Learning space"}</span>
                   </div>
                 </div>
               </div>

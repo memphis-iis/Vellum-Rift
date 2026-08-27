@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { fetchModels } from "../api/models";
+import {
+  sessionActiveModelId,
+  sessionPlaylist,
+  shortModelLabel,
+} from "../api/playlistHelpers";
 import {
   createSession,
   endSession,
@@ -11,6 +17,8 @@ import {
 type SessionsProps = {
   onEnterSession?: (sessionId: string) => void;
   onNewSessionUpload?: () => void;
+  /** Jump to Library to add a manuscript to this space (#143). */
+  onAddFromLibrary?: (sessionId: string) => void;
 };
 
 type StatusKind = "live" | "ready" | "archived";
@@ -45,7 +53,11 @@ function shortId(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }
 
-export default function Sessions({ onEnterSession, onNewSessionUpload }: SessionsProps) {
+export default function Sessions({
+  onEnterSession,
+  onNewSessionUpload,
+  onAddFromLibrary,
+}: SessionsProps) {
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -53,6 +65,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
   const [newLabel, setNewLabel] = useState("");
   const [newVisibility, setNewVisibility] = useState<"public" | "private">("private");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,6 +83,20 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void fetchModels(200)
+      .then((models) => {
+        const map: Record<string, string> = {};
+        for (const m of models) {
+          if (m.modelId) map[m.modelId] = m.label?.trim() || m.modelId;
+        }
+        setModelLabels(map);
+      })
+      .catch(() => {
+        /* labels optional */
+      });
+  }, []);
 
   const onCreate = async () => {
     const label = newLabel.trim() || `Learning space ${new Date().toLocaleString()}`;
@@ -203,6 +230,13 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
           ? sessions.map((session) => {
               const kind = sessionStatus(session);
               const name = session.label?.trim() || "Untitled space";
+              const activeId = sessionActiveModelId(session);
+              const playlist = sessionPlaylist(session);
+              const manuscriptLine = activeId
+                ? shortModelLabel(activeId, modelLabels[activeId])
+                : playlist.length
+                  ? `${playlist.length} in playlist · none active`
+                  : "No document";
               return (
                 <article
                   key={session.sessionId}
@@ -216,6 +250,10 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                     >
                       {name}
                     </button>
+                    <span className="vr-sessions__manuscript" title={activeId ?? undefined}>
+                      <MaterialIcon name="menu_book" />
+                      {manuscriptLine}
+                    </span>
                     <span className="vr-sessions__id">
                       ID: {shortId(session.sessionId)}
                       {" · "}
@@ -281,6 +319,18 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                               }}
                             >
                               Enter space
+                            </button>
+                          ) : null}
+                          {kind !== "archived" && onAddFromLibrary ? (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setMenuOpenId(null);
+                                onAddFromLibrary(session.sessionId);
+                              }}
+                            >
+                              Add from library
                             </button>
                           ) : null}
                           {kind !== "archived" ? (

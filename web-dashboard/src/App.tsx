@@ -25,6 +25,7 @@ function Dashboard() {
   const { user, logout } = useAuth();
   const [section, setSection] = useState<AppSection>("home");
   const [documentModelId, setDocumentModelId] = useState<string | null>(null);
+  const [libraryAddSessionId, setLibraryAddSessionId] = useState<string | null>(null);
   const [enterSessionId, setEnterSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,13 @@ function Dashboard() {
 
   const openDocument = (modelId: string) => {
     setDocumentModelId(modelId);
+    setLibraryAddSessionId(null);
+    setSection("documents");
+  };
+
+  const openLibraryForSpace = (sessionId: string) => {
+    setLibraryAddSessionId(sessionId);
+    setDocumentModelId(null);
     setSection("documents");
   };
 
@@ -60,7 +68,10 @@ function Dashboard() {
         active={section}
         email={email}
         onNavigate={(next) => {
-          if (next !== "documents") setDocumentModelId(null);
+          if (next !== "documents") {
+            setDocumentModelId(null);
+            setLibraryAddSessionId(null);
+          }
           if (next !== "enter") setEnterSessionId(null);
           setSection(next);
         }}
@@ -76,12 +87,17 @@ function Dashboard() {
         ) : null}
         {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
         {section === "documents" ? (
-          <Documents initialModelId={documentModelId} onOpenInSpace={enterSession} />
+          <Documents
+            initialModelId={documentModelId}
+            initialAddSessionId={libraryAddSessionId}
+            onOpenInSpace={enterSession}
+          />
         ) : null}
         {section === "sessions" ? (
           <Sessions
             onEnterSession={enterSession}
             onNewSessionUpload={() => setSection("upload")}
+            onAddFromLibrary={openLibraryForSpace}
           />
         ) : null}
         {section === "enter" ? (
@@ -89,6 +105,7 @@ function Dashboard() {
             sessionId={enterSessionId}
             onLeave={leaveSessionRoom}
             onBrowseSessions={() => setSection("sessions")}
+            onAddFromLibrary={openLibraryForSpace}
           />
         ) : null}
       </div>

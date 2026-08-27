@@ -1559,6 +1559,19 @@
   word-break: break-all;
 }
 
+.vr-sessions__manuscript {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-size: 13px;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-sessions__manuscript .material-symbols-outlined {
+  font-size: 16px;
+}
+
 .vr-sessions__badge {
   display: inline-flex;
   align-items: center;
@@ -1819,6 +1832,90 @@
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
   color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
+.vr-enter__playlist {
+  margin: 0.75rem var(--vr-gutter) 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface) 90%, transparent);
+}
+
+.vr-enter__playlist-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.vr-enter__playlist-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--vr-on-background);
+}
+
+.vr-enter__playlist-empty,
+.vr-enter__playlist-active {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__playlist-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vr-enter__playlist-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.vr-enter__playlist-row--active {
+  background: color-mix(in srgb, var(--vr-primary, #9bb8ff) 12%, transparent);
+}
+
+.vr-enter__playlist-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--vr-on-background);
+}
+
+.vr-enter__playlist-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.vr-enter__playlist-badge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vr-on-surface-variant);
+  padding: 0 0.35rem;
+}
+
+.vr-enter__playlist-check {
+  color: var(--vr-primary, #9bb8ff);
 }
 
 .vr-enter__roster {
