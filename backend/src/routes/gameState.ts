@@ -146,10 +146,12 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  // Prefer becoming host when creator joins an empty host seat
+  // First joiner on a public session may adopt host; otherwise only the
+  // durable creator / current host identity may claim host.
   const wantHost =
-    (isHost ?? false) ||
-    (!state.hostId && isSessionHost(req.user, state));
+    (!state.hostId &&
+      (isSessionHost(req.user, state) || state.visibility === "public")) ||
+    (Boolean(isHost) && isSessionHost(req.user, state));
 
   const player = state.addPlayer(displayName, wantHost);
   player.bluekeySub = req.user?.sub ?? null;
