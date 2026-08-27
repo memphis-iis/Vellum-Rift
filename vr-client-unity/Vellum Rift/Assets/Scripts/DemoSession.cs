@@ -50,6 +50,9 @@ namespace VellumRift
         [Tooltip("API client used for all backend calls. Auto-added to this GameObject when unassigned.")]
         [SerializeField] private GameStateApiClient apiClient;
 
+        [Tooltip("Bluekey SSO (dashboard handoff, popup, or paste-token). Auto-added when unassigned.")]
+        [SerializeField] private BluekeyAuth bluekeyAuth;
+
         [Tooltip("Polls the server for game state. Auto-added when unassigned.")]
         [SerializeField] private GameStatePoller poller;
 
@@ -113,6 +116,8 @@ namespace VellumRift
         private void Awake()
         {
             if (apiClient == null) apiClient = gameObject.AddComponent<GameStateApiClient>();
+            if (bluekeyAuth == null)
+                bluekeyAuth = GetComponent<BluekeyAuth>() ?? gameObject.AddComponent<BluekeyAuth>();
             if (poller == null) poller = gameObject.AddComponent<GameStatePoller>();
             if (playerSpawner == null) playerSpawner = gameObject.AddComponent<PlayerSpawner>();
             if (multiplayerController == null) multiplayerController = gameObject.AddComponent<MultiplayerController>();
@@ -266,6 +271,10 @@ namespace VellumRift
             {
                 ConfigureBackendUrl();
 
+                await EnsureAuthenticatedAsync();
+                if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
+                    apiClient.SetAuthToken(bluekeyAuth.AccessToken);
+
                 ResolvePlayerDisplayName();
 
                 GameState session = await JoinOrCreateSession();
@@ -338,28 +347,43 @@ namespace VellumRift
             }
         }
 
-        /// <summary>
-        /// Best-effort Bluekey display name / email when a BluekeyAuth component
-        /// is present in the scene. Uses reflection so this file does not hard-
-        /// depend on BluekeyAuth (which may land in a sibling auth PR).
-        /// </summary>
-        private static string TryGetBluekeyDisplayName()
+        private async Task EnsureAuthenticatedAsync()
         {
-            Type bluekeyType = Type.GetType("VellumRift.BluekeyAuth, Assembly-CSharp")
-                ?? Type.GetType("VellumRift.BluekeyAuth, VellumRift");
-            if (bluekeyType == null)
-                return null;
+            if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
+                return;
 
-            UnityEngine.Object auth = UnityEngine.Object.FindObjectOfType(bluekeyType);
-            if (auth == null)
-                return null;
+            Debug.Log("[DemoSession] Waiting for Bluekey authentication (handoff, popup, or paste-token)...");
+#if UNITY_EDITOR
+            // Editor: brief wait so VELLUM_ACCESS_TOKEN / quick paste can apply; then
+            // continue so local AUTH_REQUIRED=false Play Mode is not blocked.
+            const float timeoutSeconds = 5f;
+#else
+            const float timeoutSeconds = 300f;
+#endif
+            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+            while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
+                await Task.Yield();
 
-            var displayProp = bluekeyType.GetProperty("UserDisplayName");
-            var emailProp = bluekeyType.GetProperty("UserEmail");
-            string display = displayProp?.GetValue(auth) as string;
-            if (!string.IsNullOrEmpty(display))
-                return display;
-            return emailProp?.GetValue(auth) as string;
+            if (!bluekeyAuth.IsAuthenticated)
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning(
+                    "[DemoSession] No Bluekey token yet — continuing. Set VELLUM_ACCESS_TOKEN or paste a token if AUTH_REQUIRED=true.");
+#else
+                throw new InvalidOperationException(
+                    "Timed out waiting for Bluekey authentication. Complete the popup or paste a valid token.");
+#endif
+            }
+        }
+
+        /// <summary>Bluekey display name / email when authenticated.</summary>
+        private string TryGetBluekeyDisplayName()
+        {
+            if (bluekeyAuth == null || !bluekeyAuth.IsAuthenticated)
+                return null;
+            if (!string.IsNullOrEmpty(bluekeyAuth.UserDisplayName))
+                return bluekeyAuth.UserDisplayName;
+            return bluekeyAuth.UserEmail;
         }
 
         private void ConfigureBackendUrl()

@@ -2,6 +2,12 @@ import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { API_BASE_URL } from "../api/config";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useAuth } from "../auth/AuthContext";
+import {
+  launchWebGlWithAuthHandoff,
+  readDashboardAccessToken,
+  readDashboardEmail,
+  webGlOriginFromBaseUrl,
+} from "../auth/launchWebGl";
 import { useSessionRoom } from "../hooks/useSessionRoom";
 import type { PlayerState } from "../api/gameState";
 
@@ -49,14 +55,17 @@ function buildDesktopCommand(
   sessionId: string,
   playerName: string,
   isHost: boolean,
+  accessToken: string | null,
 ): string {
-  return [
+  const parts = [
     "./VellumRift",
     `-backendUrl=${API_BASE_URL}`,
     `-session=${sessionId}`,
     `-playerName=${playerName}`,
     `-isHost=${isHost ? "true" : "false"}`,
-  ].join(" ");
+  ];
+  if (accessToken) parts.push(`-accessToken=${accessToken}`);
+  return parts.join(" ");
 }
 
 /** Place avatars on the schematic ring from player positions or a stable hash. */
@@ -104,7 +113,12 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
 
   const desktopCmd = useMemo(() => {
     if (!sessionId || !me) return "";
-    return buildDesktopCommand(sessionId, me.displayName, me.isHost);
+    return buildDesktopCommand(
+      sessionId,
+      me.displayName,
+      me.isHost,
+      readDashboardAccessToken(),
+    );
   }, [sessionId, me]);
 
   const inviteText = useMemo(() => {
@@ -135,7 +149,17 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       setShowDesktop(true);
       return;
     }
-    window.open(webGlUrl, "_blank", "noopener,noreferrer");
+    const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
+    if (!origin) {
+      window.open(webGlUrl, "vellumRiftWebGL");
+      return;
+    }
+    launchWebGlWithAuthHandoff({
+      url: webGlUrl,
+      accessToken: readDashboardAccessToken(),
+      email: readDashboardEmail() || user?.email || "",
+      webGlOrigin: origin,
+    });
   };
 
   if (!sessionId) {
@@ -290,8 +314,8 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           {showDesktop && me ? (
             <div className="vr-enter__desktop">
               <p>
-                Desktop join uses the CLI handoff from issue #128. Copy and run against your
-                standalone build:
+                Desktop join uses CLI handoff (#128 / #129). Copy and run against your standalone
+                build (token included when you are signed in — treat it like a password):
               </p>
               <pre className="vr-enter__code">{desktopCmd}</pre>
               <button

@@ -139,6 +139,26 @@ Local dashboard: leave `VITE_AUTH_REQUIRED` unset and use **Continue as local de
 
 ---
 
+## Dashboard → WebGL auth handoff (#129)
+
+When the user is already signed in on the dashboard and clicks **Enter 3D Experience**, the token must **not** be placed in the query string (history, logs, referrers).
+
+### Flow
+
+1. Dashboard opens the WebGL build (`VITE_WEBGL_BASE_URL`) with `?session=` / `playerName` / `isHost` / `backendUrl` only.
+2. Unity WebGL registers an auth target and posts `{ type: "vellum-rift-webgl-ready" }` to `window.opener`.
+3. Dashboard responds with `{ type: "vellum-rift-auth-handoff", accessToken, email }` via `postMessage` to the WebGL origin.
+4. `UpdateUrl.jslib` validates the sender origin (same host / `.memphis.edu` sibling / `VELLUM_AUTH_HANDOFF_ORIGINS` allowlist) and `SendMessage`s into `BluekeyAuth.OnBluekeyTokenReceived`.
+5. If no handoff arrives within ~2.5s, Unity falls back to the Bluekey popup.
+
+Implementation: `web-dashboard/src/auth/launchWebGl.ts`, `BluekeyAuth.cs`, `Assets/Plugins/WebGL/UpdateUrl.jslib`.
+
+### Desktop
+
+Use CLI/env (`-accessToken=` / `VELLUM_ACCESS_TOKEN`). Electron launcher is deferred — see [006-electron-launcher-scope.md](../architecture/006-electron-launcher-scope.md).
+
+---
+
 ## Environment variables
 
 | Variable | Role |
