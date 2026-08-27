@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { API_BASE_URL } from "../api/config";
+import { inviteToSession } from "../api/gameState";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -98,6 +99,9 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const connectedCount = useMemo(
     () => players.filter((p) => p.isConnected !== false).length || players.length,
@@ -123,9 +127,16 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
 
   const inviteText = useMemo(() => {
     if (!sessionId) return "";
-    if (webGlUrl) return webGlUrl;
-    return sessionId;
-  }, [sessionId, webGlUrl]);
+    try {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("session", sessionId);
+      return url.toString();
+    } catch {
+      return sessionId;
+    }
+  }, [sessionId]);
 
   const copy = async (kind: "invite" | "desktop", text: string) => {
     try {
@@ -134,6 +145,34 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
       /* ignore */
+    }
+  };
+
+  const sendEmailInvite = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!sessionId || !inviteEmail.trim() || inviteBusy) return;
+    setInviteBusy(true);
+    setInviteStatus(null);
+    try {
+      const result = await inviteToSession(sessionId, inviteEmail.trim());
+      if (result.deliveryStatus === "sent") {
+        setInviteStatus(`Invite emailed to ${result.recipientEmail}`);
+      } else if (result.deliveryStatus === "skipped") {
+        setInviteStatus(
+          `Invite saved for ${result.recipientEmail} (email delivery not configured)`,
+        );
+      } else if (result.deliveryStatus === "failed") {
+        setInviteStatus(
+          `Invite saved but email failed${result.deliveryError ? `: ${result.deliveryError}` : ""}`,
+        );
+      } else {
+        setInviteStatus(`Invite recorded for ${result.recipientEmail}`);
+      }
+      setInviteEmail("");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Invite failed");
+    } finally {
+      setInviteBusy(false);
     }
   };
 
@@ -194,6 +233,25 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           </span>
         </div>
         <div className="vr-enter__top-actions">
+          <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
+            <input
+              type="email"
+              className="vr-enter__invite-input"
+              placeholder="colleague@memphis.edu"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              aria-label="Invite email"
+              required
+            />
+            <button
+              type="submit"
+              className="vr-enter__text-btn"
+              disabled={inviteBusy || !inviteEmail.trim()}
+            >
+              <MaterialIcon name="mail" />
+              {inviteBusy ? "Sending…" : "Email Invite"}
+            </button>
+          </form>
           <button
             type="button"
             className="vr-enter__text-btn"
@@ -217,6 +275,12 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           </button>
         </div>
       </header>
+
+      {inviteStatus ? (
+        <p className="vr-enter__invite-status" role="status">
+          {inviteStatus}
+        </p>
+      ) : null}
 
       {error ? (
         <p className="vr-enter__error" role="alert">

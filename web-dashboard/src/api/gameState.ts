@@ -104,3 +104,24 @@ export async function postChat(
   );
   return data.message;
 }
+
+export interface SessionInviteResult {
+  notificationId: string;
+  joinUrl: string | null;
+  deliveryStatus: string;
+  deliveryError: string | null;
+  recipientEmail: string;
+}
+
+export function inviteToSession(
+  sessionId: string,
+  recipientEmail: string,
+): Promise<SessionInviteResult> {
+  return request<SessionInviteResult>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/invite`,
+    {
+      method: "POST",
+      body: JSON.stringify({ recipientEmail }),
+    },
+  );
+}

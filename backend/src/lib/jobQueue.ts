@@ -49,6 +49,16 @@ export interface JobEntry {
   jobPayload: JobPayload;
 }
 
+export interface JobCompletionEvent {
+  jobId: string;
+  sessionId: string | null;
+  modelId: string | null;
+  status: "completed" | "failed";
+  errorMessage: string | null;
+}
+
+export type JobCompletionCallback = (event: JobCompletionEvent) => Promise<void> | void;
+
 // ---------------------------------------------------------------------------
 // JobQueue — in-memory FIFO queue with configurable worker pool
 // ---------------------------------------------------------------------------
@@ -62,6 +72,7 @@ export class JobQueue {
   private generator: TopographyMeshGenerator;
   private exporter: GLTFExporter;
   private converter: ImageTo3DArray;
+  private completionCallbacks: JobCompletionCallback[] = [];
 
   constructor(private concurrency = 2) {
     this.jobRepo = new JobRepository();
@@ -69,6 +80,21 @@ export class JobQueue {
     this.generator = new TopographyMeshGenerator();
     this.exporter = new GLTFExporter();
     this.converter = new ImageTo3DArray();
+  }
+
+  /** Register a callback invoked after a job reaches completed or failed. */
+  onComplete(callback: JobCompletionCallback): void {
+    this.completionCallbacks.push(callback);
+  }
+
+  private async emitCompletion(event: JobCompletionEvent): Promise<void> {
+    for (const callback of this.completionCallbacks) {
+      try {
+        await callback(event);
+      } catch (err) {
+        logger.error("Job completion callback failed", { error: String(err), jobId: event.jobId });
+      }
+    }
   }
 
   /**
@@ -242,13 +268,28 @@ export class JobQueue {
       });
 
       logger.info(`Generate job ${jobId} completed → modelId=${modelRecord.modelId}`);
+      await this.emitCompletion({
+        jobId,
+        sessionId: payload.sessionId ?? null,
+        modelId: modelRecord.modelId,
+        status: "completed",
+        errorMessage: null,
+      });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       await this.jobRepo.update(jobId, {
         status: "failed",
         progress: 0,
-        errorMessage: err instanceof Error ? err.message : String(err),
+        errorMessage,
       });
       logger.error(`Generate job ${jobId} failed`, { error: String(err) });
+      await this.emitCompletion({
+        jobId,
+        sessionId: payload.sessionId ?? null,
+        modelId: null,
+        status: "failed",
+        errorMessage,
+      });
       throw err;
     }
   }
@@ -331,6 +372,13 @@ export class JobQueue {
       });
 
       logger.info(`Upload job ${jobId} completed → modelId=${modelRecord.modelId}`);
+      await this.emitCompletion({
+        jobId,
+        sessionId: payload.sessionId ?? null,
+        modelId: modelRecord.modelId,
+        status: "completed",
+        errorMessage: null,
+      });
     } catch (err) {
       // Clean up raw file on failure
       try {
@@ -340,12 +388,20 @@ export class JobQueue {
         logger.warn(`Failed to clean up raw upload ${payload.uploadKey}`, { error: String(cleanupErr) });
       }
 
+      const errorMessage = err instanceof Error ? err.message : String(err);
       await this.jobRepo.update(jobId, {
         status: "failed",
         progress: 0,
-        errorMessage: err instanceof Error ? err.message : String(err),
+        errorMessage,
       });
       logger.error(`Upload job ${jobId} failed`, { error: String(err) });
+      await this.emitCompletion({
+        jobId,
+        sessionId: payload.sessionId ?? null,
+        modelId: null,
+        status: "failed",
+        errorMessage,
+      });
       throw err;
     }
   }

@@ -10,6 +10,7 @@ import { checkConnection } from "./lib/db.js";
 import { initSchema } from "./lib/schema.js";
 import { SampleModelIngestor } from "./lib/sampleModelIngestor.js";
 import { JobQueue } from "./lib/jobQueue.js";
+import { NotificationService } from "./lib/notificationService.js";
 import gameStateRouter from "./routes/gameState.js";
 import gltfModelRouter, { setJobQueue as setGltfJobQueue } from "./routes/gltfModel.js";
 import jobsRouter, { setJobQueue as setJobsJobQueue } from "./routes/jobs.js";
@@ -20,6 +21,7 @@ import uploadRouter, { setJobQueue as setUploadJobQueue } from "./routes/upload.
 import assetManifestRouter from "./routes/assetManifest.js";
 import lodTiersRouter from "./routes/lodTiers.js";
 import realtimeRouter from "./routes/realtime.js";
+import notificationsRouter from "./routes/notifications.js";
 
 dotenv.config();
 
@@ -101,6 +103,7 @@ app.use("/api/jobs", requireAuth, jobsRouter);
 app.use("/api/assets", requireAuth, assetManifestRouter);
 app.use("/api/lod-tiers", requireAuth, lodTiersRouter);
 app.use("/api/realtime", requireAuth, realtimeRouter);
+app.use("/api/notifications", requireAuth, notificationsRouter);
 
 // ---------------------------------------------------------------------------
 // Startup
@@ -120,6 +123,8 @@ initSchema()
     // Start the async job queue (concurrency from env or default 2)
     const concurrency = Number(process.env.JOB_QUEUE_CONCURRENCY ?? 2);
     const jobQueue = new JobQueue(concurrency);
+    const notificationService = new NotificationService();
+    jobQueue.onComplete((event) => notificationService.handleJobCompletion(event));
     jobQueue.start();
 
     // Register the queue with routes that need it

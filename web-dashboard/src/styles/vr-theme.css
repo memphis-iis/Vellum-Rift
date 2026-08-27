@@ -1660,6 +1660,31 @@
   gap: 0.65rem;
 }
 
+.vr-enter__invite-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vr-enter__invite-input {
+  min-width: 12rem;
+  max-width: 16rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline, #5c5f66) 55%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--vr-surface, #1a1c21) 80%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.vr-enter__invite-status {
+  margin: 0.35rem 1.25rem 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
 .vr-enter__text-btn {
   display: inline-flex;
   align-items: center;

@@ -2,10 +2,12 @@ import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
+import { NotificationService } from "../lib/notificationService.js";
 
 const router = Router();
 const repo = new GameStateRepository();
 const jobRepo = new JobRepository();
+const notificationService = new NotificationService();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
@@ -17,6 +19,10 @@ const param = (req: Request, name: string): string =>
 router.post("/", async (req: Request, res: Response) => {
   const { label } = req.body as { label?: string };
   const state = await repo.create(label);
+  if (req.user?.email) {
+    state.metadata = { ...state.metadata, hostEmail: req.user.email };
+    await repo.save(state);
+  }
   res.status(201).json(state.toJSON());
 });
 
@@ -98,6 +104,9 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   }
 
   const player = state.addPlayer(displayName, isHost ?? false);
+  if ((isHost || player.isHost) && req.user?.email) {
+    state.metadata = { ...state.metadata, hostEmail: req.user.email };
+  }
   // Announce joins through the same chat surface so every client (Unity and
   // dashboard) sees the newcomer in their text box without extra polling.
   state.addSystemMessage(`${displayName} joined the session`);
@@ -126,6 +135,42 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
 
   await repo.save(state);
   res.json({ removed: true });
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/invite  —  Email invite via Bluekey
+// ---------------------------------------------------------------
+router.post("/:sessionId/invite", async (req: Request, res: Response) => {
+  try {
+    const sessionId = param(req, "sessionId");
+    const { email, recipientEmail } = req.body as {
+      email?: string;
+      recipientEmail?: string;
+    };
+    const to = (recipientEmail ?? email ?? "").trim();
+    if (!to) {
+      res.status(400).json({ error: "recipientEmail is required" });
+      return;
+    }
+
+    const notification = await notificationService.sendInvite({
+      sessionId,
+      recipientEmail: to,
+      invitedBy: req.user?.email ?? "A Vellum Rift host",
+      invitedById: req.user?.sub ?? null,
+    });
+
+    res.status(201).json(notification);
+  } catch (err) {
+    const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
+    const message = err instanceof Error ? err.message : "Failed to send invite";
+    if (statusCode >= 500) {
+      console.error("POST /api/game-state/:sessionId/invite failed:", err);
+    }
+    if (!res.headersSent) {
+      res.status(statusCode).json({ error: message });
+    }
+  }
 });
 
 // ---------------------------------------------------------------

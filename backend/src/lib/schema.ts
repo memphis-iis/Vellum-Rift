@@ -48,6 +48,29 @@ CREATE TABLE IF NOT EXISTS asset_manifests (
   lods_json      JSONB NOT NULL DEFAULT '{}'::jsonb,
   default_tier   TEXT NOT NULL DEFAULT 'balanced'
 );
+
+CREATE TABLE IF NOT EXISTS session_notifications (
+  notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id      UUID REFERENCES game_sessions(session_id),
+  type            TEXT NOT NULL,
+  recipient_email TEXT NOT NULL DEFAULT '',
+  recipient_id    TEXT,
+  subject         TEXT NOT NULL DEFAULT '',
+  body            TEXT NOT NULL DEFAULT '',
+  join_url        TEXT,
+  metadata        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_read         BOOLEAN NOT NULL DEFAULT false,
+  delivery_status TEXT NOT NULL DEFAULT 'pending',
+  delivery_error  TEXT,
+  sent_at         TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_notifications_recipient
+  ON session_notifications (recipient_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_session_notifications_session
+  ON session_notifications (session_id, type, created_at DESC);
 `;
 
 /**
