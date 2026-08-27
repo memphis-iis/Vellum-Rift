@@ -94,6 +94,60 @@ default (`http://localhost:4000`).
 Note: `VELLUM_BACKEND_URL` must be a **base** URL (`http://host:4000`), not the
 health-check path.
 
+## Desktop / launcher session handoff (issue #128)
+
+Standalone (and Editor via env) can **join** an existing session without pasting
+into the Inspector. The Enter launcher should also pass the signed-in Bluekey
+display name (or email) and whether the user is the session host/administrator.
+
+### Session id (first non-empty wins)
+
+1. CLI: `-session=<uuid>`
+2. Env: `VELLUM_SESSION_ID=<uuid>`
+3. WebGL only: page query `?session=<uuid>`
+4. Inspector **Session ID** on `DemoSession` (empty → create a new session)
+
+### Player name (Bluekey)
+
+1. CLI: `-playerName=<name>`
+2. Env: `VELLUM_PLAYER_NAME=<name>`
+3. WebGL: `?playerName=<name>`
+4. In-client Bluekey identity (`BluekeyAuth.UserDisplayName` / email), when present
+5. Inspector **Player Name**
+
+### Host / administrator
+
+1. CLI: `-isHost=true|false` (alias `-admin=true|false`)
+2. Env: `VELLUM_IS_HOST=true|false`
+3. WebGL: `?isHost=true|false`
+4. If unspecified: session **creator** is host; on join, first client adopts host
+   when the session has no `hostId` yet; otherwise join as participant
+
+Examples:
+
+```bash
+# Join as Bluekey user "Alex" who is the session host
+./VellumRift.x86_64 \
+  -backendUrl=http://192.168.1.50:4000 \
+  -session=7e3f9c2a-4b1d-4e6f-9c8a-2d5b7f0e1a3c \
+  -playerName=Alex \
+  -isHost=true
+
+# Same via env (also works for Editor Play Mode)
+export VELLUM_BACKEND_URL=http://192.168.1.50:4000
+export VELLUM_SESSION_ID=7e3f9c2a-4b1d-4e6f-9c8a-2d5b7f0e1a3c
+export VELLUM_PLAYER_NAME=Alex
+export VELLUM_IS_HOST=true
+```
+
+`DemoSession` **joins** that id (does not end/recreate). If the session is
+missing, bootstrap fails with a clear `Session '<id>' not found` error.
+After ready, `DemoSession.PlayerDisplayName` and `DemoSession.IsHost` reflect
+the resolved identity.
+
+Custom URL scheme (`vellumrift://…`) is deferred; the Enter launcher should
+invoke the desktop binary with these flags/env vars for MVP.
+
 ## Known limitations (acceptable for Demo 1)
 
 - **One shared session**: no session discovery/join UX. The id is copy-pasted.

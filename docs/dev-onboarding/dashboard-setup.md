@@ -127,6 +127,21 @@ The Documents section lists processed meshes from `GET /api/models` in a dropdow
 
 The Sessions section lists `GET /api/game-state` rows (name, LIVE/READY/ARCHIVED, last activity). **New Session** calls `POST /api/game-state` (optional label). Open/Enter navigates to the Enter placeholder with the session ID; archive uses `DELETE`, restore uses `POST /api/game-state/:id/resume`.
 
+### Enter launcher contract (desktop handoff)
+
+Enter UI (#127) should launch the standalone Unity client with identity from the
+signed-in Bluekey session (join, do not recreate):
+
+| Concern | CLI | Env | Source |
+|---|---|---|---|
+| Session | `-session=<uuid>` | `VELLUM_SESSION_ID` | Selected exploration session |
+| Display name | `-playerName=<name>` | `VELLUM_PLAYER_NAME` | Bluekey display name or email |
+| Host/admin | `-isHost=true\|false` (or `-admin=`) | `VELLUM_IS_HOST` | True when this user is the session host |
+| Backend | `-backendUrl=` | `VELLUM_BACKEND_URL` | Same base as `VITE_API_BASE_URL` |
+
+WebGL continues to use `?session=` / `?playerName=` / `?isHost=` on the page URL.
+Custom scheme (`vellumrift://`) is Phase 2. See [multiplayer-demo-runbook.md](../qa/multiplayer-demo-runbook.md#desktop--launcher-session-handoff-issue-128).
+
 ## Working Conventions
 
 1. Keep the dashboard aligned with current Express + Bluekey contracts (GlyphWitch reuse is out of scope for now).
