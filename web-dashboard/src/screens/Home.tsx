@@ -15,12 +15,12 @@ export default function Home({ onUpload, onJoinSession }: HomeProps) {
             <BrandMark variant="full" size="lg" />
           </div>
           <h1 className="vr-home__title">
-            Manuscript sessions <br className="vr-home__br" />
+            Virtual Learning Spaces <br className="vr-home__br" />
             for web and VR
           </h1>
           <p className="vr-home__lead">
-            Immerse yourself in a limitless spatial environment designed for high-stakes information
-            management and collaborative analysis.
+            Collaborative learning rooms on the web and in VR — bring manuscripts into a shared
+            spatial space your group can explore together.
           </p>
         </div>
 
@@ -31,7 +31,7 @@ export default function Home({ onUpload, onJoinSession }: HomeProps) {
           </button>
           <button type="button" className="vr-btn vr-btn--ghost" onClick={onJoinSession}>
             <MaterialIcon name="login" />
-            Join a session
+            Join a space
           </button>
         </div>
       </div>

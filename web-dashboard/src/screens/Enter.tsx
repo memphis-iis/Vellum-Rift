@@ -31,7 +31,7 @@ type EnterProps = {
 
 function displayNameFromEmail(email: string): string {
   const trimmed = email.trim();
-  if (!trimmed) return "Explorer";
+  if (!trimmed) return "Learner";
   const local = trimmed.split("@")[0]?.trim();
   return local || trimmed;
 }
@@ -103,7 +103,7 @@ function avatarStyle(player: PlayerState, index: number, total: number): CSSProp
 
 export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterProps) {
   const { user } = useAuth();
-  const displayName = displayNameFromEmail(user?.email ?? "Explorer");
+  const displayName = displayNameFromEmail(user?.email ?? "Learner");
   const { session, messages, me, status, error, sendMessage, retry, players } =
     useSessionRoom(sessionId, displayName);
 
@@ -228,7 +228,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       const next = visibility === "private" ? "public" : "private";
       await setSessionVisibility(sessionId, next);
       await retry();
-      setInviteStatus(`Session is now ${next}`);
+      setInviteStatus(`Space is now ${next}`);
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Visibility update failed");
     } finally {
@@ -340,14 +340,14 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
     return (
       <main className="vr-enter">
         <header className="vr-enter__empty-header">
-          <h1 className="vr-enter__title">Session Room</h1>
+          <h1 className="vr-enter__title">Space room</h1>
           <p className="vr-enter__lead">
-            Pick a session from Exploration Sessions, then Launch to open the loadout lobby —
-            presence map, chat, and 3D launch.
+            Pick a learning space from Spaces, then Launch to open the lobby — presence map, chat, and
+            3D launch for web or VR.
           </p>
           <button type="button" className="vr-btn vr-btn--primary" onClick={onBrowseSessions}>
             <MaterialIcon name="hub" />
-            Browse sessions
+            Browse spaces
           </button>
         </header>
       </main>
@@ -418,7 +418,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
             {copied === "invite" ? "Copied" : "Copy Invite"}
           </button>
           <button type="button" className="vr-btn vr-btn--ghost" onClick={onLeave}>
-            Leave Session
+            Leave space
           </button>
           <button
             type="button"
@@ -427,7 +427,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
             disabled={status !== "ready" || !me}
           >
             <MaterialIcon name="view_in_ar" />
-            Enter 3D Experience
+            Enter 3D space
           </button>
         </div>
       </header>
@@ -439,7 +439,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       ) : null}
 
       {isHost ? (
-        <section className="vr-enter__allowlist" aria-label="Session allowlist">
+        <section className="vr-enter__allowlist" aria-label="Space allowlist">
           <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
             <span className="vr-enter__allowlist-label">Allowlist</span>
             <input
@@ -478,7 +478,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           ) : (
             <p className="vr-enter__allowlist-empty">
               {visibility === "private"
-                ? "Private session — add emails (or check Allowlist on invite)."
+                ? "Private space — add emails (or check Allowlist on invite)."
                 : "Optional allowlist (used if you switch to Private)."}
             </p>
           )}
@@ -495,7 +495,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       ) : null}
 
       {status === "connecting" ? (
-        <p className="vr-enter__status">Joining session as {displayName}…</p>
+        <p className="vr-enter__status">Joining space as {displayName}…</p>
       ) : null}
 
       <div className="vr-enter__body">
@@ -523,7 +523,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
                 <div className="vr-enter__ring vr-enter__ring--inner">
                   <div className="vr-enter__core">
                     <MaterialIcon name="menu_book" />
-                    <span>Manuscript Core</span>
+                    <span>Learning space</span>
                   </div>
                 </div>
               </div>
@@ -611,7 +611,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
               disabled={status !== "ready" || !me}
             >
               <MaterialIcon name="view_in_ar" />
-              {webGlUrl ? "Enter 3D Experience" : "Launch options"}
+              {webGlUrl ? "Enter 3D space" : "Launch options"}
             </button>
             <button
               type="button"
@@ -648,10 +648,10 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           ) : null}
         </section>
 
-        <aside className="vr-enter__chat glass-panel" aria-label="Session chat">
+        <aside className="vr-enter__chat glass-panel" aria-label="Space chat">
           <div className="vr-enter__chat-head">
             <MaterialIcon name="forum" />
-            <h3>Session Chat</h3>
+            <h3>Space chat</h3>
           </div>
           <div className="vr-enter__chat-log">
             {messages.length === 0 ? (
@@ -685,7 +685,7 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={me ? "Type a message…" : "Join the session to chat"}
+              placeholder={me ? "Type a message…" : "Join the space to chat"}
               disabled={!me || status !== "ready"}
               maxLength={500}
               aria-label="Chat message"

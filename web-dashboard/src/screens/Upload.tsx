@@ -172,10 +172,10 @@ export default function Upload({ onViewModel }: UploadProps) {
   return (
     <main className="vr-upload">
       <header className="vr-upload__header">
-        <h1 className="vr-upload__title">Manuscript Ingestion</h1>
+        <h1 className="vr-upload__title">Upload manuscript</h1>
         <p className="vr-upload__lead">
-          Name the document, then upload TIFF, JPEG, or PDF files to begin extraction. The rift will
-          stabilize documents automatically.
+          Name the document, then upload TIFF, JPEG, or PDF files. Processed meshes appear in the
+          manuscript library for use in learning spaces.
         </p>
       </header>
 
@@ -203,7 +203,7 @@ export default function Upload({ onViewModel }: UploadProps) {
           />
         </label>
         <p className="vr-upload__page-hint">
-          This title appears in Documents and on the processed mesh record.
+          This title appears in the manuscript library and on the processed mesh record.
         </p>
 
         <label className="vr-upload__page-field" htmlFor="vr-upload-page">
@@ -339,7 +339,7 @@ export default function Upload({ onViewModel }: UploadProps) {
                       className="vr-job-card__view"
                       onClick={() => onViewModel(job.modelId!)}
                     >
-                      View in Documents
+                      View in library
                     </button>
                   ) : null}
                   <span>{job.id.slice(0, 8)}</span>

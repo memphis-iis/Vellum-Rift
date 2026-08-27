@@ -61,7 +61,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
       setSessions(await fetchSessions());
     } catch (err) {
       setSessions([]);
-      setError(err instanceof Error ? err.message : "Failed to load sessions");
+      setError(err instanceof Error ? err.message : "Failed to load spaces");
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
   }, [refresh]);
 
   const onCreate = async () => {
-    const label = newLabel.trim() || `Exploration ${new Date().toLocaleString()}`;
+    const label = newLabel.trim() || `Learning space ${new Date().toLocaleString()}`;
     setCreating(true);
     setError(null);
     try {
@@ -80,7 +80,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
       setNewLabel("");
       setSessions((prev) => [created, ...prev.filter((s) => s.sessionId !== created.sessionId)]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create session");
+      setError(err instanceof Error ? err.message : "Failed to create space");
     } finally {
       setCreating(false);
     }
@@ -93,7 +93,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
       const updated = await resumeSession(sessionId);
       setSessions((prev) => prev.map((s) => (s.sessionId === sessionId ? updated : s)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to restore session");
+      setError(err instanceof Error ? err.message : "Failed to restore space");
     }
   };
 
@@ -106,7 +106,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
         prev.map((s) => (s.sessionId === sessionId ? { ...s, isActive: false } : s)),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to archive session");
+      setError(err instanceof Error ? err.message : "Failed to archive space");
     }
   };
 
@@ -114,10 +114,10 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
     <main className="vr-sessions">
       <header className="vr-sessions__header">
         <div className="vr-sessions__header-copy">
-          <h1 className="vr-sessions__title">Exploration Sessions</h1>
+          <h1 className="vr-sessions__title">Learning spaces</h1>
           <p className="vr-sessions__lead">
-            Access your saved manuscript analysis environments. Each session preserves your spatial
-            layout, annotations, and rendering state.
+            Open saved virtual learning spaces for web and VR. Each space keeps your spatial layout,
+            annotations, and who’s in the room.
           </p>
         </div>
         <button
@@ -127,13 +127,13 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
           onClick={() => void onCreate()}
         >
           <MaterialIcon name="add" filled />
-          {creating ? "Creating…" : "New Session"}
+          {creating ? "Creating…" : "New space"}
         </button>
       </header>
 
-      <section className="vr-sessions__create" aria-label="Name new session">
+      <section className="vr-sessions__create" aria-label="Name new space">
         <label className="vr-sessions__create-field" htmlFor="vr-session-label">
-          <span className="vr-sessions__create-label">Session name (optional)</span>
+          <span className="vr-sessions__create-label">Space name (optional)</span>
           <input
             id="vr-session-label"
             className="vr-sessions__create-input"
@@ -183,26 +183,26 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
 
       <section className="vr-sessions__panel" aria-live="polite">
         <div className="vr-sessions__table-head" aria-hidden="true">
-          <span>Session Name</span>
+          <span>Space name</span>
           <span>Status</span>
-          <span>Last Activity</span>
+          <span>Last activity</span>
           <span className="vr-sessions__col-actions">Actions</span>
         </div>
 
         {loading ? (
-          <p className="vr-sessions__empty">Loading sessions…</p>
+          <p className="vr-sessions__empty">Loading spaces…</p>
         ) : null}
 
         {!loading && !sessions.length ? (
           <p className="vr-sessions__empty">
-            No sessions yet. Create one with New Session, or upload a manuscript first.
+            No spaces yet. Create one with New space, or upload a manuscript first.
           </p>
         ) : null}
 
         {!loading
           ? sessions.map((session) => {
               const kind = sessionStatus(session);
-              const name = session.label?.trim() || "Untitled session";
+              const name = session.label?.trim() || "Untitled space";
               return (
                 <article
                   key={session.sessionId}
@@ -239,7 +239,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                       <button
                         type="button"
                         className="vr-sessions__icon-btn"
-                        aria-label="Restore session"
+                        aria-label="Restore space"
                         title="Restore"
                         onClick={() => void onResume(session.sessionId)}
                       >
@@ -280,7 +280,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                                 onEnterSession?.(session.sessionId);
                               }}
                             >
-                              Launch session room
+                              Enter space
                             </button>
                           ) : null}
                           {kind !== "archived" ? (
