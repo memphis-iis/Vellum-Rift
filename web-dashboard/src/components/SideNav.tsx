@@ -13,8 +13,8 @@ type SideNavProps = {
 const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "upload", label: "Upload", icon: "upload_file" },
-  { id: "documents", label: "Documents", icon: "view_in_ar" },
-  { id: "sessions", label: "Sessions", icon: "history_edu" },
+  { id: "documents", label: "Library", icon: "view_in_ar" },
+  { id: "sessions", label: "Spaces", icon: "history_edu" },
   { id: "enter", label: "Enter", icon: "login" },
 ];
 
@@ -31,7 +31,7 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
           >
             <BrandMark variant="full" size="lg" />
           </button>
-          <p className="vr-sidenav__eyebrow">Manuscript Explorer</p>
+          <p className="vr-sidenav__eyebrow">Virtual Learning Spaces</p>
         </div>
 
         <div className="vr-sidenav__cta-wrap">
@@ -41,7 +41,7 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
             onClick={() => (onNewSession ? onNewSession() : onNavigate("upload"))}
           >
             <MaterialIcon name="add" filled />
-            New Session
+            New space
           </button>
         </div>
 

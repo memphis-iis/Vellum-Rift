@@ -13,8 +13,8 @@ type AppChromeProps = {
 const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "upload", label: "Upload", icon: "upload_file" },
-  { id: "documents", label: "Documents", icon: "view_in_ar" },
-  { id: "sessions", label: "Sessions", icon: "history_edu" },
+  { id: "documents", label: "Library", icon: "view_in_ar" },
+  { id: "sessions", label: "Spaces", icon: "history_edu" },
   { id: "enter", label: "Enter", icon: "login" },
 ];
 

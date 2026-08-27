@@ -83,13 +83,13 @@ export class NotificationService {
       throw error;
     }
 
-    const sessionLabel = session.label?.trim() || `Session ${session.sessionId.slice(0, 8)}`;
+    const sessionLabel = session.label?.trim() || `Space ${session.sessionId.slice(0, 8)}`;
     const joinUrl = this.buildJoinUrl(session.sessionId);
     const recipientName = displayNameFromEmail(email);
     const invitedBy = params.invitedBy.trim() || "A Vellum Rift host";
 
-    const subject = `You're invited to ${sessionLabel} on Vellum Rift`;
-    const body = `${invitedBy} invited you to ${sessionLabel}. Join: ${joinUrl}`;
+    const subject = `You're invited to ${sessionLabel} — Vellum Rift learning space`;
+    const body = `${invitedBy} invited you to the learning space “${sessionLabel}”. Join: ${joinUrl}`;
 
     const record = await this.notificationRepo.create({
       sessionId: session.sessionId,
@@ -176,7 +176,7 @@ export class NotificationService {
       return [];
     }
 
-    const sessionLabel = session.label?.trim() || `Session ${session.sessionId.slice(0, 8)}`;
+    const sessionLabel = session.label?.trim() || `Space ${session.sessionId.slice(0, 8)}`;
     const joinUrl = this.buildJoinUrl(session.sessionId);
     const emails = new Set(await this.notificationRepo.listInviteEmails(session.sessionId));
     const hostEmail = params.hostEmail ? normalizeEmail(params.hostEmail) : "";
@@ -195,7 +195,7 @@ export class NotificationService {
           recipientEmail: "",
           recipientId: hostId,
           subject: `${sessionLabel} is ready in Vellum Rift`,
-          body: `Manuscript processing for ${sessionLabel} is complete. Open: ${joinUrl}`,
+          body: `Manuscript processing for learning space “${sessionLabel}” is complete. Open: ${joinUrl}`,
           joinUrl,
           metadata: { sessionLabel, channel: "in_app" },
           deliveryStatus: "skipped",
@@ -212,7 +212,7 @@ export class NotificationService {
         recipientEmail: email,
         recipientId: email === hostEmail ? hostId : null,
         subject: `${sessionLabel} is ready in Vellum Rift`,
-        body: `Manuscript processing for ${sessionLabel} is complete. Open: ${joinUrl}`,
+        body: `Manuscript processing for learning space “${sessionLabel}” is complete. Open: ${joinUrl}`,
         joinUrl,
         metadata: { sessionLabel },
         deliveryStatus: "pending",
@@ -285,7 +285,7 @@ export class NotificationService {
         type: "processing_failed",
         recipientEmail: hostEmail ? normalizeEmail(hostEmail) : "",
         recipientId: hostId,
-        subject: `Processing failed for session ${sessionId.slice(0, 8)}`,
+        subject: `Processing failed for space ${sessionId.slice(0, 8)}`,
         body: errorMessage ?? "Unknown error",
         metadata: { jobId },
         deliveryStatus: "skipped",

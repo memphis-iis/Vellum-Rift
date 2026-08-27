@@ -45,7 +45,7 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
       setCatalog(models);
     } catch (err) {
       setCatalog([]);
-      setCatalogError(err instanceof Error ? err.message : "Failed to list documents");
+      setCatalogError(err instanceof Error ? err.message : "Failed to list manuscripts");
     } finally {
       setCatalogLoading(false);
     }
@@ -72,7 +72,7 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
   async function loadModel(rawId: string) {
     const modelId = rawId.trim();
     if (!modelId) {
-      setError("Select a processed document to view.");
+      setError("Select a processed manuscript to view.");
       return;
     }
 
@@ -119,9 +119,10 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
   return (
     <main className="vr-docs">
       <header className="vr-docs__header">
-        <h1 className="vr-docs__title">Documents</h1>
+        <h1 className="vr-docs__title">Manuscript library</h1>
         <p className="vr-docs__lead">
-          Choose any manuscript the backend has processed and inspect its mesh in the 3D viewer.
+          Browse processed manuscripts and preview their meshes. This library is where learning spaces
+          pull their documents from.
         </p>
       </header>
 
@@ -129,7 +130,7 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
         <label className="vr-docs__field" htmlFor="vr-docs-model-select">
           <span className="vr-docs__field-label">
             <MaterialIcon name="folder_open" />
-            Processed documents
+            Processed manuscripts
           </span>
           <select
             id="vr-docs-model-select"
@@ -140,10 +141,10 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
           >
             <option value="">
               {catalogLoading
-                ? "Loading documents…"
+                ? "Loading library…"
                 : catalog.length
-                  ? "Select a document…"
-                  : "No processed documents yet"}
+                  ? "Select a manuscript…"
+                  : "No processed manuscripts yet"}
             </option>
             {catalog.map((m) => (
               <option key={m.modelId} value={m.modelId}>
@@ -178,8 +179,8 @@ export default function Documents({ initialModelId = null }: DocumentsProps) {
             <MaterialIcon name="view_in_ar" className="vr-docs__empty-icon" />
             <p>
               {catalog.length
-                ? "Select a document above to load its mesh."
-                : "No processed documents yet. Upload a manuscript first."}
+                ? "Select a manuscript above to load its mesh."
+                : "No processed manuscripts yet. Upload a manuscript first."}
             </p>
           </div>
         ) : null}

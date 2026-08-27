@@ -61,8 +61,8 @@ export default function Login() {
           </div>
 
           <p className="auth-lead">
-            Welcome to Vellum Rift. Sign in with your IIS Bluekey account to upload manuscripts, join
-            collaborative sessions, and explore document-derived spaces on web and VR.
+            Welcome to Vellum Rift — virtual learning spaces for web and VR. Sign in with your IIS
+            Bluekey account to upload manuscripts and join collaborative spaces.
           </p>
         </div>
 
@@ -81,9 +81,9 @@ export default function Login() {
           <details className="auth-notice-box auth-notice-box--privacy">
             <summary className="auth-notice-box__title">Privacy &amp; Data Notice (GDPR)</summary>
             <p>
-              This application may store your name, account identifiers, session participation, and
-              collaboration activity (such as chat and spatial session metadata) needed to support
-              manuscript exploration workflows.
+              This application may store your name, account identifiers, space participation, and
+              collaboration activity (such as chat and spatial metadata) needed to support virtual
+              learning workflows.
             </p>
             <p>
               For more information about data handling, please refer to the University of Memphis privacy

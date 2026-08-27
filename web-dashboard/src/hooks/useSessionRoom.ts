@@ -20,7 +20,7 @@ export type LocalIdentity = {
 export type SessionRoomStatus = "idle" | "connecting" | "ready" | "error";
 
 /**
- * Join an existing exploration session for the Enter / Session Room lobby:
+ * Join an existing learning space for the Enter / Space room lobby:
  * add the local player, poll presence + chat, send messages.
  */
 export function useSessionRoom(sessionId: string | null, displayName: string) {
@@ -43,7 +43,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
       return;
     }
 
-    const name = displayName.trim() || "Explorer";
+    const name = displayName.trim() || "Learner";
     setStatus("connecting");
     setError(null);
     setMe(null);
@@ -53,7 +53,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     try {
       const existing = await getSession(sessionId);
       if (!existing.isActive) {
-        throw new Error("This session is archived. Restore it from Sessions first.");
+        throw new Error("This space is archived. Restore it from Spaces first.");
       }
 
       const adoptHost = !existing.hostId;
@@ -69,7 +69,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
       setStatus("ready");
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Failed to join session");
+      setError(err instanceof Error ? err.message : "Failed to join space");
     }
   }, [sessionId, displayName]);
 
