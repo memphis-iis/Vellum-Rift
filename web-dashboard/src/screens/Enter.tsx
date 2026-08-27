@@ -22,6 +22,7 @@ import {
 } from "../api/playlistHelpers";
 import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { ShareQrPanel } from "../components/ShareQrPanel";
 import { useAuth } from "../auth/AuthContext";
 import {
   launchWebGlWithAuthHandoff,
@@ -31,6 +32,14 @@ import {
 } from "../auth/launchWebGl";
 import { useSessionRoom } from "../hooks/useSessionRoom";
 import type { PlayerState } from "../api/gameState";
+import { patchSessionEvent } from "../api/sessions";
+import {
+  buildPrimaryShareUrl,
+  formatEventWindow,
+  sessionEndsAt,
+  sessionKind,
+  sessionStartsAt,
+} from "../api/sessionEvent";
 
 type EnterProps = {
   sessionId: string | null;
@@ -124,7 +133,7 @@ export default function Enter({
     useSessionRoom(sessionId, displayName);
 
   const [draft, setDraft] = useState("");
-  const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | null>(null);
+  const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
@@ -142,6 +151,11 @@ export default function Enter({
   const kioskEnabled = Boolean(
     session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
   );
+  const spaceKind = sessionKind(session);
+  const eventWindow = formatEventWindow(sessionStartsAt(session), sessionEndsAt(session));
+  const primaryShareUrl = sessionId
+    ? buildPrimaryShareUrl(sessionId, kioskEnabled)
+    : "";
 
   useEffect(() => {
     setAddInviteToAllowlist(visibility === "private");
@@ -262,7 +276,7 @@ export default function Enter({
     }
   }, [sessionId]);
 
-  const copy = async (kind: "invite" | "desktop" | "kiosk", text: string) => {
+  const copy = async (kind: "invite" | "desktop" | "kiosk" | "share", text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(kind);
@@ -333,6 +347,25 @@ export default function Enter({
       );
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Kiosk update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const toggleEventKind = async () => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const next = spaceKind === "event" ? "exploration" : "event";
+      const updated = await patchSessionEvent(sessionId, { kind: next });
+      applySession(updated as GameSession);
+      setInviteStatus(
+        next === "event"
+          ? "Marked as event — appears as Featured on Home when active"
+          : "Marked as exploration",
+      );
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Event update failed");
     } finally {
       setHostBusy(false);
     }
@@ -484,6 +517,16 @@ export default function Enter({
               <button
                 type="button"
                 className="vr-enter__text-btn"
+                onClick={() => void toggleEventKind()}
+                disabled={hostBusy}
+                title="Feature this space as an event on Home"
+              >
+                <MaterialIcon name={spaceKind === "event" ? "event_available" : "event"} />
+                {spaceKind === "event" ? "Event" : "Exploration"}
+              </button>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
                 onClick={() => void toggleKiosk()}
                 disabled={hostBusy}
                 title="Let museum guests join without Bluekey"
@@ -559,6 +602,26 @@ export default function Enter({
         <p className="vr-enter__invite-status" role="status">
           {inviteStatus}
         </p>
+      ) : null}
+
+      {spaceKind === "event" && eventWindow ? (
+        <p className="vr-enter__event-window" role="status">
+          Event window: {eventWindow}
+        </p>
+      ) : null}
+
+      {primaryShareUrl ? (
+        <ShareQrPanel
+          url={primaryShareUrl}
+          title={kioskEnabled ? "Kiosk / public join" : "Share invite link"}
+          hint={
+            kioskEnabled
+              ? "Guests open this without Bluekey. Turn Kiosk off to share a signed-in invite instead."
+              : "Signed-in colleagues use this link. Enable Kiosk for a museum QR without Bluekey."
+          }
+          onCopy={() => void copy("share", primaryShareUrl)}
+          copied={copied === "share"}
+        />
       ) : null}
 
       {isHost ? (

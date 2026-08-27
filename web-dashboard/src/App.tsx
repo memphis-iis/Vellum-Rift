@@ -96,6 +96,7 @@ function Dashboard() {
           <Home
             onUpload={() => setSection("upload")}
             onJoinSession={() => setSection("sessions")}
+            onEnterSession={enterSession}
           />
         ) : null}
         {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
