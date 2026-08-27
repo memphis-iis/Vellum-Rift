@@ -19,19 +19,25 @@ namespace VellumRift
     {
         [Header("Model")]
         [Tooltip("URL of the .glb to load (downloadUrl from the upload pipeline).")]
-        [SerializeField] private string modelUrl = "";
+        public string modelUrl = "";
 
         [Tooltip("Uniform scale applied to the loaded model. Manuscript meshes are in pixel units (e.g. 1100x1500x40), so ~0.01 makes them scene-sized.")]
         [SerializeField] private float modelScale = 0.01f;
 
         [Tooltip("Load automatically on Start.")]
-        [SerializeField] private bool loadOnStart = true;
+        public bool loadOnStart = true;
 
         [Tooltip("Allow plain-http model URLs (e.g. a test server like http://100.76.98.70:4100). Off by default: http URLs are rejected with a clear error. Browsers still block http from https pages, so this mainly helps Editor/standalone testing.")]
-        [SerializeField] private bool allowInsecureHttp = false;
+        public bool allowInsecureHttp = false;
+
+        [Tooltip("Bearer token sent on the model request (Bluekey SSO). Required when the backend enforces auth on /api/models/*.")]
+        public string authToken = "";
 
         /// <summary>True once the model has been loaded and instantiated.</summary>
         public bool IsLoaded { get; private set; }
+
+        /// <summary>Last successfully loaded model URL (empty after Clear).</summary>
+        public string LoadedModelUrl { get; private set; } = "";
 
         private bool loadInProgress;
 
@@ -67,7 +73,21 @@ namespace VellumRift
             {
                 Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
                 var gltf = new GltfImport();
-                bool loaded = await gltf.Load(modelUrl);
+                SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
+                bool loaded;
+                if (!string.IsNullOrEmpty(authToken))
+                {
+                    // The endpoint is auth-protected; glTFast's default
+                    // downloader can't send the Bearer header. Pre-download the
+                    // GLB with UnityWebRequest, then load it from memory.
+                    byte[] glb = await DownloadWithAuthAsync(modelUrl, authToken);
+                    if (glb == null) return;
+                    loaded = await gltf.LoadGltfBinary(glb);
+                }
+                else
+                {
+                    loaded = await gltf.Load(modelUrl);
+                }
                     stopwatch.Stop();
                     float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
 
@@ -86,6 +106,7 @@ namespace VellumRift
                     if (!instantiated)
                     {
                         Destroy(parent.gameObject);
+                        if (indicators != null) indicators.UnregisterEdgeTarget("manuscript");
                         Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
                         return;
                     }
@@ -97,7 +118,22 @@ namespace VellumRift
                             Destroy(child.gameObject);
                     }
 
+                    // Attach non-convex MeshColliders so raycasts (e.g. the
+                    // laser pointer) stop on the actual manuscript surface,
+                    // not a bounding box. glTFast does not add colliders.
+                    AttachMeshColliders(parent);
+
+                    // Register the manuscript with the spatial indicator system
+                    // so an edge-direction pointer tracks it while off-screen.
+                    // Arrow-only marker (no label text on the pointer).
+                    if (indicators != null)
+                    {
+                        indicators.UnregisterEdgeTarget("manuscript");
+                        indicators.RegisterEdgeTarget("manuscript", parent, "MANUSCRIPT");
+                    }
+
                     IsLoaded = true;
+                    LoadedModelUrl = modelUrl;
 #if UNITY_EDITOR
                     // Convenience: select the instantiated mesh so pressing F in
                     // the Scene view frames it. The wrapper GameObject has no
@@ -122,6 +158,72 @@ namespace VellumRift
             {
                 loadInProgress = false;
             }
+        }
+
+        /// <summary>
+        /// Remove any instantiated mesh and reset load state (#144 empty playlist).
+        /// </summary>
+        public void Clear()
+        {
+            SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
+            if (indicators != null)
+                indicators.UnregisterEdgeTarget("manuscript");
+
+            foreach (Transform child in transform)
+                Destroy(child.gameObject);
+
+            IsLoaded = false;
+            LoadedModelUrl = "";
+            modelUrl = "";
+            Debug.Log("[RemoteModelLoader] Cleared manuscript mesh");
+        }
+
+        /// <summary>
+        /// Download the GLB bytes with the auth header so protected model
+        /// endpoints work. Returns null on failure.
+        /// </summary>
+        private async Task<byte[]> DownloadWithAuthAsync(string url, string token)
+        {
+            using (var request = UnityEngine.Networking.UnityWebRequest.Get(url))
+            {
+                request.SetRequestHeader("Authorization", "Bearer " + token);
+                var op = request.SendWebRequest();
+                while (!op.isDone)
+                    await Task.Yield();
+
+                if (request.result == UnityEngine.Networking.UnityWebRequest.Result.ProtocolError ||
+                    request.result == UnityEngine.Networking.UnityWebRequest.Result.ConnectionError)
+                {
+                    Debug.LogError($"[RemoteModelLoader] Auth download failed ({request.responseCode}): {request.error}");
+                    return null;
+                }
+                return request.downloadHandler?.data;
+            }
+        }
+
+        /// <summary>
+        /// Attach a non-convex MeshCollider to every MeshFilter under the
+        /// instantiated model so Physics.Raycast can hit the true mesh faces.
+        /// </summary>
+        private void AttachMeshColliders(Transform root)
+        {
+            int added = 0;
+            foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == null)
+                    continue;
+
+                // Reuse an existing MeshCollider if one is already present.
+                var collider = filter.GetComponent<MeshCollider>();
+                if (collider == null)
+                    collider = filter.gameObject.AddComponent<MeshCollider>();
+
+                collider.sharedMesh = filter.sharedMesh;
+                collider.convex = false;
+                added++;
+            }
+
+            Debug.Log($"[RemoteModelLoader] Added {added} MeshCollider(s) for surface-accurate raycasts");
         }
 
         /// <summary>
