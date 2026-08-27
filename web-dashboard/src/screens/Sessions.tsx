@@ -220,12 +220,11 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                     ) : (
                       <button
                         type="button"
-                        className="vr-sessions__icon-btn"
-                        aria-label="Enter session"
-                        title="Enter"
+                        className="vr-btn vr-btn--primary vr-sessions__launch"
                         onClick={() => onEnterSession?.(session.sessionId)}
                       >
-                        <MaterialIcon name="open_in_new" />
+                        <MaterialIcon name="rocket_launch" />
+                        Launch
                       </button>
                     )}
                     <div className="vr-sessions__menu">
@@ -244,16 +243,18 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                       </button>
                       {menuOpenId === session.sessionId ? (
                         <div className="vr-sessions__menu-pop" role="menu">
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setMenuOpenId(null);
-                              onEnterSession?.(session.sessionId);
-                            }}
-                          >
-                            Enter
-                          </button>
+                          {kind !== "archived" ? (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setMenuOpenId(null);
+                                onEnterSession?.(session.sessionId);
+                              }}
+                            >
+                              Launch session room
+                            </button>
+                          ) : null}
                           {kind !== "archived" ? (
                             <button
                               type="button"
