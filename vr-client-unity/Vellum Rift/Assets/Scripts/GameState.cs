@@ -63,6 +63,12 @@ namespace VellumRift
         public string updatedAt;
         public bool isActive;
 
+        /// <summary>Currently active manuscript model id (#141 / #144).</summary>
+        public string activeModelId;
+
+        /// <summary>Ordered manuscript playlist model ids (#141).</summary>
+        public string[] playlist;
+
         // ---------------------------------------------------------------
         // Constructor
         // ---------------------------------------------------------------
