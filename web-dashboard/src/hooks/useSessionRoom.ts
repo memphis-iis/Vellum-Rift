@@ -134,6 +134,8 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     error,
     sendMessage,
     retry: join,
+    /** Apply a session snapshot from a host mutation (playlist, etc.). */
+    applySession: setSession,
     players: (session?.players ?? []) as PlayerState[],
   };
 }

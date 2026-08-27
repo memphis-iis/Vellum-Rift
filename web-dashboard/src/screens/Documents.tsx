@@ -17,6 +17,8 @@ import {
 type DocumentsProps = {
   /** Prefill from Upload “View” or deep-link. */
   initialModelId?: string | null;
+  /** Prefill “Add to existing space” when arriving from Enter/Spaces (#143). */
+  initialAddSessionId?: string | null;
   /** After “Open in new space”, navigate to Enter for that space. */
   onOpenInSpace?: (sessionId: string) => void;
 };
@@ -43,6 +45,7 @@ function spaceOptionLabel(s: GameSession): string {
 
 export default function Documents({
   initialModelId = null,
+  initialAddSessionId = null,
   onOpenInSpace,
 }: DocumentsProps) {
   const [catalog, setCatalog] = useState<ModelMeta[]>([]);
@@ -57,7 +60,7 @@ export default function Documents({
 
   const [spaces, setSpaces] = useState<GameSession[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(false);
-  const [addTargetId, setAddTargetId] = useState("");
+  const [addTargetId, setAddTargetId] = useState(initialAddSessionId ?? "");
   const [setAsActive, setSetAsActive] = useState(true);
   const [bindBusy, setBindBusy] = useState(false);
   const [bindStatus, setBindStatus] = useState<string | null>(null);
@@ -82,7 +85,11 @@ export default function Documents({
       const list = await fetchSessions();
       const active = list.filter((s) => s.isActive);
       setSpaces(active);
-      setAddTargetId((prev) => (prev && active.some((s) => s.sessionId === prev) ? prev : ""));
+      setAddTargetId((prev) => {
+        const preferred = initialAddSessionId?.trim() || prev;
+        if (preferred && active.some((s) => s.sessionId === preferred)) return preferred;
+        return prev && active.some((s) => s.sessionId === prev) ? prev : "";
+      });
     } catch {
       setSpaces([]);
     } finally {
@@ -93,6 +100,11 @@ export default function Documents({
   useEffect(() => {
     void refreshCatalog();
   }, []);
+
+  useEffect(() => {
+    if (!initialAddSessionId?.trim()) return;
+    setAddTargetId(initialAddSessionId.trim());
+  }, [initialAddSessionId]);
 
   useEffect(() => {
     return () => {
@@ -109,9 +121,10 @@ export default function Documents({
   }, [initialModelId]);
 
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId && !initialAddSessionId) return;
     void refreshSpaces();
-  }, [activeId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, initialAddSessionId]);
 
   async function loadModel(rawId: string) {
     const modelId = rawId.trim();

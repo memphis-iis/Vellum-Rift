@@ -149,6 +149,7 @@ Enter is the pre-flight lobby for a selected session (not a blank placeholder):
   - `PATCH /api/game-state/:sessionId/playlist` — `{ playlist?, append?, remove?, activeModelId? }`
   - `PATCH /api/game-state/:sessionId/active-model` — `{ modelId }` (must be in playlist; `null` clears)
   Unity / WebGL should load `/api/models/:activeModelId` and poll for switches (#144).
+- **Playlist UI (#143):** Spaces list shows active manuscript (or “No document”). Enter shows playlist; host can **Set active** / **Remove** / **Add from library** (opens Library with that space preselected for Add). Guests see active title only.
 
 Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`). Signed-in users get a **postMessage auth handoff** into WebGL (no second Bluekey popup when the token is valid); see [authentication.md](../reference/authentication.md#dashboard--webgl-auth-handoff-129).
 
