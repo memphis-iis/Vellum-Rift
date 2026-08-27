@@ -1,5 +1,5 @@
 import pool from "./db.js";
-import { GameState, type PlayerState } from "../components/gameState.js";
+import { GameState, type PlayerState, type SessionVisibility } from "../components/gameState.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,6 +13,9 @@ interface GameSessionRow {
   players: PlayerState[];
   metadata: Record<string, unknown>;
   is_active: boolean;
+  visibility: string;
+  created_by_sub: string;
+  created_by_email: string;
   created_at: string; // ISO-8601
   updated_at: string; // ISO-8601
 }
@@ -30,6 +33,9 @@ function toRow(state: GameState): GameSessionRow {
     players: state.players,
     metadata: state.metadata,
     is_active: state.isActive,
+    visibility: state.visibility,
+    created_by_sub: state.createdBySub,
+    created_by_email: state.createdByEmail,
     created_at: state.createdAt,
     updated_at: state.updatedAt,
   };
@@ -45,8 +51,11 @@ function hydrate(row: GameSessionRow): GameState {
   state.label = row.label;
   state.hostId = row.host_id;
   state.players = row.players;
-  state.metadata = row.metadata;
+  state.metadata = row.metadata ?? {};
   state.isActive = row.is_active;
+  state.visibility = (row.visibility === "private" ? "private" : "public") as SessionVisibility;
+  state.createdBySub = row.created_by_sub ?? "";
+  state.createdByEmail = row.created_by_email ?? "";
   state.updatedAt = row.updated_at;
   return state;
 }
@@ -62,22 +71,29 @@ function hydrate(row: GameSessionRow): GameState {
  * call `save()` after each in-memory mutation to keep the DB in sync.
  */
 export class GameStateRepository {
-  // ---------------------------------------------------------------
-  // Create
-  // ---------------------------------------------------------------
-
   /**
    * Create a new game session, persist it, and return the hydrated
    * GameState instance.
    */
-  async create(label?: string): Promise<GameState> {
+  async create(
+    label?: string,
+    options?: {
+      visibility?: SessionVisibility;
+      createdBySub?: string;
+      createdByEmail?: string;
+    },
+  ): Promise<GameState> {
     const state = new GameState(label);
+    if (options?.visibility) state.visibility = options.visibility;
+    if (options?.createdBySub) state.createdBySub = options.createdBySub;
+    if (options?.createdByEmail) state.createdByEmail = options.createdByEmail;
     const row = toRow(state);
 
     await pool.query(
       `INSERT INTO game_sessions
-         (session_id, label, host_id, players, metadata, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)`,
+         (session_id, label, host_id, players, metadata, is_active,
+          visibility, created_by_sub, created_by_email, created_at, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10, $11)`,
       [
         row.session_id,
         row.label,
@@ -85,6 +101,9 @@ export class GameStateRepository {
         JSON.stringify(row.players),
         JSON.stringify(row.metadata),
         row.is_active,
+        row.visibility,
+        row.created_by_sub,
+        row.created_by_email,
         row.created_at,
         row.updated_at,
       ],
@@ -93,13 +112,6 @@ export class GameStateRepository {
     return state;
   }
 
-  // ---------------------------------------------------------------
-  // Read
-  // ---------------------------------------------------------------
-
-  /**
-   * Find a session by its ID.  Returns `null` when no matching row exists.
-   */
   async findById(sessionId: string): Promise<GameState | null> {
     const result = await pool.query(
       `SELECT * FROM game_sessions WHERE session_id = $1`,
@@ -107,30 +119,16 @@ export class GameStateRepository {
     );
 
     if (result.rows.length === 0) return null;
-    return hydrate(result.rows[0]);
+    return hydrate(result.rows[0] as GameSessionRow);
   }
 
-  //find every session from the database and eventually return an array of GameState objects
   async findAll(): Promise<GameState[]> {
-    // Newest activity first — dashboard Sessions list + health stats both use this.
     const result = await pool.query(
       "SELECT * FROM game_sessions ORDER BY updated_at DESC",
     );
-
-    //converts each row back into a proper GameState object as database rows are plain data
-    return result.rows.map((row) => hydrate(row));
+    return (result.rows as GameSessionRow[]).map((row) => hydrate(row));
   }
 
-  // ---------------------------------------------------------------
-  // Update
-  // ---------------------------------------------------------------
-
-  /**
-   * Flush the full GameState to the database.
-   *
-   * Call this after any in-memory mutation (addPlayer, updatePosition,
-   * end, etc.) so the change is persisted.
-   */
   async save(state: GameState): Promise<void> {
     const row = toRow(state);
 
@@ -141,28 +139,26 @@ export class GameStateRepository {
          players   = $3::jsonb,
          metadata  = $4::jsonb,
          is_active = $5,
-         updated_at = $6
-       WHERE session_id = $7`,
+         visibility = $6,
+         created_by_sub = $7,
+         created_by_email = $8,
+         updated_at = $9
+       WHERE session_id = $10`,
       [
         row.label,
         row.host_id,
         JSON.stringify(row.players),
         JSON.stringify(row.metadata),
         row.is_active,
+        row.visibility,
+        row.created_by_sub,
+        row.created_by_email,
         row.updated_at,
         row.session_id,
       ],
     );
   }
 
-  // ---------------------------------------------------------------
-  // Delete
-  // ---------------------------------------------------------------
-
-  /**
-   * Permanently remove a session row.  Returns `true` if a row was
-   * actually deleted.
-   */
   async delete(sessionId: string): Promise<boolean> {
     const result = await pool.query(
       `DELETE FROM game_sessions WHERE session_id = $1`,

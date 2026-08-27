@@ -38,6 +38,9 @@ export interface GameSession {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+  visibility?: "public" | "private";
+  createdBySub?: string;
+  createdByEmail?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -103,4 +106,79 @@ export async function postChat(
     },
   );
   return data.message;
+}
+
+export interface SessionInviteResult {
+  notificationId: string;
+  joinUrl: string | null;
+  deliveryStatus: string;
+  deliveryError: string | null;
+  recipientEmail: string;
+}
+
+export function inviteToSession(
+  sessionId: string,
+  recipientEmail: string,
+  options?: { addToAllowlist?: boolean },
+): Promise<SessionInviteResult> {
+  return request<SessionInviteResult>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/invite`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        recipientEmail,
+        addToAllowlist: options?.addToAllowlist === true,
+      }),
+    },
+  );
+}
+
+export type AllowlistEntry = {
+  id: string;
+  sessionId: string;
+  subjectSub: string | null;
+  email: string | null;
+  createdAt: string;
+};
+
+export function fetchAllowlist(sessionId: string): Promise<AllowlistEntry[]> {
+  return request<AllowlistEntry[]>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/allowlist`,
+  );
+}
+
+export function addAllowlistEmail(
+  sessionId: string,
+  email: string,
+): Promise<AllowlistEntry> {
+  return request<AllowlistEntry>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/allowlist`,
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+  );
+}
+
+export function removeAllowlistEntry(
+  sessionId: string,
+  entryId: string,
+): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/allowlist/${encodeURIComponent(entryId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function setSessionVisibility(
+  sessionId: string,
+  visibility: "public" | "private",
+): Promise<GameSession> {
+  return request<GameSession>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/visibility`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ visibility }),
+    },
+  );
 }

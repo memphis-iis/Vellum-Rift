@@ -30,6 +30,9 @@ export type GameSession = {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+  visibility?: "public" | "private";
+  createdBySub?: string;
+  createdByEmail?: string;
   metadata?: Record<string, unknown>;
 };
 
@@ -45,11 +48,14 @@ export async function fetchSessions(): Promise<GameSession[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function createSession(label?: string): Promise<GameSession> {
+export async function createSession(
+  label?: string,
+  visibility: "public" | "private" = "private",
+): Promise<GameSession> {
   const res = await fetch(`${API_BASE_URL}/api/game-state`, {
     method: "POST",
     headers: authHeaders(true),
-    body: JSON.stringify({ label: label?.trim() || undefined }),
+    body: JSON.stringify({ label: label?.trim() || undefined, visibility }),
   });
   const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
   if (!res.ok) {

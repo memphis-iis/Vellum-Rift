@@ -1365,6 +1365,38 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
 
+.vr-sessions__visibility {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vr-sessions__visibility legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  width: 100%;
+}
+
+.vr-sessions__visibility-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
+  cursor: pointer;
+}
+
+.vr-sessions__visibility-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
 .vr-sessions__error {
   margin: 0 0 1rem;
   color: #ffb4ab;
@@ -1658,6 +1690,77 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
+}
+
+.vr-enter__invite-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vr-enter__invite-input {
+  min-width: 12rem;
+  max-width: 16rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline, #5c5f66) 55%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--vr-surface, #1a1c21) 80%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.vr-enter__invite-status {
+  margin: 0.35rem 1.25rem 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
+.vr-enter__allowlist-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
+.vr-enter__allowlist {
+  margin: 0.5rem 1.25rem 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline, #5c5f66) 40%, transparent);
+  border-radius: 0.35rem;
+}
+
+.vr-enter__allowlist-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright, #7dd1db);
+  margin-right: 0.5rem;
+}
+
+.vr-enter__allowlist-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vr-enter__allowlist-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.vr-enter__allowlist-empty {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
 }
 
 .vr-enter__text-btn {

@@ -1,5 +1,13 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { API_BASE_URL } from "../api/config";
+import {
+  addAllowlistEmail,
+  fetchAllowlist,
+  inviteToSession,
+  removeAllowlistEntry,
+  setSessionVisibility,
+  type AllowlistEntry,
+} from "../api/gameState";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -98,6 +106,38 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | null>(null);
   const [showDesktop, setShowDesktop] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [addInviteToAllowlist, setAddInviteToAllowlist] = useState(true);
+  const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
+  const [allowlistEmail, setAllowlistEmail] = useState("");
+  const [hostBusy, setHostBusy] = useState(false);
+
+  const isHost = Boolean(me?.isHost);
+  const visibility = session?.visibility === "private" ? "private" : "public";
+
+  useEffect(() => {
+    setAddInviteToAllowlist(visibility === "private");
+  }, [visibility]);
+
+  useEffect(() => {
+    if (!sessionId || !isHost) {
+      setAllowlist([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchAllowlist(sessionId)
+      .then((entries) => {
+        if (!cancelled) setAllowlist(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setAllowlist([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, isHost]);
 
   const connectedCount = useMemo(
     () => players.filter((p) => p.isConnected !== false).length || players.length,
@@ -123,9 +163,16 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
 
   const inviteText = useMemo(() => {
     if (!sessionId) return "";
-    if (webGlUrl) return webGlUrl;
-    return sessionId;
-  }, [sessionId, webGlUrl]);
+    try {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("session", sessionId);
+      return url.toString();
+    } catch {
+      return sessionId;
+    }
+  }, [sessionId]);
 
   const copy = async (kind: "invite" | "desktop", text: string) => {
     try {
@@ -134,6 +181,83 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
       /* ignore */
+    }
+  };
+
+  const sendEmailInvite = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!sessionId || !inviteEmail.trim() || inviteBusy || !isHost) return;
+    setInviteBusy(true);
+    setInviteStatus(null);
+    try {
+      const result = await inviteToSession(sessionId, inviteEmail.trim(), {
+        addToAllowlist: addInviteToAllowlist,
+      });
+      if (result.deliveryStatus === "sent") {
+        setInviteStatus(`Invite emailed to ${result.recipientEmail}`);
+      } else if (result.deliveryStatus === "skipped") {
+        setInviteStatus(
+          `Invite saved for ${result.recipientEmail} (email delivery not configured)`,
+        );
+      } else if (result.deliveryStatus === "failed") {
+        setInviteStatus(
+          `Invite saved but email failed${result.deliveryError ? `: ${result.deliveryError}` : ""}`,
+        );
+      } else {
+        setInviteStatus(`Invite recorded for ${result.recipientEmail}`);
+      }
+      if (addInviteToAllowlist) {
+        setAllowlist(await fetchAllowlist(sessionId));
+      }
+      setInviteEmail("");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Invite failed");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const toggleVisibility = async () => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const next = visibility === "private" ? "public" : "private";
+      await setSessionVisibility(sessionId, next);
+      await retry();
+      setInviteStatus(`Session is now ${next}`);
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Visibility update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onAddAllowlist = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!sessionId || !isHost || !allowlistEmail.trim() || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await addAllowlistEmail(sessionId, allowlistEmail.trim());
+      setAllowlist(await fetchAllowlist(sessionId));
+      setAllowlistEmail("");
+      setInviteStatus(`Added ${allowlistEmail.trim()} to allowlist`);
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Allowlist add failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onRemoveAllowlist = async (entryId: string) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await removeAllowlistEntry(sessionId, entryId);
+      setAllowlist(await fetchAllowlist(sessionId));
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Allowlist remove failed");
+    } finally {
+      setHostBusy(false);
     }
   };
 
@@ -194,6 +318,46 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           </span>
         </div>
         <div className="vr-enter__top-actions">
+          {isHost ? (
+            <>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void toggleVisibility()}
+                disabled={hostBusy}
+              >
+                <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
+                {visibility === "private" ? "Private" : "Public"}
+              </button>
+              <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
+                <input
+                  type="email"
+                  className="vr-enter__invite-input"
+                  placeholder="colleague@memphis.edu"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  aria-label="Invite email"
+                  required
+                />
+                <label className="vr-enter__allowlist-check">
+                  <input
+                    type="checkbox"
+                    checked={addInviteToAllowlist}
+                    onChange={(e) => setAddInviteToAllowlist(e.target.checked)}
+                  />
+                  Allowlist
+                </label>
+                <button
+                  type="submit"
+                  className="vr-enter__text-btn"
+                  disabled={inviteBusy || !inviteEmail.trim()}
+                >
+                  <MaterialIcon name="mail" />
+                  {inviteBusy ? "Sending…" : "Email Invite"}
+                </button>
+              </form>
+            </>
+          ) : null}
           <button
             type="button"
             className="vr-enter__text-btn"
@@ -217,6 +381,59 @@ export default function Enter({ sessionId, onLeave, onBrowseSessions }: EnterPro
           </button>
         </div>
       </header>
+
+      {inviteStatus ? (
+        <p className="vr-enter__invite-status" role="status">
+          {inviteStatus}
+        </p>
+      ) : null}
+
+      {isHost ? (
+        <section className="vr-enter__allowlist" aria-label="Session allowlist">
+          <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
+            <span className="vr-enter__allowlist-label">Allowlist</span>
+            <input
+              type="email"
+              className="vr-enter__invite-input"
+              placeholder="add@memphis.edu"
+              value={allowlistEmail}
+              onChange={(e) => setAllowlistEmail(e.target.value)}
+              aria-label="Allowlist email"
+            />
+            <button
+              type="submit"
+              className="vr-enter__text-btn"
+              disabled={hostBusy || !allowlistEmail.trim()}
+            >
+              <MaterialIcon name="person_add" />
+              Add
+            </button>
+          </form>
+          {allowlist.length ? (
+            <ul className="vr-enter__allowlist-list">
+              {allowlist.map((entry) => (
+                <li key={entry.id}>
+                  <span>{entry.email || entry.subjectSub || "entry"}</span>
+                  <button
+                    type="button"
+                    className="vr-enter__text-btn"
+                    onClick={() => void onRemoveAllowlist(entry.id)}
+                    disabled={hostBusy}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="vr-enter__allowlist-empty">
+              {visibility === "private"
+                ? "Private session — add emails (or check Allowlist on invite)."
+                : "Optional allowlist (used if you switch to Private)."}
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {error ? (
         <p className="vr-enter__error" role="alert">

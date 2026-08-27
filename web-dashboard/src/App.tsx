@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AmbientBackground } from "./components/AmbientBackground";
 import type { AppSection } from "./components/AppChrome";
@@ -11,11 +11,28 @@ import Sessions from "./screens/Sessions";
 import Upload from "./screens/Upload";
 import "./styles/vr-theme.css";
 
+function readSessionDeepLink(): string | null {
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get("session");
+    if (fromQuery?.trim()) return fromQuery.trim();
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 function Dashboard() {
   const { user, logout } = useAuth();
   const [section, setSection] = useState<AppSection>("home");
   const [documentModelId, setDocumentModelId] = useState<string | null>(null);
   const [enterSessionId, setEnterSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sessionId = readSessionDeepLink();
+    if (!sessionId) return;
+    setEnterSessionId(sessionId);
+    setSection("enter");
+  }, []);
 
   const email = user?.isLocalDev
     ? `${user.email} (local)`

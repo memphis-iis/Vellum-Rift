@@ -48,6 +48,63 @@ CREATE TABLE IF NOT EXISTS asset_manifests (
   lods_json      JSONB NOT NULL DEFAULT '{}'::jsonb,
   default_tier   TEXT NOT NULL DEFAULT 'balanced'
 );
+
+CREATE TABLE IF NOT EXISTS session_notifications (
+  notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id      UUID REFERENCES game_sessions(session_id),
+  type            TEXT NOT NULL,
+  recipient_email TEXT NOT NULL DEFAULT '',
+  recipient_id    TEXT,
+  subject         TEXT NOT NULL DEFAULT '',
+  body            TEXT NOT NULL DEFAULT '',
+  join_url        TEXT,
+  metadata        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_read         BOOLEAN NOT NULL DEFAULT false,
+  delivery_status TEXT NOT NULL DEFAULT 'pending',
+  delivery_error  TEXT,
+  sent_at         TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_notifications_recipient
+  ON session_notifications (recipient_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_session_notifications_session
+  ON session_notifications (session_id, type, created_at DESC);
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public';
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS created_by_sub TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS created_by_email TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS session_allowlist (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id    UUID NOT NULL REFERENCES game_sessions(session_id) ON DELETE CASCADE,
+  subject_sub   TEXT,
+  email         TEXT,
+  added_by_sub  TEXT,
+  added_by_email TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT session_allowlist_identity_chk CHECK (
+    (subject_sub IS NOT NULL AND btrim(subject_sub) <> '')
+    OR (email IS NOT NULL AND btrim(email) <> '')
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_allowlist_session_email
+  ON session_allowlist (session_id, lower(email))
+  WHERE email IS NOT NULL AND btrim(email) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_allowlist_session_sub
+  ON session_allowlist (session_id, subject_sub)
+  WHERE subject_sub IS NOT NULL AND btrim(subject_sub) <> '';
+
+CREATE INDEX IF NOT EXISTS idx_session_allowlist_session
+  ON session_allowlist (session_id, created_at DESC);
 `;
 
 /**
