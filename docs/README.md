@@ -34,6 +34,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [architecture/002-persisted-state-sync.md](architecture/002-persisted-state-sync.md) (supersedes historical `002-hasura-sync.md`)
 - [architecture/003-shader-pipeline.md](architecture/003-shader-pipeline.md)
 - [architecture/005-data-ingestion-pipelines.md](architecture/005-data-ingestion-pipelines.md)
+- [architecture/006-electron-launcher-scope.md](architecture/006-electron-launcher-scope.md) — Electron deferred; CLI + WebGL postMessage handoff
 - [architecture/adr-001-webrtc-data-channel-stroke-streaming.md](architecture/adr-001-webrtc-data-channel-stroke-streaming.md)
 - [agile/milestones.md](agile/milestones.md)
 - [agile/outstanding-issues.md](agile/outstanding-issues.md) — reconciled implementation backlog

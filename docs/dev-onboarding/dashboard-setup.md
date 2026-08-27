@@ -138,7 +138,7 @@ Enter is the pre-flight lobby for a selected session (not a blank placeholder):
 - **Desktop** reveals a copyable CLI command (`-session=` / `-playerName=` / `-isHost=`)
 - **Copy Invite** / **Leave Session** (back to Sessions)
 
-Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`).
+Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`). Signed-in users get a **postMessage auth handoff** into WebGL (no second Bluekey popup when the token is valid); see [authentication.md](../reference/authentication.md#dashboard--webgl-auth-handoff-129).
 
 ### Enter launcher contract (desktop handoff)
 
@@ -150,10 +150,10 @@ signed-in Bluekey session (join, do not recreate):
 | Session | `-session=<uuid>` | `VELLUM_SESSION_ID` | Selected exploration session |
 | Display name | `-playerName=<name>` | `VELLUM_PLAYER_NAME` | Bluekey display name or email |
 | Host/admin | `-isHost=true\|false` (or `-admin=`) | `VELLUM_IS_HOST` | True when this user is the session host |
+| Access token | `-accessToken=<jwt>` | `VELLUM_ACCESS_TOKEN` | Dashboard Bluekey token (optional; treat as secret) |
 | Backend | `-backendUrl=` | `VELLUM_BACKEND_URL` | Same base as `VITE_API_BASE_URL` |
 
-WebGL continues to use `?session=` / `?playerName=` / `?isHost=` on the page URL.
-Custom scheme (`vellumrift://`) is Phase 2. See [multiplayer-demo-runbook.md](../qa/multiplayer-demo-runbook.md#desktop--launcher-session-handoff-issue-128).
+WebGL uses `?session=` / `?playerName=` / `?isHost=` plus **postMessage** token handoff (never `?accessToken=`). Electron is deferred — [006-electron-launcher-scope.md](../architecture/006-electron-launcher-scope.md).
 
 ## Working Conventions
 
