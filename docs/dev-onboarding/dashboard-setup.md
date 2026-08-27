@@ -129,12 +129,18 @@ The Sessions section lists `GET /api/game-state` rows (name, LIVE/READY/ARCHIVED
 
 ### Enter launcher contract (desktop handoff)
 
-Enter UI (#127) should launch the standalone Unity client with the chosen session id (join, do not recreate):
+Enter UI (#127) should launch the standalone Unity client with identity from the
+signed-in Bluekey session (join, do not recreate):
 
-- Preferred: `-session=<uuid>` (and optional `-backendUrl=` matching `VITE_API_BASE_URL`)
-- Or env: `VELLUM_SESSION_ID` / `VELLUM_BACKEND_URL`
+| Concern | CLI | Env | Source |
+|---|---|---|---|
+| Session | `-session=<uuid>` | `VELLUM_SESSION_ID` | Selected exploration session |
+| Display name | `-playerName=<name>` | `VELLUM_PLAYER_NAME` | Bluekey display name or email |
+| Host/admin | `-isHost=true\|false` (or `-admin=`) | `VELLUM_IS_HOST` | True when this user is the session host |
+| Backend | `-backendUrl=` | `VELLUM_BACKEND_URL` | Same base as `VITE_API_BASE_URL` |
 
-WebGL continues to use `?session=` on the page URL. Custom scheme (`vellumrift://`) is Phase 2. See [multiplayer-demo-runbook.md](../qa/multiplayer-demo-runbook.md#desktop--launcher-session-handoff-issue-128).
+WebGL continues to use `?session=` / `?playerName=` / `?isHost=` on the page URL.
+Custom scheme (`vellumrift://`) is Phase 2. See [multiplayer-demo-runbook.md](../qa/multiplayer-demo-runbook.md#desktop--launcher-session-handoff-issue-128).
 
 ## Working Conventions
 

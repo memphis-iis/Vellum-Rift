@@ -119,5 +119,93 @@ namespace VellumRift.Tests
             string result = SessionIdResolver.Resolve("", None(), None(), pageQuerySession: null);
             Assert.That(result, Is.EqualTo(""));
         }
+
+        // ---------------------------------------------------------------
+        // Player name (Bluekey / Enter launcher)
+        // ---------------------------------------------------------------
+
+        [Test]
+        public void ResolvePlayerName_Cli_WinsOverBluekeyAndInspector()
+        {
+            var cli = Lookup(new Dictionary<string, string>
+            {
+                [SessionIdResolver.PlayerNameCliFlagKey] = "CLI Name",
+            });
+
+            string result = SessionIdResolver.ResolvePlayerName(
+                "Inspector", cli, None(),
+                pageQueryPlayerName: "Page",
+                bluekeyDisplayName: "Bluekey User");
+            Assert.That(result, Is.EqualTo("CLI Name"));
+        }
+
+        [Test]
+        public void ResolvePlayerName_Bluekey_BeatsInspector()
+        {
+            string result = SessionIdResolver.ResolvePlayerName(
+                "Inspector", None(), None(),
+                bluekeyDisplayName: "Bluekey User");
+            Assert.That(result, Is.EqualTo("Bluekey User"));
+        }
+
+        [Test]
+        public void ResolvePlayerName_Env_BeatsPageAndBluekey()
+        {
+            var env = Lookup(new Dictionary<string, string>
+            {
+                [SessionIdResolver.PlayerNameEnvVarName] = "Env Name",
+            });
+
+            string result = SessionIdResolver.ResolvePlayerName(
+                "Inspector", None(), env,
+                pageQueryPlayerName: "Page",
+                bluekeyDisplayName: "Bluekey");
+            Assert.That(result, Is.EqualTo("Env Name"));
+        }
+
+        // ---------------------------------------------------------------
+        // Host / administrator
+        // ---------------------------------------------------------------
+
+        [Test]
+        public void ResolveIsHost_CliTrue_Wins()
+        {
+            var cli = Lookup(new Dictionary<string, string>
+            {
+                [SessionIdResolver.IsHostCliFlagKey] = "true",
+            });
+            var env = Lookup(new Dictionary<string, string>
+            {
+                [SessionIdResolver.IsHostEnvVarName] = "false",
+            });
+
+            Assert.That(SessionIdResolver.ResolveIsHost(cli, env, "false"), Is.True);
+        }
+
+        [Test]
+        public void ResolveIsHost_AdminAlias_Works()
+        {
+            var cli = Lookup(new Dictionary<string, string>
+            {
+                [SessionIdResolver.AdminCliFlagKey] = "1",
+            });
+            Assert.That(SessionIdResolver.ResolveIsHost(cli, None()), Is.True);
+        }
+
+        [Test]
+        public void ResolveIsHost_Unspecified_ReturnsNull()
+        {
+            Assert.That(SessionIdResolver.ResolveIsHost(None(), None()), Is.Null);
+        }
+
+        [TestCase("true", true)]
+        [TestCase("YES", true)]
+        [TestCase("0", false)]
+        [TestCase("no", false)]
+        [TestCase("maybe", null)]
+        public void ParseBoolFlag_RecognizesCommonValues(string raw, bool? expected)
+        {
+            Assert.That(SessionIdResolver.ParseBoolFlag(raw), Is.EqualTo(expected));
+        }
     }
 }

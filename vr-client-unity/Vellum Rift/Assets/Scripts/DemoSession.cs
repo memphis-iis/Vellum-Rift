@@ -28,8 +28,23 @@ namespace VellumRift
         [Tooltip("Shared session id. Leave empty on the first client to create a new session (id is logged to the Console); paste that id into every other client. Overridden by -session= / VELLUM_SESSION_ID / ?session= when set.")]
         [SerializeField] private string sessionIdOverride = "";
 
-        [Tooltip("Local player display name shown to other clients.")]
+        [Tooltip("Local player display name shown to other clients. Overridden by -playerName= / VELLUM_PLAYER_NAME / ?playerName= / Bluekey identity when set.")]
         [SerializeField] private string playerName = "Player";
+
+        /// <summary>Inspector playerName captured before launch overrides are applied.</summary>
+        private string inspectorPlayerNameDefault;
+
+        /// <summary>
+        /// Explicit host/admin intent from launch args (null = decide at join time).
+        /// Set via -isHost= / -admin= / VELLUM_IS_HOST / ?isHost=.
+        /// </summary>
+        private bool? launchIsHost;
+
+        /// <summary>Display name used when adding the local player (after launch + Bluekey resolution).</summary>
+        public string PlayerDisplayName { get; private set; }
+
+        /// <summary>True when this client joined/created as session host (administrator).</summary>
+        public bool IsHost { get; private set; }
 
         [Header("Components (auto-created when unassigned)")]
         [Tooltip("API client used for all backend calls. Auto-added to this GameObject when unassigned.")]
@@ -112,28 +127,37 @@ namespace VellumRift
             // On-screen session id + one-click copy-link (WebGL: full invite URL).
             gameObject.AddComponent<SessionLinkOverlay>().Init(this);
 
-            // Session id precedence (CLI / env / ?session= beat Inspector) so the
-            // dashboard Enter launcher can hand off to desktop without clearing
-            // the Inspector default. Empty resolved id → create session.
-            ApplyResolvedSessionId();
+            // Session id + host/admin intent from CLI / env / page query. Player
+            // name is resolved in bootstrap so Bluekey identity can participate.
+            inspectorPlayerNameDefault = playerName;
+            ApplyResolvedLaunchParams();
 
             EnsureLocalPlayerVisuals();
         }
 
         /// <summary>
-        /// Resolve <see cref="sessionIdOverride"/> from CLI (<c>-session=</c>),
-        /// env (<c>VELLUM_SESSION_ID</c>), WebGL page query, or Inspector.
+        /// Resolve session id and host/admin intent from launch handoff.
         /// </summary>
-        private void ApplyResolvedSessionId()
+        private void ApplyResolvedLaunchParams()
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
+            Func<string, string> noCli = _ => null;
+            Func<string, string> noEnv = _ => null;
             string pageSession = BackendUrlResolver.FromQueryStringParam(
                 Application.absoluteURL, SessionIdResolver.QueryParamName, null);
+            string pageHost = BackendUrlResolver.FromQueryStringParam(
+                Application.absoluteURL, SessionIdResolver.IsHostQueryParamName, null);
+
             sessionIdOverride = SessionIdResolver.Resolve(
                 inspectorDefault: sessionIdOverride,
-                getCliArg: _ => null,
-                getEnvVar: _ => null,
+                getCliArg: noCli,
+                getEnvVar: noEnv,
                 pageQuerySession: pageSession,
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
+            launchIsHost = SessionIdResolver.ResolveIsHost(
+                getCliArg: noCli,
+                getEnvVar: noEnv,
+                pageQueryIsHost: pageHost,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
 #else
             sessionIdOverride = SessionIdResolver.Resolve(
@@ -142,7 +166,36 @@ namespace VellumRift
                 getEnvVar: System.Environment.GetEnvironmentVariable,
                 pageQuerySession: null,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
+            launchIsHost = SessionIdResolver.ResolveIsHost(
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
+                pageQueryIsHost: null,
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
 #endif
+        }
+
+        private void ResolvePlayerDisplayName()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            string pageName = BackendUrlResolver.FromQueryStringParam(
+                Application.absoluteURL, SessionIdResolver.PlayerNameQueryParamName, null);
+            playerName = SessionIdResolver.ResolvePlayerName(
+                inspectorDefault: inspectorPlayerNameDefault,
+                getCliArg: _ => null,
+                getEnvVar: _ => null,
+                pageQueryPlayerName: pageName,
+                bluekeyDisplayName: TryGetBluekeyDisplayName(),
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
+#else
+            playerName = SessionIdResolver.ResolvePlayerName(
+                inspectorDefault: inspectorPlayerNameDefault,
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
+                pageQueryPlayerName: null,
+                bluekeyDisplayName: TryGetBluekeyDisplayName(),
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
+#endif
+            PlayerDisplayName = playerName;
         }
 
         /// <summary>
@@ -213,19 +266,25 @@ namespace VellumRift
             {
                 ConfigureBackendUrl();
 
+                ResolvePlayerDisplayName();
+
                 GameState session = await JoinOrCreateSession();
                 SessionId = session.sessionId;
                 createdSession = string.IsNullOrEmpty(sessionIdOverride);
 
-                // Only the client that created the session is the host; a joiner
-                // must not steal host authority.
-                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: createdSession);
+                // Host/admin: explicit launch flag wins; else creator; else first
+                // joiner adopts host when the session has none yet.
+                bool adoptHost = !createdSession && string.IsNullOrEmpty(session.hostId);
+                bool joinAsHost = launchIsHost ?? (createdSession || adoptHost);
+
+                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: joinAsHost);
                 if (local == null)
                 {
                     throw new InvalidOperationException(
                         $"AddPlayer returned null for session {SessionId} — is the backend running and is the session id valid?");
                 }
                 LocalPlayerId = local.id;
+                IsHost = local.isHost;
 
                 // Register the local player's cube so MultiplayerController's
                 // SendLocalPlayerPosition has a transform to read (gap 1).
@@ -256,7 +315,7 @@ namespace VellumRift
                     Debug.Log($"[DemoSession] Session created — shareable link: {BuildShareUrl(SessionId)}");
                 }
 #endif
-                Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId})");
+                Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId}), host={IsHost}");
             }
             catch (Exception ex)
             {
@@ -277,6 +336,30 @@ namespace VellumRift
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Best-effort Bluekey display name / email when a BluekeyAuth component
+        /// is present in the scene. Uses reflection so this file does not hard-
+        /// depend on BluekeyAuth (which may land in a sibling auth PR).
+        /// </summary>
+        private static string TryGetBluekeyDisplayName()
+        {
+            Type bluekeyType = Type.GetType("VellumRift.BluekeyAuth, Assembly-CSharp")
+                ?? Type.GetType("VellumRift.BluekeyAuth, VellumRift");
+            if (bluekeyType == null)
+                return null;
+
+            UnityEngine.Object auth = UnityEngine.Object.FindObjectOfType(bluekeyType);
+            if (auth == null)
+                return null;
+
+            var displayProp = bluekeyType.GetProperty("UserDisplayName");
+            var emailProp = bluekeyType.GetProperty("UserEmail");
+            string display = displayProp?.GetValue(auth) as string;
+            if (!string.IsNullOrEmpty(display))
+                return display;
+            return emailProp?.GetValue(auth) as string;
         }
 
         private void ConfigureBackendUrl()
