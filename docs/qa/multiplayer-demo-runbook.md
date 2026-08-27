@@ -94,6 +94,33 @@ default (`http://localhost:4000`).
 Note: `VELLUM_BACKEND_URL` must be a **base** URL (`http://host:4000`), not the
 health-check path.
 
+## Desktop / launcher session handoff (issue #128)
+
+Standalone (and Editor via env) can **join** an existing session without pasting
+into the Inspector. Resolution order (first non-empty wins):
+
+1. CLI: `-session=<uuid>`
+2. Env: `VELLUM_SESSION_ID=<uuid>`
+3. WebGL only: page query `?session=<uuid>`
+4. Inspector **Session ID** on `DemoSession` (empty → create a new session)
+
+Examples:
+
+```bash
+# Join a dashboard session on a LAN backend
+./VellumRift.x86_64 -backendUrl=http://192.168.1.50:4000 -session=7e3f9c2a-4b1d-4e6f-9c8a-2d5b7f0e1a3c
+
+# Same via env (also works for Editor Play Mode)
+export VELLUM_BACKEND_URL=http://192.168.1.50:4000
+export VELLUM_SESSION_ID=7e3f9c2a-4b1d-4e6f-9c8a-2d5b7f0e1a3c
+```
+
+`DemoSession` **joins** that id (does not end/recreate). If the session is
+missing, bootstrap fails with a clear `Session '<id>' not found` error.
+
+Custom URL scheme (`vellumrift://…`) is deferred; the Enter launcher should
+invoke the desktop binary with `-session=` / `VELLUM_SESSION_ID` for MVP.
+
 ## Known limitations (acceptable for Demo 1)
 
 - **One shared session**: no session discovery/join UX. The id is copy-pasted.

@@ -25,8 +25,8 @@ namespace VellumRift
     public class DemoSession : MonoBehaviour
     {
         [Header("Session")]
-        [Tooltip("Shared session id. Leave empty on the first client to create a new session (id is logged to the Console); paste that id into every other client.")]
-        [SerializeField] private string sessionIdOverride = "";
+        [Tooltip("Shared session id. Pre-baked to the shared-demo session so every client lands in the same room. Override to join a different session, or clear to create a brand new one.")]
+        [SerializeField] private string sessionIdOverride = "7e3f9c2a-4b1d-4e6f-9c8a-2d5b7f0e1a3c";
 
         [Tooltip("Local player display name shown to other clients.")]
         [SerializeField] private string playerName = "Player";
@@ -34,6 +34,9 @@ namespace VellumRift
         [Header("Components (auto-created when unassigned)")]
         [Tooltip("API client used for all backend calls. Auto-added to this GameObject when unassigned.")]
         [SerializeField] private GameStateApiClient apiClient;
+
+        [Tooltip("Handles Bluekey SSO authentication (popup on WebGL, paste-token in editor/standalone). Auto-added when unassigned.")]
+        [SerializeField] private BluekeyAuth bluekeyAuth;
 
         [Tooltip("Polls the server for game state. Auto-added when unassigned.")]
         [SerializeField] private GameStatePoller poller;
@@ -48,8 +51,8 @@ namespace VellumRift
         [SerializeField] private BackendHealthChecker healthChecker;
 
         [Header("Backend")]
-        [Tooltip("Fallback backend base URL when no env/CLI override is present.")]
-        [SerializeField] private string defaultBackendUrl = "http://localhost:4000";
+        [Tooltip("Fallback backend base URL when no env/CLI override is present. Pre-baked to the production backend exposed through Caddy so deployed WebGL builds connect without a ?backendUrl= override.")]
+        [SerializeField] private string defaultBackendUrl = "https://iis.memphis.edu/apis/vellumrift";
 
         [Tooltip("Allow plain-http backend URLs (e.g. a test server like http://100.76.98.70:4100). Off by default: http is promoted to https on WebGL. Note browsers still block http from https pages, so this mainly helps Editor/standalone testing.")]
         [SerializeField] private bool allowInsecureHttp = false;
@@ -98,6 +101,7 @@ namespace VellumRift
         private void Awake()
         {
             if (apiClient == null) apiClient = gameObject.AddComponent<GameStateApiClient>();
+            if (bluekeyAuth == null) bluekeyAuth = GetComponent<BluekeyAuth>() ?? gameObject.AddComponent<BluekeyAuth>();
             if (poller == null) poller = gameObject.AddComponent<GameStatePoller>();
             if (playerSpawner == null) playerSpawner = gameObject.AddComponent<PlayerSpawner>();
             if (multiplayerController == null) multiplayerController = gameObject.AddComponent<MultiplayerController>();
@@ -112,15 +116,37 @@ namespace VellumRift
             // On-screen session id + one-click copy-link (WebGL: full invite URL).
             gameObject.AddComponent<SessionLinkOverlay>().Init(this);
 
-            // WebGL has no Inspector, so the shared session id can come from
-            // the page URL (?session=...). Editor/standalone keep using the
-            // Inspector field (sessionIdOverride) untouched.
-#if UNITY_WEBGL
-            if (string.IsNullOrEmpty(sessionIdOverride))
-                sessionIdOverride = BackendUrlResolver.FromQueryStringParam(Application.absoluteURL, "session", "");
-#endif
+            // Session id precedence (CLI / env / ?session= beat Inspector) so the
+            // dashboard Enter launcher can hand off to desktop without clearing
+            // a pre-baked Inspector default. Empty resolved id → create session.
+            ApplyResolvedSessionId();
 
             EnsureLocalPlayerVisuals();
+        }
+
+        /// <summary>
+        /// Resolve <see cref="sessionIdOverride"/> from CLI (<c>-session=</c>),
+        /// env (<c>VELLUM_SESSION_ID</c>), WebGL page query, or Inspector.
+        /// </summary>
+        private void ApplyResolvedSessionId()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            string pageSession = BackendUrlResolver.FromQueryStringParam(
+                Application.absoluteURL, SessionIdResolver.QueryParamName, null);
+            sessionIdOverride = SessionIdResolver.Resolve(
+                inspectorDefault: sessionIdOverride,
+                getCliArg: _ => null,
+                getEnvVar: _ => null,
+                pageQuerySession: pageSession,
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
+#else
+            sessionIdOverride = SessionIdResolver.Resolve(
+                inspectorDefault: sessionIdOverride,
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
+                pageQuerySession: null,
+                log: msg => Debug.Log($"[DemoSession] {msg}"));
+#endif
         }
 
         /// <summary>
@@ -191,13 +217,29 @@ namespace VellumRift
             {
                 ConfigureBackendUrl();
 
+                // With AUTH_REQUIRED=true the backend rejects every request
+                // that lacks a valid Bluekey Bearer token. Wait for the popup
+                // (WebGL) or pasted token (editor/standalone) before touching
+                // the API. BluekeyAuth.Start opens the popup automatically.
+                await EnsureAuthenticatedAsync();
+                if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
+                    apiClient.SetAuthToken(bluekeyAuth.AccessToken);
+
                 GameState session = await JoinOrCreateSession();
                 SessionId = session.sessionId;
                 createdSession = string.IsNullOrEmpty(sessionIdOverride);
 
-                // Only the client that created the session is the host; a joiner
-                // must not steal host authority.
-                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: createdSession);
+                // Host authority: the client that created the session is host.
+                // For a pre-baked shared session, the first client to join
+                // (session has no host yet) adopts host so host-only features
+                // still work; later joiners must not steal host authority.
+                bool adoptHost = !createdSession && string.IsNullOrEmpty(session.hostId);
+
+                // Player identity: prefer the Bluekey account display name, then
+                // email, then the Inspector/CLI-provided playerName fallback.
+                string resolvedPlayerName = ResolvePlayerName();
+
+                PlayerState local = await apiClient.AddPlayer(SessionId, resolvedPlayerName, isHost: createdSession || adoptHost);
                 if (local == null)
                 {
                     throw new InvalidOperationException(
@@ -234,7 +276,7 @@ namespace VellumRift
                     Debug.Log($"[DemoSession] Session created — shareable link: {BuildShareUrl(SessionId)}");
                 }
 #endif
-                Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId})");
+                Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{resolvedPlayerName}' ({LocalPlayerId})");
             }
             catch (Exception ex)
             {
@@ -255,6 +297,39 @@ namespace VellumRift
                     }
                 }
             }
+        }
+
+        private async System.Threading.Tasks.Task EnsureAuthenticatedAsync()
+        {
+            if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
+                return;
+
+            Debug.Log("[DemoSession] Waiting for Bluekey authentication (popup or paste-token)...");
+            const float timeoutSeconds = 300f;
+            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+
+            while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
+            {
+                await System.Threading.Tasks.Task.Yield();
+            }
+
+            if (!bluekeyAuth.IsAuthenticated)
+            {
+                throw new InvalidOperationException(
+                    "Timed out waiting for Bluekey authentication. Complete the popup login or paste a valid token.");
+            }
+        }
+
+        private string ResolvePlayerName()
+        {
+            if (bluekeyAuth != null)
+            {
+                if (!string.IsNullOrEmpty(bluekeyAuth.UserDisplayName))
+                    return bluekeyAuth.UserDisplayName;
+                if (!string.IsNullOrEmpty(bluekeyAuth.UserEmail))
+                    return bluekeyAuth.UserEmail;
+            }
+            return playerName;
         }
 
         private void ConfigureBackendUrl()
@@ -297,7 +372,7 @@ namespace VellumRift
             return BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArg,
-                getEnvVar: Environment.GetEnvironmentVariable,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
 #endif
         }
@@ -441,7 +516,7 @@ namespace VellumRift
 #if UNITY_EDITOR
             return null;
 #else
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             string prefix = key + "=";
             foreach (string arg in args)
             {
