@@ -1763,6 +1763,34 @@
   color: var(--vr-on-surface-variant, #c4c6cf);
 }
 
+.vr-enter__roster {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vr-enter__roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.vr-enter__roster-name {
+  color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
+.vr-enter__roster-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
 .vr-enter__text-btn {
   display: inline-flex;
   align-items: center;
