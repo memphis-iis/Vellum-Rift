@@ -199,9 +199,12 @@ namespace VellumRift
             if (playerPrefab != null)
                 return Instantiate(playerPrefab);
 
-            // Placeholder visual. Swap in a real player prefab via the Inspector
-            // or SetPlayerPrefab once one exists.
-            return GameObject.CreatePrimitive(PrimitiveType.Cube);
+            // Default player visual: the Vellum wireframe book + compass
+            // (port of the Three.js web visual). Procedurally built at runtime;
+            // no asset required. Swap via Inspector or SetPlayerPrefab.
+            GameObject book = new GameObject("PlayerBookVisual");
+            book.AddComponent<VellumRift.Environment.PlayerBookVisual>();
+            return book;
         }
 
         /// <summary>
@@ -232,8 +235,14 @@ namespace VellumRift
                 return (spawnPoints[start].position, spawnPoints[start].rotation, start);
             }
 
-            // Default: spread players along the X axis so they don't stack.
-            return (new Vector3(spawnedPlayers.Count * 1.5f, 0f, 0f), Quaternion.identity, -1);
+            // Default: ring around the manuscript (gallery plate) so players
+            // don't stack on the X axis or on the mesh.
+            var gallery = VellumRift.Environment.GalleryEnvironment.Instance
+                          ?? VellumRift.Environment.GalleryEnvironment.EnsureExists();
+            int slot = nextSpawnIndex;
+            nextSpawnIndex++;
+            var placement = gallery.GetSpawnSlot(slot);
+            return (placement.position, placement.rotation, slot % gallery.SpawnSlotCount);
         }
 
         /// <summary>

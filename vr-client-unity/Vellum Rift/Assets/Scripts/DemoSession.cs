@@ -426,7 +426,7 @@ namespace VellumRift
             return BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArg,
-                getEnvVar: Environment.GetEnvironmentVariable,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
 #endif
         }
@@ -570,7 +570,7 @@ namespace VellumRift
 #if UNITY_EDITOR
             return null;
 #else
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             string prefix = key + "=";
             foreach (string arg in args)
             {

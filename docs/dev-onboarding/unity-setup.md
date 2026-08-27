@@ -55,4 +55,12 @@ Re-run after changing URP lighting features, adding glTF material extensions, or
 4. Confirm the collection is still listed under **Preloaded Shaders**.
 5. Rebuild WebGL and desktop; materials should match Editor Play Mode.
 
+### Museum WebGL (quiet gallery)
+
+- Runtime `GalleryEnvironment` builds floor/fog/spawn ring using the **existing** Vellum dark palette (no retheme).
+- `HudPanelPlane` stays off (`museumQuietMode`) so HUDs remain screen-space Material 3 chrome.
+- Kiosk guests (`?kiosk=1`): no Bluekey popup/paste; leave navigates back to the kiosk join URL.
+- Close the Unity Editor, then headless WebGL via `vr-client-unity/scripts/build-webgl-museum.sh` (or `VellumRift.Editor.CIBuild.BuildWebGL`).
+- Publish `web build/` to `/assets/static/vellumrift/` on IIS (not the dashboard tree).
+
 See also: [glTFast Project Setup — materials & shader variants](https://docs.unity3d.com/Packages/com.unity.cloud.gltfast@6.19/manual/ProjectSetup.html).

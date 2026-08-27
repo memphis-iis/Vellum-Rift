@@ -153,4 +153,13 @@ mergeInto(LibraryManager.library, {
   ReloadPage: function () {
     window.location.reload();
   },
+
+  NavigateToUrl: function (urlPtr) {
+    var url = UTF8ToString(urlPtr);
+    try {
+      window.location.href = url;
+    } catch (e) {
+      console.warn("[VellumRift] NavigateToUrl failed: " + e);
+    }
+  },
 });

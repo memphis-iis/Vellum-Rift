@@ -40,11 +40,15 @@ namespace VellumRift
         public string LoadedModelUrl { get; private set; } = "";
 
         private bool loadInProgress;
+        private GameObject emptyStateGo;
 
         private async void Start()
         {
+            EnsureEmptyState();
             if (loadOnStart)
                 await Load();
+            else
+                ShowEmptyState(true);
         }
 
         /// <summary>
@@ -68,6 +72,7 @@ namespace VellumRift
             }
 
             loadInProgress = true;
+            ShowEmptyState(true);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
@@ -114,9 +119,11 @@ namespace VellumRift
                     // Success — replace any previous instance now.
                     foreach (Transform child in transform)
                     {
-                        if (child != parent)
+                        if (child != parent && child.gameObject != emptyStateGo)
                             Destroy(child.gameObject);
                     }
+
+                    ShowEmptyState(false);
 
                     // Attach non-convex MeshColliders so raycasts (e.g. the
                     // laser pointer) stop on the actual manuscript surface,
@@ -170,12 +177,57 @@ namespace VellumRift
                 indicators.UnregisterEdgeTarget("manuscript");
 
             foreach (Transform child in transform)
+            {
+                if (child.gameObject == emptyStateGo)
+                    continue;
                 Destroy(child.gameObject);
+            }
 
             IsLoaded = false;
             LoadedModelUrl = "";
             modelUrl = "";
+            ShowEmptyState(true);
             Debug.Log("[RemoteModelLoader] Cleared manuscript mesh");
+        }
+
+        private void EnsureEmptyState()
+        {
+            if (emptyStateGo != null) return;
+            emptyStateGo = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            emptyStateGo.name = "ManuscriptEmptyState";
+            emptyStateGo.transform.SetParent(transform, false);
+            emptyStateGo.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            emptyStateGo.transform.localScale = new Vector3(1.6f, 0.02f, 1.6f);
+
+            var col = emptyStateGo.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            var renderer = emptyStateGo.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                // Existing Vellum surface tone (#1B1B23) — not a retheme.
+                var color = new Color(27f / 255f, 27f / 255f, 35f / 255f, 1f);
+                var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                             ?? Shader.Find("Unlit/Color")
+                             ?? Shader.Find("Sprites/Default");
+                if (shader != null)
+                {
+                    var mat = new Material(shader);
+                    if (mat.HasProperty("_BaseColor"))
+                        mat.SetColor("_BaseColor", color);
+                    else if (mat.HasProperty("_Color"))
+                        mat.SetColor("_Color", color);
+                    renderer.sharedMaterial = mat;
+                }
+            }
+            emptyStateGo.SetActive(false);
+        }
+
+        private void ShowEmptyState(bool show)
+        {
+            EnsureEmptyState();
+            if (emptyStateGo != null)
+                emptyStateGo.SetActive(show);
         }
 
         /// <summary>

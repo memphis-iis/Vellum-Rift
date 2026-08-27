@@ -83,6 +83,9 @@ namespace VellumRift
 
         private void Awake()
         {
+            // Museum gallery plate (floor/fog/spawn ring) — existing Vellum palette only.
+            var gallery = VellumRift.Environment.GalleryEnvironment.EnsureExists();
+
             if (apiClient == null) apiClient = gameObject.AddComponent<GameStateApiClient>();
             if (bluekeyAuth == null) bluekeyAuth = GetComponent<BluekeyAuth>() ?? gameObject.AddComponent<BluekeyAuth>();
             if (positionSender == null) positionSender = gameObject.AddComponent<PositionSender>();
@@ -106,6 +109,8 @@ namespace VellumRift
             if (healthChecker == null) healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
             if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
             if (playerSpawner == null) playerSpawner = GetComponent<PlayerSpawner>() ?? gameObject.AddComponent<PlayerSpawner>();
+            if (playerSpawner != null && gallery != null)
+                playerSpawner.SetSpawnPoints(gallery.GetSpawnPointTransforms());
             if (gameStatePoller == null) gameStatePoller = GetComponent<GameStatePoller>() ?? gameObject.AddComponent<GameStatePoller>();
             if (multiplayerController == null) multiplayerController = GetComponent<MultiplayerController>() ?? gameObject.AddComponent<MultiplayerController>();
             if (playerController == null) playerController = FindObjectOfType<VellumRift.Control.PlayerController>();
@@ -213,7 +218,9 @@ namespace VellumRift
                 launchHost = SessionIdResolver.ResolveIsHost(
                     GetCliArg, System.Environment.GetEnvironmentVariable);
 #endif
-                bool joinAsHost = createdSession || adoptHost || (launchHost == true);
+                // Kiosk guests never adopt host — dashboard owns host ops.
+                bool joinAsHost = !KioskMode.IsActive
+                    && (createdSession || adoptHost || (launchHost == true));
                 var player = await apiClient.AddPlayer(SessionId, resolvedPlayerName, isHost: joinAsHost);
                 if (player == null)
                 {

@@ -30,6 +30,10 @@ namespace VellumRift.Tests
                 Object.DestroyImmediate(spawnerHost);
             spawner = null;
             spawnerHost = null;
+
+            var gallery = Object.FindFirstObjectByType<VellumRift.Environment.GalleryEnvironment>();
+            if (gallery != null)
+                Object.DestroyImmediate(gallery.gameObject);
         }
 
         private static PlayerState Player(string id, string displayName)
@@ -47,8 +51,8 @@ namespace VellumRift.Tests
             GameObject go = spawner.SpawnPlayer(Player("p1", "Alice"));
 
             Assert.That(go, Is.Not.Null);
-            // Default fallback is a cube primitive.
-            Assert.That(go.GetComponent<BoxCollider>(), Is.Not.Null, "expected a cube primitive when no prefab is set");
+            // Default fallback is the wireframe book visual.
+            Assert.That(go.GetComponent<VellumRift.Environment.PlayerBookVisual>(), Is.Not.Null, "expected the book visual when no prefab is set");
             Assert.That(spawner.IsPlayerSpawned("p1"), Is.True);
             Assert.That(spawner.GetPlayerObject("p1"), Is.SameAs(go));
             Assert.That(spawner.SpawnedCount, Is.EqualTo(1));
