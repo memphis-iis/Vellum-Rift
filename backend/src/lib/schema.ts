@@ -71,6 +71,40 @@ CREATE INDEX IF NOT EXISTS idx_session_notifications_recipient
 
 CREATE INDEX IF NOT EXISTS idx_session_notifications_session
   ON session_notifications (session_id, type, created_at DESC);
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public';
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS created_by_sub TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE game_sessions
+  ADD COLUMN IF NOT EXISTS created_by_email TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS session_allowlist (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id    UUID NOT NULL REFERENCES game_sessions(session_id) ON DELETE CASCADE,
+  subject_sub   TEXT,
+  email         TEXT,
+  added_by_sub  TEXT,
+  added_by_email TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT session_allowlist_identity_chk CHECK (
+    (subject_sub IS NOT NULL AND btrim(subject_sub) <> '')
+    OR (email IS NOT NULL AND btrim(email) <> '')
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_allowlist_session_email
+  ON session_allowlist (session_id, lower(email))
+  WHERE email IS NOT NULL AND btrim(email) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_allowlist_session_sub
+  ON session_allowlist (session_id, subject_sub)
+  WHERE subject_sub IS NOT NULL AND btrim(subject_sub) <> '';
+
+CREATE INDEX IF NOT EXISTS idx_session_allowlist_session
+  ON session_allowlist (session_id, created_at DESC);
 `;
 
 /**

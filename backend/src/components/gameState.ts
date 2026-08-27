@@ -23,7 +23,12 @@ export interface PlayerState {
   laserActive: boolean;
   laserOrigin: { x: number; y: number; z: number };
   laserDirection: { dx: number; dy: number; dz: number };
+  /** Bluekey identity stamped at join (#136). */
+  bluekeySub?: string | null;
+  bluekeyEmail?: string | null;
 }
+
+export type SessionVisibility = "public" | "private";
 
 /** A spatial artifact (waypoint/pin) within a session. */
 export interface ArtifactState {
@@ -95,6 +100,13 @@ export class GameState {
   /** Whether the session is currently active. */
   isActive: boolean;
 
+  /** Public = any signed-in user; private = host + allowlist (#136). */
+  visibility: SessionVisibility;
+
+  /** Durable Bluekey identity of the session creator. */
+  createdBySub: string;
+  createdByEmail: string;
+
   /** Arbitrary metadata bag for feature-specific flags. */
   metadata: Record<string, unknown>;
 
@@ -106,6 +118,9 @@ export class GameState {
     this.createdAt = new Date().toISOString();
     this.updatedAt = this.createdAt;
     this.isActive = true;
+    this.visibility = "public";
+    this.createdBySub = "";
+    this.createdByEmail = "";
     this.metadata = {};
   }
 
@@ -294,6 +309,9 @@ export class GameState {
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
+      visibility: this.visibility,
+      createdBySub: this.createdBySub,
+      createdByEmail: this.createdByEmail,
       metadata: { ...this.metadata },
     };
   }

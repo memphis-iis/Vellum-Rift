@@ -3,24 +3,71 @@ import { GameState } from "../components/gameState.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
 import { NotificationService } from "../lib/notificationService.js";
+import { SessionAllowlistRepository } from "../lib/sessionAllowlistRepository.js";
+import {
+  canAccessSession,
+  isSessionHost,
+  normalizeEmail,
+  parseVisibility,
+} from "../lib/sessionAccess.js";
 
 const router = Router();
 const repo = new GameStateRepository();
 const jobRepo = new JobRepository();
 const notificationService = new NotificationService();
+const allowlistRepo = new SessionAllowlistRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
   String(req.params[name]);
 
+async function loadAccessibleSession(
+  req: Request,
+  res: Response,
+  sessionId: string,
+): Promise<GameState | null> {
+  const state = await repo.findById(sessionId);
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return null;
+  }
+  const allowed = await canAccessSession(req.user, state, allowlistRepo);
+  if (!allowed) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return state;
+}
+
+function requireHost(req: Request, res: Response, state: GameState): boolean {
+  if (!isSessionHost(req.user, state)) {
+    res.status(403).json({ error: "Only the session host can do that" });
+    return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------
 // POST /api/game-state  —  Create a new game session
 // ---------------------------------------------------------------
 router.post("/", async (req: Request, res: Response) => {
-  const { label } = req.body as { label?: string };
-  const state = await repo.create(label);
+  const { label, visibility: visibilityRaw } = req.body as {
+    label?: string;
+    visibility?: string;
+  };
+  const visibility = parseVisibility(visibilityRaw);
+  if (!visibility) {
+    res.status(400).json({ error: "visibility must be 'public' or 'private'" });
+    return;
+  }
+
+  const state = await repo.create(label, {
+    visibility,
+    createdBySub: req.user?.sub ?? "",
+    createdByEmail: normalizeEmail(req.user?.email),
+  });
   if (req.user?.email) {
-    state.metadata = { ...state.metadata, hostEmail: req.user.email };
+    state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
     await repo.save(state);
   }
   res.status(201).json(state.toJSON());
@@ -29,10 +76,16 @@ router.post("/", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 // GET /api/game-state  —  List sessions (newest activity first)
 // ---------------------------------------------------------------
-router.get("/", async (_req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
     const sessions = await repo.findAll();
-    res.json(sessions.map((s) => s.toJSON()));
+    const visible: GameState[] = [];
+    for (const session of sessions) {
+      if (await canAccessSession(req.user, session, allowlistRepo)) {
+        visible.push(session);
+      }
+    }
+    res.json(visible.map((s) => s.toJSON()));
   } catch (err) {
     console.error("GET /api/game-state failed:", err);
     if (!res.headersSent) {
@@ -45,11 +98,8 @@ router.get("/", async (_req: Request, res: Response) => {
 // GET /api/game-state/:sessionId  —  Retrieve a session
 // ---------------------------------------------------------------
 router.get("/:sessionId", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
   res.json(state.toJSON());
 });
 
@@ -57,11 +107,9 @@ router.get("/:sessionId", async (req: Request, res: Response) => {
 // DELETE /api/game-state/:sessionId  —  End a session
 // ---------------------------------------------------------------
 router.delete("/:sessionId", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
 
   state.end();
   await repo.save(state);
@@ -72,11 +120,9 @@ router.delete("/:sessionId", async (req: Request, res: Response) => {
 // POST /api/game-state/:sessionId/resume  —  Restore an archived session
 // ---------------------------------------------------------------
 router.post("/:sessionId/resume", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
 
   state.resume();
   await repo.save(state);
@@ -87,11 +133,8 @@ router.post("/:sessionId/resume", async (req: Request, res: Response) => {
 // POST /api/game-state/:sessionId/players  —  Add a player
 // ---------------------------------------------------------------
 router.post("/:sessionId/players", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
 
   const { displayName, isHost } = req.body as {
     displayName?: string;
@@ -103,9 +146,17 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  const player = state.addPlayer(displayName, isHost ?? false);
-  if ((isHost || player.isHost) && req.user?.email) {
-    state.metadata = { ...state.metadata, hostEmail: req.user.email };
+  // Prefer becoming host when creator joins an empty host seat
+  const wantHost =
+    (isHost ?? false) ||
+    (!state.hostId && isSessionHost(req.user, state));
+
+  const player = state.addPlayer(displayName, wantHost);
+  player.bluekeySub = req.user?.sub ?? null;
+  player.bluekeyEmail = normalizeEmail(req.user?.email) || null;
+
+  if (player.isHost && req.user?.email) {
+    state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
   }
   // Announce joins through the same chat surface so every client (Unity and
   // dashboard) sees the newcomer in their text box without extra polling.
@@ -121,11 +172,8 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
   const sessionId = param(req, "sessionId");
   const playerId = param(req, "playerId");
 
-  const state = await repo.findById(sessionId);
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, sessionId);
+  if (!state) return;
 
   const removed = state.removePlayer(playerId);
   if (!removed) {
@@ -138,19 +186,113 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
 });
 
 // ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/visibility  —  Host flips Public/Private
+// ---------------------------------------------------------------
+router.patch("/:sessionId/visibility", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const visibility = parseVisibility((req.body as { visibility?: string }).visibility);
+  if (!visibility) {
+    res.status(400).json({ error: "visibility must be 'public' or 'private'" });
+    return;
+  }
+
+  state.visibility = visibility;
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// Allowlist CRUD (host only)
+// ---------------------------------------------------------------
+router.get("/:sessionId/allowlist", async (req: Request, res: Response) => {
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!requireHost(req, res, state)) return;
+  const entries = await allowlistRepo.list(state.sessionId);
+  res.json(entries);
+});
+
+router.post("/:sessionId/allowlist", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const { email, subjectSub } = req.body as { email?: string; subjectSub?: string };
+  try {
+    const entry = await allowlistRepo.add({
+      sessionId: state.sessionId,
+      email,
+      subjectSub,
+      addedBySub: req.user?.sub ?? null,
+      addedByEmail: req.user?.email ?? null,
+    });
+    res.status(201).json(entry);
+  } catch (err) {
+    const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
+    res.status(statusCode).json({
+      error: err instanceof Error ? err.message : "Failed to add allowlist entry",
+    });
+  }
+});
+
+router.delete("/:sessionId/allowlist/:entryId", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const removed = await allowlistRepo.remove(state.sessionId, param(req, "entryId"));
+  if (!removed) {
+    res.status(404).json({ error: "Allowlist entry not found" });
+    return;
+  }
+  res.json({ removed: true });
+});
+
+// ---------------------------------------------------------------
 // POST /api/game-state/:sessionId/invite  —  Email invite via Bluekey
 // ---------------------------------------------------------------
 router.post("/:sessionId/invite", async (req: Request, res: Response) => {
   try {
     const sessionId = param(req, "sessionId");
-    const { email, recipientEmail } = req.body as {
+    const state = await repo.findById(sessionId);
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const { email, recipientEmail, addToAllowlist } = req.body as {
       email?: string;
       recipientEmail?: string;
+      addToAllowlist?: boolean;
     };
     const to = (recipientEmail ?? email ?? "").trim();
     if (!to) {
       res.status(400).json({ error: "recipientEmail is required" });
       return;
+    }
+
+    let allowlistEntry = null;
+    if (addToAllowlist === true) {
+      allowlistEntry = await allowlistRepo.add({
+        sessionId,
+        email: to,
+        addedBySub: req.user?.sub ?? null,
+        addedByEmail: req.user?.email ?? null,
+      });
     }
 
     const notification = await notificationService.sendInvite({
@@ -160,7 +302,7 @@ router.post("/:sessionId/invite", async (req: Request, res: Response) => {
       invitedById: req.user?.sub ?? null,
     });
 
-    res.status(201).json(notification);
+    res.status(201).json({ ...notification, allowlistEntry });
   } catch (err) {
     const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
     const message = err instanceof Error ? err.message : "Failed to send invite";
@@ -179,13 +321,8 @@ router.post("/:sessionId/invite", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.get("/:sessionId/processing-status", async (req: Request, res: Response) => {
   const sessionId = param(req, "sessionId");
-
-  // Verify the session exists first
-  const state = await repo.findById(sessionId);
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, sessionId);
+  if (!state) return;
 
   try {
     const status = await jobRepo.getSessionProcessingStatus(sessionId);

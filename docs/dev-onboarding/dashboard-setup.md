@@ -139,6 +139,7 @@ Enter is the pre-flight lobby for a selected session (not a blank placeholder):
 - **Copy Invite** / **Leave Session** (back to Sessions)
 - **Email Invite** — `POST /api/game-state/:sessionId/invite` via Bluekey mail (`vellum_session_invite`). Requires backend `BLUEKEY_API_TOKEN` + `BLUEKEY_SOFTWARE_ID` (otherwise invite is stored with `deliveryStatus: skipped`).
 - Deep link: `?session=<sessionId>` opens Session Room after sign-in.
+- **Visibility (#136):** create with Public/Private; private sessions need an allowlist entry (email invite checkbox can add). Host can flip visibility anytime without auto-kick.
 
 Set `VITE_WEBGL_BASE_URL` for one-click WebGL launch (see `.env.example`). Signed-in users get a **postMessage auth handoff** into WebGL (no second Bluekey popup when the token is valid); see [authentication.md](../reference/authentication.md#dashboard--webgl-auth-handoff-129).
 

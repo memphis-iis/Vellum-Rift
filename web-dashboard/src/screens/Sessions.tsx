@@ -51,6 +51,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
+  const [newVisibility, setNewVisibility] = useState<"public" | "private">("private");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -75,7 +76,7 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
     setCreating(true);
     setError(null);
     try {
-      const created = await createSession(label);
+      const created = await createSession(label, newVisibility);
       setNewLabel("");
       setSessions((prev) => [created, ...prev.filter((s) => s.sessionId !== created.sessionId)]);
     } catch (err) {
@@ -150,6 +151,27 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
             }}
           />
         </label>
+        <fieldset className="vr-sessions__visibility" disabled={creating}>
+          <legend className="vr-sessions__create-label">Visibility</legend>
+          <label className="vr-sessions__visibility-option">
+            <input
+              type="radio"
+              name="vr-session-visibility"
+              checked={newVisibility === "private"}
+              onChange={() => setNewVisibility("private")}
+            />
+            Private
+          </label>
+          <label className="vr-sessions__visibility-option">
+            <input
+              type="radio"
+              name="vr-session-visibility"
+              checked={newVisibility === "public"}
+              onChange={() => setNewVisibility("public")}
+            />
+            Public
+          </label>
+        </fieldset>
         {onNewSessionUpload ? (
           <button type="button" className="vr-btn vr-btn--outline" onClick={onNewSessionUpload}>
             Upload manuscript
@@ -194,7 +216,13 @@ export default function Sessions({ onEnterSession, onNewSessionUpload }: Session
                     >
                       {name}
                     </button>
-                    <span className="vr-sessions__id">ID: {shortId(session.sessionId)}</span>
+                    <span className="vr-sessions__id">
+                      ID: {shortId(session.sessionId)}
+                      {" · "}
+                      <span className="vr-sessions__visibility-tag">
+                        {(session.visibility ?? "public") === "private" ? "Private" : "Public"}
+                      </span>
+                    </span>
                   </div>
 
                   <div className="vr-sessions__status-wrap">
