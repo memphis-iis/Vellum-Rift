@@ -1,9 +1,10 @@
 # Deploy: Vellum Rift test platform on iis.memphis.edu
 
-Public endpoints (LIVE since 2026-08-06):
+Public endpoints (LIVE since 2026-08-06; dashboard path added 2026-08-27):
 
-- API:      `https://iis.memphis.edu/apis/vellumrift/` (backend proxied to **ramiel** :4100)
-- WebGL:    `https://iis.memphis.edu/vellumrift/` (static files on the iis box)
+- API:       `https://iis.memphis.edu/apis/vellumrift/` (Caddy → **ramiel** :4100)
+- WebGL:     `https://iis.memphis.edu/vellumrift/` (static on the iis box)
+- Dashboard: `https://iis.memphis.edu/static/vellum-dashboard/` (Vite build; do **not** overwrite WebGL)
 
 ## Topology
 
@@ -91,6 +92,31 @@ Redeploy (after building the artifact on a healthy host):
 tar czf - -C .deploy/backend . | ssh rusty@ramiel \
   "rm -rf ~/vellumrift/backend && mkdir -p ~/vellumrift/backend && tar xzf - --no-same-owner -C ~/vellumrift/backend && docker restart vellumrift-backend"
 ```
+
+Required backend env (on the ramiel container / `~/vellumrift/backend/.env`):
+
+- `AUTH_REQUIRED=true`
+- `BLUEKEY_SOFTWARE_ID` (catalog UUID)
+- `BLUEKEY_API_TOKEN` (= Bluekey `API_TOKEN` — app notification send)
+- `BLUEKEY_API_BASE_URL=https://iis.memphis.edu/apis/bluekey`
+- `DASHBOARD_PUBLIC_URL=https://iis.memphis.edu/static/vellum-dashboard`
+
+### Dashboard static (iis box)
+
+Build with the `/static/vellum-dashboard/` base (catch-all `/static/*` already serves `/assets/static`):
+
+```bash
+cd web-dashboard
+VITE_API_BASE_URL=https://iis.memphis.edu/apis/vellumrift \
+VITE_BLUEKEY_SOFTWARE_ID=<uuid> \
+VITE_AUTH_REQUIRED=true \
+VITE_WEBGL_BASE_URL=https://iis.memphis.edu/vellumrift/ \
+pnpm exec vite build --base=/static/vellum-dashboard/
+
+rsync -av --delete dist/ jrhaner@iis:/assets/static/vellum-dashboard/
+```
+
+Do **not** rsync into `/assets/static/vellumrift/` — that tree is the Unity WebGL client.
 
 Caddy route on the iis box (`/assets/Caddyfile`):
 
