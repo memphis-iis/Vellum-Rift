@@ -19,6 +19,11 @@ import {
   parseVisibility,
 } from "../lib/sessionAccess.js";
 import { writeKioskEnabled } from "../lib/sessionKiosk.js";
+import {
+  applyEventPatch,
+  parseSessionKind,
+  writeSessionEvent,
+} from "../lib/sessionEvent.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -98,9 +103,10 @@ async function assertModelsExist(
 router.post("/", async (req: Request, res: Response) => {
   if (rejectKioskGuest(req, res)) return;
 
-  const { label, visibility: visibilityRaw } = req.body as {
+  const { label, visibility: visibilityRaw, kind: kindRaw } = req.body as {
     label?: string;
     visibility?: string;
+    kind?: string;
   };
   const visibility = parseVisibility(visibilityRaw);
   if (!visibility) {
@@ -108,15 +114,31 @@ router.post("/", async (req: Request, res: Response) => {
     return;
   }
 
+  let kind = parseSessionKind(kindRaw);
+  if (kindRaw !== undefined && !kind) {
+    res.status(400).json({ error: "kind must be 'exploration' or 'event'" });
+    return;
+  }
+  kind = kind ?? "exploration";
+
   const state = await repo.create(label, {
     visibility,
     createdBySub: req.user?.sub ?? "",
     createdByEmail: normalizeEmail(req.user?.email),
   });
+  let metadata = { ...state.metadata };
   if (req.user?.email) {
-    state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
-    await repo.save(state);
+    metadata = { ...metadata, hostEmail: normalizeEmail(req.user.email) };
   }
+  if (kind === "event") {
+    metadata = writeSessionEvent(metadata, {
+      kind: "event",
+      startsAt: null,
+      endsAt: null,
+    });
+  }
+  state.metadata = metadata;
+  await repo.save(state);
   res.status(201).json(state.toJSON());
 });
 
@@ -288,6 +310,46 @@ router.patch("/:sessionId/kiosk", async (req: Request, res: Response) => {
   }
 
   state.metadata = writeKioskEnabled(state.metadata, enabled);
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/event — Host sets kind / schedule (#146)
+// Body: { kind?: 'exploration'|'event', startsAt?: string|null, endsAt?: string|null }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/event", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const body = req.body as {
+    kind?: unknown;
+    startsAt?: unknown;
+    endsAt?: unknown;
+  };
+  if (
+    body.kind === undefined &&
+    body.startsAt === undefined &&
+    body.endsAt === undefined
+  ) {
+    res.status(400).json({
+      error: "Provide kind, startsAt, and/or endsAt",
+    });
+    return;
+  }
+
+  const patched = applyEventPatch(state.metadata, body);
+  if (!patched.ok) {
+    res.status(400).json({ error: patched.error });
+    return;
+  }
+
+  state.metadata = patched.metadata;
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
   res.json(state.toJSON());
