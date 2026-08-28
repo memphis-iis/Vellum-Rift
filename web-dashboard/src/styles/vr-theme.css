@@ -2265,6 +2265,8 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
 }
 
 .vr-enter__chat-log {
@@ -2798,4 +2800,181 @@
     width: auto;
     max-height: 40vh;
   }
+
+  .vr-enter-3d__nav {
+    top: auto;
+    left: 0.75rem;
+    right: auto;
+    bottom: 0.75rem;
+    width: auto;
+    max-width: calc(100vw - 1.5rem);
+    max-height: 40vh;
+  }
+
+  .vr-shell-tab--nav {
+    top: auto;
+    left: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .vr-shell-tab--chat {
+    top: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+}
+
+/* Immersive WebGL — collapse dashboard sidenav to icon rail */
+html.vr-immersive .vr-sidenav {
+  width: 4.25rem;
+  overflow: hidden;
+}
+
+html.vr-immersive .vr-sidenav__eyebrow,
+html.vr-immersive .vr-sidenav__cta-wrap,
+html.vr-immersive .vr-sidenav__link-label,
+html.vr-immersive .vr-sidenav__footer {
+  display: none;
+}
+
+html.vr-immersive .vr-sidenav__brand-btn .vr-brand__logo {
+  max-height: 2.5rem;
+}
+
+html.vr-immersive .vr-sidenav__link {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  html.vr-immersive .vr-shell-main {
+    margin-left: 4.25rem;
+  }
+}
+
+/* Collapsible shell panels (WebGL embed + template) */
+.vr-shell-panel__collapse {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.vr-shell-panel__collapse:hover {
+  color: var(--vr-primary);
+  background: color-mix(in srgb, var(--vr-primary) 8%, transparent);
+}
+
+.vr-shell-tab {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 88%, transparent);
+  backdrop-filter: blur(16px);
+  color: var(--vr-primary);
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.vr-shell-tab--chat {
+  top: 5.5rem;
+  right: 1.25rem;
+}
+
+.vr-shell-tab--nav {
+  top: 5.5rem;
+  left: 1.25rem;
+}
+
+.vr-shell-tab__badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #e57373;
+  color: #1a0a0a;
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+.vr-enter-3d__nav {
+  position: absolute;
+  top: 5.5rem;
+  left: 1.25rem;
+  bottom: 7.5rem;
+  width: min(18rem, calc(100vw - 2.5rem));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 10rem;
+  max-height: calc(100% - 13rem);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.vr-enter-3d__nav-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 40%, transparent);
+}
+
+.vr-enter-3d__nav-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.vr-enter-3d__nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.vr-enter-3d__nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--vr-on-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.vr-enter-3d__nav-link:hover {
+  background: color-mix(in srgb, var(--vr-primary) 10%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-enter-3d__nav-meta {
+  margin: auto 0 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
 }

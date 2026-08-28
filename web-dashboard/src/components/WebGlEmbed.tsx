@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ChatMessage } from "../api/gameState";
 import type { LocalIdentity, SessionRoomStatus } from "../hooks/useSessionRoom";
 import { MaterialIcon } from "./MaterialIcon";
@@ -41,6 +41,13 @@ export function WebGlEmbed({
   onLeaveSession,
 }: WebGlEmbedProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+
+  useEffect(() => {
+    document.documentElement.classList.add("vr-immersive");
+    return () => document.documentElement.classList.remove("vr-immersive");
+  }, []);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -69,6 +76,8 @@ export function WebGlEmbed({
       cleanup?.();
     };
   }, [url, email]);
+
+  const navBadge = chatUnread > 0 ? chatUnread : 0;
 
   return (
     <div className="vr-enter-3d">
@@ -101,6 +110,50 @@ export function WebGlEmbed({
           </div>
         </header>
 
+        {navCollapsed ? (
+          <button
+            type="button"
+            className="vr-shell-tab vr-shell-tab--nav"
+            onClick={() => setNavCollapsed(false)}
+            aria-label={navBadge ? `Open menu (${navBadge} chat notifications)` : "Open menu"}
+          >
+            <MaterialIcon name="menu" />
+            {navBadge > 0 ? (
+              <span className="vr-shell-tab__badge" aria-hidden="true">
+                {navBadge > 9 ? "9+" : navBadge}
+              </span>
+            ) : null}
+          </button>
+        ) : (
+          <aside className="vr-enter-3d__nav glass-panel vr-shell-panel--open" aria-label="Space menu">
+            <div className="vr-enter-3d__nav-head">
+              <MaterialIcon name="hub" />
+              <h3>Menu</h3>
+              <button
+                type="button"
+                className="vr-shell-panel__collapse"
+                onClick={() => setNavCollapsed(true)}
+                aria-label="Collapse menu"
+              >
+                <MaterialIcon name="chevron_left" />
+              </button>
+            </div>
+            <nav className="vr-enter-3d__nav-links">
+              <button type="button" className="vr-enter-3d__nav-link" onClick={onExit}>
+                <MaterialIcon name="arrow_back" />
+                Back to lobby
+              </button>
+              <button type="button" className="vr-enter-3d__nav-link" onClick={onLeaveSession}>
+                <MaterialIcon name="logout" />
+                Leave session
+              </button>
+            </nav>
+            <p className="vr-enter-3d__nav-meta">
+              Signed in as <strong>{email || "Guest"}</strong>
+            </p>
+          </aside>
+        )}
+
         <SpaceChatPanel
           className="vr-enter-3d__chat glass-panel"
           messages={messages}
@@ -109,6 +162,8 @@ export function WebGlEmbed({
           draft={draft}
           onDraftChange={onDraftChange}
           onSubmit={onSend}
+          collapsible
+          onUnreadChange={setChatUnread}
         />
 
         <div className="vr-enter-3d__fog" aria-hidden="true" />

@@ -31,10 +31,33 @@
     </header>
     <div class="vellum-fog" aria-hidden="true"></div>
 
+    <button type="button" class="vellum-shell-tab vellum-shell-tab--nav" id="vellum-nav-tab" hidden aria-label="Open menu">
+      ☰
+    </button>
+
+    <aside class="vellum-nav glass-panel" id="vellum-nav" aria-label="Space menu">
+      <div class="vellum-nav-head">
+        <span aria-hidden="true">◎</span>
+        <h3>Menu</h3>
+        <button type="button" class="vellum-shell-panel__collapse" id="vellum-nav-collapse" aria-label="Collapse menu">‹</button>
+      </div>
+      <nav class="vellum-nav-links">
+        <a class="vellum-nav-link" id="vellum-dashboard-link" href="https://iis.memphis.edu/static/vellum-dashboard/" target="_blank" rel="noopener">
+          Dashboard
+        </a>
+      </nav>
+      <p class="vellum-nav-meta" id="vellum-nav-session">Session</p>
+    </aside>
+
+    <button type="button" class="vellum-shell-tab vellum-shell-tab--chat" id="vellum-chat-tab" hidden aria-label="Open space chat">
+      💬
+    </button>
+
     <aside class="vellum-chat glass-panel" id="vellum-chat" aria-label="Space chat">
       <div class="vellum-chat-head">
         <span class="vellum-chat-icon" aria-hidden="true">💬</span>
         <h3>Space chat</h3>
+        <button type="button" class="vellum-shell-panel__collapse" id="vellum-chat-collapse" aria-label="Collapse chat">›</button>
       </div>
       <div class="vellum-chat-log" id="vellum-chat-log">
         <p class="vellum-chat-empty">Joining space…</p>
@@ -65,6 +88,7 @@
 
   <div id="unity-warning"></div>
 
+  <script src="TemplateData/shell-chrome.js"></script>
   <script src="TemplateData/shell-chat.js"></script>
   <script>
     (function () {
@@ -85,6 +109,8 @@
               ? "Session: " + sessionId.slice(0, 8) + "…"
               : "Session";
         }
+        var navMeta = document.getElementById("vellum-nav-session");
+        if (navMeta) navMeta.textContent = label ? label.textContent : "Session";
       }
 
       var canvas = document.querySelector("#unity-canvas");

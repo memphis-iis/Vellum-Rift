@@ -5,7 +5,8 @@
   var POLL_MS = 2000;
   var state = null;
   var timer = null;
-  var knownIds = new Set();
+  var seenCount = 0;
+  var unread = 0;
 
   function $(id) {
     return document.getElementById(id);
@@ -28,6 +29,22 @@
     return (state && state.backendUrl) || "";
   }
 
+  function isChatCollapsed() {
+    return document.body.classList.contains("vellum-chat-collapsed");
+  }
+
+  function setUnread(count) {
+    unread = count;
+    if (window.VellumShellChrome && window.VellumShellChrome.setChatUnread) {
+      window.VellumShellChrome.setChatUnread(count);
+    }
+  }
+
+  function clearUnread() {
+    seenCount = state ? state._messageCount || seenCount : seenCount;
+    setUnread(0);
+  }
+
   function setReady(ready) {
     var input = $("vellum-chat-input");
     var send = $("vellum-chat-send");
@@ -42,8 +59,7 @@
     var mine = state.playerId;
     var html = "";
     if (!messages || !messages.length) {
-      html =
-        '<p class="vellum-chat-empty">No messages yet. Say hello to the room.</p>';
+      html = '<p class="vellum-chat-empty">No messages yet. Say hello to the room.</p>';
     } else {
       for (var i = 0; i < messages.length; i++) {
         var m = messages[i];
@@ -72,6 +88,18 @@
     var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
     log.innerHTML = html;
     if (atBottom) log.scrollTop = log.scrollHeight;
+
+    if (isChatCollapsed()) {
+      var newUnread = 0;
+      for (var j = seenCount; j < messages.length; j++) {
+        if (messages[j].playerId !== mine) newUnread++;
+      }
+      if (newUnread > 0) setUnread(newUnread);
+    } else {
+      seenCount = messages.length;
+      setUnread(0);
+    }
+    state._messageCount = messages.length;
   }
 
   function escapeHtml(text) {
@@ -145,6 +173,8 @@
     state = detail || window._vellumShellSession;
     if (!state) return;
     setReady(true);
+    seenCount = 0;
+    setUnread(0);
     if (timer) window.clearInterval(timer);
     poll();
     timer = window.setInterval(poll, POLL_MS);
@@ -153,6 +183,8 @@
   window.addEventListener("vellum-shell-session", function (e) {
     onSession(e.detail);
   });
+
+  window.VellumShellChat = { clearUnread: clearUnread };
 
   if (window._vellumShellSession) onSession(window._vellumShellSession);
 
