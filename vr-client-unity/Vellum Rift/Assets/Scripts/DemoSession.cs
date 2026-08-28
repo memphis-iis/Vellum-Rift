@@ -326,6 +326,15 @@ namespace VellumRift
                 }
 #endif
                 Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId}), host={IsHost}");
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                ShellChatBridge.NotifySessionReady(
+                    SessionId,
+                    LocalPlayerId,
+                    playerName,
+                    StripHealthPath(ResolveBackendUrl()),
+                    bluekeyAuth != null ? bluekeyAuth.AccessToken : "");
+#endif
             }
             catch (Exception ex)
             {

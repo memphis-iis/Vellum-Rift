@@ -124,12 +124,11 @@ namespace VellumRift
         private class Nameplate
         {
             public GameObject root;
+            public RectTransform rootRect;
             public Text nameLabel;
             public Image pingDot;
             public Text pingText;
             public Image avatarIcon;
-            public Canvas canvas;
-            public Transform parentTransform;
         }
 
         // ---------------------------------------------------------------
@@ -724,33 +723,25 @@ namespace VellumRift
         {
             if (!nameplates.TryGetValue(id, out var np) || np?.root == null)
             {
-                Transform anchor = null;
-                if (playerSpawner != null)
-                {
-                    GameObject playerObj = playerSpawner.GetPlayerObject(id);
-                    if (playerObj != null) anchor = playerObj.transform;
-                }
-
-                np = CreateNameplate(id, displayName, isHost, anchor);
+                np = CreateNameplate(id, displayName, isHost);
                 nameplates[id] = np;
             }
 
-            if (mainCamera == null) return;
+            if (mainCamera == null || canvasRect == null) return;
 
-            // Convert world position to screen space for overlay positioning.
             Vector3 worldPos = position + Vector3.up * nameplateHeight;
-            Vector3 viewportPos = mainCamera.WorldToViewportPoint(worldPos);
+            Vector3 vp = mainCamera.WorldToViewportPoint(worldPos);
 
-            // Cull if behind camera or too far.
-            bool visible = viewportPos.z > 0f && viewportPos.x >= -0.15f && viewportPos.x <= 1.15f &&
-                           viewportPos.y >= -0.15f && viewportPos.y <= 1.25f;
+            bool visible = vp.z > 0f && vp.x >= -0.15f && vp.x <= 1.15f &&
+                           vp.y >= -0.15f && vp.y <= 1.25f;
 
             np.root.SetActive(visible);
             if (visible)
             {
-                // ScreenSpaceOverlay uses screen coordinates directly.
-                Vector3 screenPos = mainCamera.ViewportToScreenPoint(viewportPos);
-                np.canvas.transform.position = new Vector3(screenPos.x, screenPos.y, 0f);
+                np.rootRect.anchoredPosition = new Vector2(
+                    (vp.x - 0.5f) * canvasRect.rect.width,
+                    (vp.y - 0.5f) * canvasRect.rect.height
+                );
             }
 
             np.nameLabel.text = TruncateName(displayName);
@@ -769,25 +760,17 @@ namespace VellumRift
             if (np.pingText != null) np.pingText.text = "PING: 24ms";
         }
 
-        private Nameplate CreateNameplate(string id, string displayName, bool isHost, Transform parentTransform)
+        private Nameplate CreateNameplate(string id, string displayName, bool isHost)
         {
-            // The root IS the canvas — WorldSpace with dynamic scale.
-            var canvasGO = new GameObject($"Nameplate_{id}");
+            var go = new GameObject($"Nameplate_{id}");
+            go.transform.SetParent(canvasGO.transform, false);
+            var rootRect = go.AddComponent<RectTransform>();
+            rootRect.sizeDelta = new Vector2(200, 48);
 
-            Canvas canvas = canvasGO.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 950; // above edge indicators (900), below chat (8000)
-
-            var scaler = canvasGO.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.referencePixelsPerUnit = 100f;
-            scaler.dynamicPixelsPerUnit = 1f;
-            canvasGO.AddComponent<GraphicRaycaster>();
-
-            var np = new Nameplate { root = canvasGO, canvas = canvas, parentTransform = parentTransform };
+            var np = new Nameplate { root = go, rootRect = rootRect };
 
             // --- Glass panel background (rounded-full pill) ---
-            var bg = CreateUIObject("Bg", canvasGO.transform);
+            var bg = CreateUIObject("Bg", go.transform);
             var bgImg = bg.AddComponent<Image>();
             bgImg.sprite = GetPillSprite();
             bgImg.color = new Color(0.075f, 0.075f, 0.106f, 0.4f); // surface-container-lowest/40 glass
@@ -795,7 +778,7 @@ namespace VellumRift
             AnchorCenter(bgRect, new Vector2(100, 24));
 
             // Cyan border ring (glass-panel border).
-            var border = CreateUIObject("Border", canvasGO.transform);
+            var border = CreateUIObject("Border", go.transform);
             var borderImg = border.AddComponent<Image>();
             borderImg.sprite = GetPillSprite();
             borderImg.color = new Color(0f, 219f/255f, 233f/255f, 0.3f); // tertiary/30
@@ -803,7 +786,7 @@ namespace VellumRift
             AnchorCenter(brRect, new Vector2(104, 28));
 
             // Avatar circle (w-6 h-6 ≈ 24x24).
-            var avatarGO = CreateUIObject("Avatar", canvasGO.transform);
+            var avatarGO = CreateUIObject("Avatar", go.transform);
             var avatarBg = avatarGO.AddComponent<Image>();
             avatarBg.sprite = GetCircleSprite();
             avatarBg.color = new Color(0.2f, 0.2f, 0.24f, 1f); // surface-container-highest
@@ -815,7 +798,7 @@ namespace VellumRift
             avRect.anchoredPosition = new Vector2(-36, 0);
 
             // Avatar outline ring (border-outline/30).
-            var avatarBorder = CreateUIObject("AvatarBorder", canvasGO.transform);
+            var avatarBorder = CreateUIObject("AvatarBorder", go.transform);
             var abImg = avatarBorder.AddComponent<Image>();
             abImg.sprite = GetCircleSprite();
             abImg.color = new Color(0.57f, 0.56f, 0.58f, 0.3f); // outline/30
@@ -826,7 +809,7 @@ namespace VellumRift
             abRect.anchoredPosition = avRect.anchoredPosition;
 
             // Person icon (▲ proxy for material-symbols person, filled).
-            var avatarIcon = CreateText("AvatarIcon", canvasGO.transform, "▲", 12, TextAnchor.MiddleCenter, new Color(0f, 219f/255f, 233f/255f)); // tertiary cyan
+            var avatarIcon = CreateText("AvatarIcon", go.transform, "▲", 12, TextAnchor.MiddleCenter, new Color(0f, 219f/255f, 233f/255f)); // tertiary cyan
             var aiRect = avatarIcon.GetComponent<RectTransform>();
             aiRect.anchorMin = avRect.anchorMin; aiRect.anchorMax = avRect.anchorMax;
             aiRect.pivot = avRect.pivot;
@@ -835,7 +818,7 @@ namespace VellumRift
             np.avatarIcon = avatarIcon.GetComponent<Image>();
 
             // --- Username row: "ID:" prefix + truncated name ---
-            var idLabel = CreateText("IdPrefix", canvasGO.transform, "ID:", 8, TextAnchor.MiddleRight, new Color(0f, 219f/255f, 233f/255f, 0.7f)); // tertiary/70
+            var idLabel = CreateText("IdPrefix", go.transform, "ID:", 8, TextAnchor.MiddleRight, new Color(0f, 219f/255f, 233f/255f, 0.7f)); // tertiary/70
             var idRect = idLabel.GetComponent<RectTransform>();
             idRect.anchorMin = new Vector2(0.5f, 0.5f);
             idRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -843,7 +826,7 @@ namespace VellumRift
             idRect.sizeDelta = new Vector2(18, 10);
             idRect.anchoredPosition = new Vector2(-20, 4);
 
-            var nameLabel = CreateText("Name", canvasGO.transform, TruncateName(displayName), 10, TextAnchor.MiddleLeft, new Color(0.89f, 0.88f, 0.93f, 1f)); // on-surface
+            var nameLabel = CreateText("Name", go.transform, TruncateName(displayName), 10, TextAnchor.MiddleLeft, new Color(0.89f, 0.88f, 0.93f, 1f)); // on-surface
             nameLabel.fontStyle = FontStyle.Bold;
             var nmRect = nameLabel.GetComponent<RectTransform>();
             nmRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -854,7 +837,7 @@ namespace VellumRift
             np.nameLabel = nameLabel;
 
             // --- Ping row: pulsing dot + "PING: 24ms" ---
-            var pingGO = CreateUIObject("PingDot", canvasGO.transform);
+            var pingGO = CreateUIObject("PingDot", go.transform);
             var pingImg = pingGO.AddComponent<Image>();
             pingImg.sprite = GetCircleSprite();
             pingImg.color = new Color(1f, 219f/255f, 0f, 1f); // secondary-container gold
@@ -866,7 +849,7 @@ namespace VellumRift
             pdRect.anchoredPosition = new Vector2(-20, -7);
             np.pingDot = pingImg;
 
-            var pingText = CreateText("PingText", canvasGO.transform, "PING: 24ms", 8, TextAnchor.MiddleLeft, new Color(0.78f, 0.77f, 0.79f, 0.7f)); // on-surface-variant/70
+            var pingText = CreateText("PingText", go.transform, "PING: 24ms", 8, TextAnchor.MiddleLeft, new Color(0.78f, 0.77f, 0.79f, 0.7f)); // on-surface-variant/70
             var ptRect = pingText.GetComponent<RectTransform>();
             ptRect.anchorMin = new Vector2(0.5f, 0.5f);
             ptRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -876,7 +859,7 @@ namespace VellumRift
             np.pingText = pingText;
 
             // --- Separator (h-4 w-px bg-outline/20) ---
-            var sepGO = CreateUIObject("Separator", canvasGO.transform);
+            var sepGO = CreateUIObject("Separator", go.transform);
             var sepImg = sepGO.AddComponent<Image>();
             sepImg.color = new Color(0.57f, 0.56f, 0.58f, 0.2f); // outline/20
             var sepRect = sepGO.GetComponent<RectTransform>();
@@ -887,7 +870,7 @@ namespace VellumRift
             sepRect.anchoredPosition = new Vector2(34, 0);
 
             // --- Status icon (◆ proxy for graphic_eq) ---
-            var statusIcon = CreateText("Status", canvasGO.transform, "◆", 10, TextAnchor.MiddleCenter, new Color(1f, 219f/255f, 0f, 0.8f)); // secondary-container/80
+            var statusIcon = CreateText("Status", go.transform, "◆", 10, TextAnchor.MiddleCenter, new Color(1f, 219f/255f, 0f, 0.8f)); // secondary-container/80
             var siRect = statusIcon.GetComponent<RectTransform>();
             siRect.anchorMin = new Vector2(0.5f, 0.5f);
             siRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -895,7 +878,7 @@ namespace VellumRift
             siRect.sizeDelta = new Vector2(16, 16);
             siRect.anchoredPosition = new Vector2(44, 0);
 
-            canvasGO.SetActive(false);
+            go.SetActive(false);
             return np;
         }
 
