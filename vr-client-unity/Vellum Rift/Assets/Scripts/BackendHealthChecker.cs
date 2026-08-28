@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Networking;
 using UnityEngine.UI;
+using VellumRift;
 
 /// <summary>
 /// Backend Connection Test (Issue #10 / User Story 9)
