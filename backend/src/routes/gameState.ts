@@ -82,6 +82,40 @@ function sanitizeDisplayName(raw: string | undefined, kiosk: boolean): string {
   return kiosk ? "Guest" : "";
 }
 
+/** Player row for the authenticated user in this session, if any. */
+function resolveRequestPlayerId(
+  state: GameState,
+  user: Request["user"],
+): string | null {
+  if (!user) return null;
+  const email = normalizeEmail(user.email);
+  for (const p of state.players) {
+    if (user.sub && p.bluekeySub && p.bluekeySub === user.sub) return p.id;
+    if (email && normalizeEmail(p.bluekeyEmail) === email) return p.id;
+  }
+  return null;
+}
+
+type ArtifactRecord = Record<string, unknown> & {
+  id?: string;
+  createdBy?: string;
+  label?: string;
+};
+
+/** Creator or session host may mutate an artifact (#163). */
+function canModifyArtifact(
+  state: GameState,
+  user: Request["user"],
+  artifact: ArtifactRecord,
+): boolean {
+  if (isSessionHost(user, state)) return true;
+  const requestPlayerId = resolveRequestPlayerId(state, user);
+  if (!requestPlayerId) return false;
+  const owner = String(artifact.createdBy ?? "");
+  if (!owner) return false;
+  return owner === requestPlayerId;
+}
+
 /** Ensure every model id exists in gltf_models. */
 async function assertModelsExist(
   res: Response,
@@ -1110,10 +1144,10 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
-    const { artifactType, label, x, y, z, createdBy } = req.body as {
+    const { artifactType, label, x, y, z } = req.body as {
       artifactType?: string; label?: string; x?: number; y?: number; z?: number; createdBy?: string;
     };
 
@@ -1124,6 +1158,12 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
     // Cap artifact metadata size (security review).
     if (label && String(label).length > 256) {
       res.status(400).json({ error: "label must be 256 characters or fewer" });
+      return;
+    }
+
+    const requestPlayerId = resolveRequestPlayerId(state, req.user);
+    if (!requestPlayerId) {
+      res.status(403).json({ error: "Join the session as a player before placing pins" });
       return;
     }
 
@@ -1141,7 +1181,7 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
       artifactType: artifactType ?? "waypoint",
       label: label ?? "",
       x, y, z,
-      createdBy: createdBy ?? "",
+      createdBy: requestPlayerId,
       createdAt: now,
       updatedAt: now,
     };
@@ -1162,8 +1202,8 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.get("/:sessionId/artifacts", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     res.json(artifacts);
@@ -1179,17 +1219,27 @@ router.get("/:sessionId/artifacts", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.patch("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifactId = param(req, "artifactId");
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     const idx = artifacts.findIndex((a: any) => a.id === artifactId);
     if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
 
+    const existing = artifacts[idx] as ArtifactRecord;
+    if (!canModifyArtifact(state, req.user, existing)) {
+      res.status(403).json({ error: "You can only edit your own pins" });
+      return;
+    }
+
     const { label, x, y, z } = req.body as { label?: string; x?: number; y?: number; z?: number };
     if (label === undefined && x === undefined && y === undefined && z === undefined) {
       res.status(400).json({ error: "At least one field (label, x, y, z) is required" });
+      return;
+    }
+    if (label !== undefined && String(label).length > 256) {
+      res.status(400).json({ error: "label must be 256 characters or fewer" });
       return;
     }
 
@@ -1216,13 +1266,19 @@ router.patch("/:sessionId/artifacts/:artifactId", async (req: Request, res: Resp
 // ---------------------------------------------------------------
 router.delete("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifactId = param(req, "artifactId");
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     const idx = artifacts.findIndex((a: any) => a.id === artifactId);
     if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
+
+    const existing = artifacts[idx] as ArtifactRecord;
+    if (!canModifyArtifact(state, req.user, existing)) {
+      res.status(403).json({ error: "You can only delete your own pins" });
+      return;
+    }
 
     artifacts.splice(idx, 1);
     state.metadata.artifacts = artifacts;

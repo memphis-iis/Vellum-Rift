@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ChatMessage } from "../api/gameState";
 import type { LocalIdentity, SessionRoomStatus } from "../hooks/useSessionRoom";
-import { MaterialIcon } from "./MaterialIcon";
-import { SpaceChatPanel } from "./SpaceChatPanel";
+import {
+  mountWebGlPinHandoff,
+  postPinNameResult,
+  type PinNameRequestPayload,
+} from "../auth/mountWebGlPinHandoff";
 import {
   mountWebGlAuthHandoff,
   readDashboardAccessToken,
   webGlOriginFromBaseUrl,
 } from "../auth/launchWebGl";
+import { MaterialIcon } from "./MaterialIcon";
+import { PinsPanel } from "./PinsPanel";
+import { SpaceChatPanel } from "./SpaceChatPanel";
 
 type WebGlEmbedProps = {
   url: string;
+  sessionId: string;
   sessionLabel: string;
   email: string;
   messages: ChatMessage[];
@@ -23,12 +30,15 @@ type WebGlEmbedProps = {
   onLeaveSession: () => void;
 };
 
+type PinModalState = Omit<PinNameRequestPayload, "type"> | null;
+
 /**
  * Full-viewport embedded Unity WebGL player with Vellum Enter chrome.
  * Uses embed=1 on the WebGL URL (canvas only inside the iframe).
  */
 export function WebGlEmbed({
   url,
+  sessionId,
   sessionLabel,
   email,
   messages,
@@ -43,6 +53,8 @@ export function WebGlEmbed({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
+  const [pinModal, setPinModal] = useState<PinModalState>(null);
+  const [pinDraft, setPinDraft] = useState("");
 
   useEffect(() => {
     document.documentElement.classList.add("vr-immersive");
@@ -57,12 +69,24 @@ export function WebGlEmbed({
     const attach = () => {
       const win = iframe.contentWindow;
       if (!win) return undefined;
-      return mountWebGlAuthHandoff({
+      const cleanupAuth = mountWebGlAuthHandoff({
         target: win,
         webGlOrigin,
         accessToken: readDashboardAccessToken(),
         email,
       });
+      const cleanupPin = mountWebGlPinHandoff({
+        iframe,
+        webGlOrigin,
+        onRequest: (payload) => {
+          setPinModal(payload);
+          setPinDraft(payload.currentLabel ?? "");
+        },
+      });
+      return () => {
+        cleanupAuth?.();
+        cleanupPin();
+      };
     };
 
     let cleanup = attach();
@@ -79,6 +103,22 @@ export function WebGlEmbed({
 
   const navBadge = chatUnread > 0 ? chatUnread : 0;
 
+  const closePinModal = (result: { label?: string; cancelled?: boolean }) => {
+    const iframe = iframeRef.current;
+    const webGlOrigin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
+    if (iframe && webGlOrigin) {
+      postPinNameResult(iframe, webGlOrigin, result);
+    }
+    setPinModal(null);
+    setPinDraft("");
+  };
+
+  const onPinSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const label = pinDraft.trim() || "Pin";
+    closePinModal({ label });
+  };
+
   return (
     <div className="vr-enter-3d">
       <iframe
@@ -88,6 +128,36 @@ export function WebGlEmbed({
         title="Vellum Rift 3D experience"
         allow="fullscreen; autoplay"
       />
+
+      {pinModal ? (
+        <div className="vr-pin-modal" role="dialog" aria-modal="true" aria-labelledby="vr-pin-modal-title">
+          <form className="vr-pin-modal__card" onSubmit={onPinSubmit}>
+            <h3 id="vr-pin-modal-title">
+              {pinModal.mode === "rename" ? "Rename pin" : "Name this pin"}
+            </h3>
+            <input
+              className="vr-pin-modal__input"
+              value={pinDraft}
+              onChange={(e) => setPinDraft(e.target.value)}
+              maxLength={256}
+              autoFocus
+              aria-label="Pin name"
+            />
+            <div className="vr-pin-modal__actions">
+              <button
+                type="button"
+                className="vr-btn vr-btn--ghost"
+                onClick={() => closePinModal({ cancelled: true })}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="vr-btn vr-btn--primary">
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <div className="vr-enter-3d__chrome" aria-hidden={false}>
         <header className="vr-enter-3d__header">
@@ -148,6 +218,7 @@ export function WebGlEmbed({
                 Leave session
               </button>
             </nav>
+            <PinsPanel sessionId={sessionId} localPlayerId={me?.playerId ?? null} />
             <p className="vr-enter-3d__nav-meta">
               Signed in as <strong>{email || "Guest"}</strong>
             </p>

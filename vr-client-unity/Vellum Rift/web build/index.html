@@ -46,6 +46,12 @@
           Dashboard
         </a>
       </nav>
+      <section class="vellum-pins" aria-label="Session pins">
+        <h4 class="vellum-pins-title">Pins</h4>
+        <div id="vellum-pins-list" class="vellum-pins-list">
+          <p class="vellum-pins-empty">Joining space…</p>
+        </div>
+      </section>
       <p class="vellum-nav-meta" id="vellum-nav-session">Session</p>
     </aside>
 
@@ -86,10 +92,29 @@
     </div>
   </div>
 
+  <div class="vellum-pin-modal" id="vellum-pin-modal" hidden>
+    <form class="vellum-pin-modal__card" id="vellum-pin-form">
+      <h3 id="vellum-pin-title">Name this pin</h3>
+      <input
+        type="text"
+        id="vellum-pin-input"
+        maxlength="256"
+        placeholder="Pin name"
+        aria-label="Pin name"
+        autocomplete="off"
+      />
+      <div class="vellum-pin-modal__actions">
+        <button type="button" class="vellum-pin-modal__btn vellum-pin-modal__btn--ghost" id="vellum-pin-cancel">Cancel</button>
+        <button type="submit" class="vellum-pin-modal__btn" id="vellum-pin-confirm">Save</button>
+      </div>
+    </form>
+  </div>
+
   <div id="unity-warning"></div>
 
   <script src="TemplateData/shell-chrome.js"></script>
   <script src="TemplateData/shell-chat.js"></script>
+  <script src="TemplateData/shell-pins.js"></script>
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);

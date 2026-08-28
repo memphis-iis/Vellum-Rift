@@ -498,6 +498,7 @@ export default function Enter({
     return (
       <WebGlEmbed
         url={webGlEmbedUrl}
+        sessionId={sessionId}
         sessionLabel={label}
         email={readDashboardEmail() || user?.email || ""}
         messages={messages}

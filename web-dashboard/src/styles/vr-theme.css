@@ -2966,3 +2966,116 @@ html.vr-immersive .vr-shell-main {
   font-size: 0.8rem;
   color: var(--vr-on-surface-variant);
 }
+
+.vr-pins-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-pins-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vr-primary);
+}
+
+.vr-pins-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.vr-pins-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.vr-pins-panel__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vr-pins-panel__actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.vr-pins-panel__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pins-panel__empty,
+.vr-pins-panel__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-pins-panel__error {
+  color: #f5a8a8;
+}
+
+.vr-pin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, #000 55%, transparent);
+  pointer-events: auto;
+}
+
+.vr-pin-modal__card {
+  width: min(420px, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: var(--vr-surface-container-high);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-pin-modal__card h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.vr-pin-modal__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pin-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+

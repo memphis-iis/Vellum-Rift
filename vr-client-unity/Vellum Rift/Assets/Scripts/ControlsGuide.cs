@@ -304,8 +304,9 @@ namespace VellumRift
             {
                 (IconKind.Keyboard,  "Move Around",    "WASD"),
                 (IconKind.Laser,     "Use Laser",      "L-CLK"),
-                (IconKind.Delete,    "Delete Object",  "R-CLK"),
-                (IconKind.Waypoint,  "Drop a Marker",  "F"),
+                (IconKind.Waypoint,  "Drop a Pin",     "F"),
+                (IconKind.Waypoint,  "Rename Pin",     "L-CLK"),
+                (IconKind.Delete,    "Delete Pin",     "SHIFT+R-CLK"),
             };
 
             // showHostOnly=true → summon row for hosts only; false → all guests (museum).

@@ -14,7 +14,7 @@ describe("sessionKiosk", () => {
   });
 
   it("writeKioskEnabled toggles the flag without dropping other keys", () => {
-    const base = { playlist: ["a"], hostEmail: "h@x.com" };
+    const base: Record<string, unknown> = { playlist: ["a"], hostEmail: "h@x.com" };
     const on = writeKioskEnabled(base, true);
     expect(on.kioskEnabled).toBe(true);
     expect(on.playlist).toEqual(["a"]);

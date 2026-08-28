@@ -56,7 +56,7 @@ export function SpaceChatPanel({
     let count = 0;
     for (let i = seenCountRef.current; i < messages.length; i++) {
       const m = messages[i];
-      if (m.playerId !== mine) count++;
+      if (m && m.playerId !== mine) count++;
     }
     setUnread(count);
     onUnreadChange?.(count);

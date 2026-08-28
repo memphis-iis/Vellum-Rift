@@ -421,8 +421,7 @@ namespace VellumRift
                 }
             }
 
-            // Waypoints (only edge pointers; in-view waypoints already have
-            // their own WaypointMarker label).
+            // Waypoints (edge pointers when off-screen; in-view labels on WaypointMarker).
             foreach (var wp in waypoints)
             {
                 if (!IsInView(wp.position))

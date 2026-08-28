@@ -27,18 +27,21 @@ namespace VellumRift
         [Header("Runtime State")]
         [SerializeField] private string sessionId;
         [SerializeField] private string localPlayerId;
+        [SerializeField] private bool isHost;
 
         private Coroutine pollCoroutine;
         private readonly Dictionary<string, GameObject> spawnedWaypoints = new Dictionary<string, GameObject>();
         private readonly Dictionary<string, string> waypointOwners = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> waypointLabels = new Dictionary<string, string>();
 
         private void OnEnable() { if (!string.IsNullOrEmpty(sessionId)) pollCoroutine = StartCoroutine(PollArtifactsLoop()); }
         private void OnDisable() { if (pollCoroutine != null) { StopCoroutine(pollCoroutine); pollCoroutine = null; } }
 
-        public void Initialize(string sessionId, string localPlayerId)
+        public void Initialize(string sessionId, string localPlayerId, bool isHost = false)
         {
             this.sessionId = sessionId;
             this.localPlayerId = localPlayerId;
+            this.isHost = isHost;
             if (pollCoroutine == null && gameObject.activeInHierarchy) pollCoroutine = StartCoroutine(PollArtifactsLoop());
             Debug.Log($"[ArtifactManager] Initialized session={sessionId} player={localPlayerId}");
         }
@@ -50,10 +53,37 @@ namespace VellumRift
             StartCoroutine(PostWaypoint(x, y, z, label));
         }
 
+        public void UpdateWaypointLabel(string artifactId, string label)
+        {
+            if (string.IsNullOrEmpty(artifactId)) return;
+            StartCoroutine(PatchWaypointLabel(artifactId, label));
+        }
+
+        [Serializable]
+        private class WaypointPostBody
+        {
+            public float x;
+            public float y;
+            public float z;
+            public string label;
+            public string artifactType = "waypoint";
+        }
+
+        [Serializable]
+        private class WaypointPatchBody
+        {
+            public string label;
+        }
+
         private IEnumerator PostWaypoint(float x, float y, float z, string label)
         {
-            string createdBy = string.IsNullOrEmpty(localPlayerId) ? "" : localPlayerId;
-            string json = $"{{\"x\": {x:F4}, \"y\": {y:F4}, \"z\": {z:F4}, \"label\": \"{label}\", \"artifactType\": \"waypoint\", \"createdBy\": \"{createdBy}\"}}";
+            string json = JsonUtility.ToJson(new WaypointPostBody
+            {
+                x = x,
+                y = y,
+                z = z,
+                label = label ?? "",
+            });
             using (var req = new UnityWebRequest($"{baseUrl}/api/game-state/{sessionId}/artifacts", "POST"))
             {
                 byte[] b = Encoding.UTF8.GetBytes(json);
@@ -62,6 +92,23 @@ namespace VellumRift
                 req.SetRequestHeader("Content-Type", "application/json");
                 ApiAuth.ApplyTo(req);
                 yield return req.SendWebRequest();
+            }
+        }
+
+        private IEnumerator PatchWaypointLabel(string artifactId, string label)
+        {
+            string json = JsonUtility.ToJson(new WaypointPatchBody { label = label ?? "" });
+            string url = $"{baseUrl}/api/game-state/{sessionId}/artifacts/{Uri.EscapeDataString(artifactId)}";
+            using (var req = new UnityWebRequest(url, "PATCH"))
+            {
+                byte[] b = Encoding.UTF8.GetBytes(json);
+                req.uploadHandler = new UploadHandlerRaw(b);
+                req.downloadHandler = new DownloadHandlerBuffer();
+                req.SetRequestHeader("Content-Type", "application/json");
+                ApiAuth.ApplyTo(req);
+                yield return req.SendWebRequest();
+                if (req.result != UnityWebRequest.Result.Success)
+                    Debug.LogWarning($"[ArtifactManager] Rename waypoint {artifactId} failed: {req.error}");
             }
         }
 
@@ -96,6 +143,7 @@ namespace VellumRift
                 if (a == null) continue;
                 seen.Add(a.id);
                 waypointOwners[a.id] = a.createdBy ?? "";
+                waypointLabels[a.id] = a.label ?? "";
                 if (!spawnedWaypoints.TryGetValue(a.id, out var go) || go == null)
                 {
                     go = SpawnWaypoint(a);
@@ -105,6 +153,8 @@ namespace VellumRift
                 {
                     go.transform.position = new Vector3(a.x, a.y, a.z);
                     EnsureClickable(go);
+                    var marker = go.GetComponent<WaypointMarker>();
+                    if (marker != null) marker.SetLabel(a.label);
                 }
             }
 
@@ -115,6 +165,7 @@ namespace VellumRift
                 if (spawnedWaypoints.TryGetValue(k, out var go) && go != null) Destroy(go);
                 spawnedWaypoints.Remove(k);
                 waypointOwners.Remove(k);
+                waypointLabels.Remove(k);
             }
         }
 
@@ -209,16 +260,44 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Try to delete a waypoint near the given screen point.
-        /// Uses pure screen-space projection (no physics) so it is unaffected
-        /// by the 3D model blocking rays or trigger-collider settings.
-        /// Checks both the marker body and the label ~1.8m above it.
-        /// Ownership: the creator can always delete; legacy markers with no
-        /// recorded creator can be deleted by anyone.
+        /// Try to delete a waypoint near the given screen point (creator or host).
         /// </summary>
-        /// <returns>True if a deletable waypoint was found and a delete was issued.</returns>
         public bool TryDeleteWaypointAtScreenPoint(Camera cam, Vector2 screenPoint, float radiusPx = 100f)
         {
+            if (!TryHitWaypointAtScreenPoint(cam, screenPoint, radiusPx, out string bestId))
+                return false;
+            if (!CanModify(bestId))
+                return false;
+
+            Debug.Log($"[ArtifactManager] Deleting waypoint {bestId}");
+            DeleteWaypoint(bestId);
+            return true;
+        }
+
+        /// <summary>
+        /// Select an owned pin near the click for rename flows.
+        /// </summary>
+        public bool TrySelectOwnedWaypointAtScreenPoint(
+            Camera cam,
+            Vector2 screenPoint,
+            out string artifactId,
+            out string currentLabel,
+            float radiusPx = 100f)
+        {
+            artifactId = null;
+            currentLabel = "";
+            if (!TryHitWaypointAtScreenPoint(cam, screenPoint, radiusPx, out string bestId))
+                return false;
+            if (!CanModify(bestId))
+                return false;
+            artifactId = bestId;
+            waypointLabels.TryGetValue(bestId, out currentLabel);
+            return true;
+        }
+
+        private bool TryHitWaypointAtScreenPoint(Camera cam, Vector2 screenPoint, float radiusPx, out string artifactId)
+        {
+            artifactId = null;
             if (cam == null || spawnedWaypoints.Count == 0)
                 return false;
 
@@ -228,14 +307,12 @@ namespace VellumRift
             foreach (var kvp in spawnedWaypoints)
             {
                 GameObject go = kvp.Value;
-                if (go == null || !CanDelete(kvp.Key)) continue;
+                if (go == null) continue;
 
-                // Marker body.
                 float d = ScreenDistanceTo(cam, go.transform.position, screenPoint);
-                if (d < 0f) continue; // behind camera
+                if (d < 0f) continue;
 
-                // Label ~1.8m above the marker (WaypointMarker offset).
-                float dLabel = ScreenDistanceTo(cam, go.transform.position + Vector3.up * 1.8f, screenPoint);
+                float dLabel = ScreenDistanceTo(cam, go.transform.position + Vector3.up * 1.2f, screenPoint);
                 if (dLabel >= 0f) d = Mathf.Min(d, dLabel);
 
                 if (d <= bestDist)
@@ -245,14 +322,26 @@ namespace VellumRift
                 }
             }
 
-            if (bestId != null)
-            {
-                Debug.Log($"[ArtifactManager] Deleting waypoint {bestId} (screen dist {bestDist:F0}px)");
-                DeleteWaypoint(bestId);
-                return true;
-            }
+            if (bestId == null) return false;
+            artifactId = bestId;
+            return true;
+        }
+
+        /// <summary>
+        /// Whether this player is allowed to modify the given waypoint.
+        /// </summary>
+        public bool CanModify(string artifactId)
+        {
+            if (isHost) return true;
+            if (waypointOwners.TryGetValue(artifactId, out string owner))
+                return !string.IsNullOrEmpty(owner) && owner == localPlayerId;
             return false;
         }
+
+        /// <summary>
+        /// Legacy alias used by delete path.
+        /// </summary>
+        private bool CanDelete(string artifactId) => CanModify(artifactId);
 
         /// <summary>
         /// Distance in pixels from a world position to the click point,
@@ -264,22 +353,6 @@ namespace VellumRift
             if (vp.z <= 0f) return -1f;
             Vector2 screen = new Vector2(vp.x * cam.pixelWidth, vp.y * cam.pixelHeight);
             return Vector2.Distance(screen, screenPoint);
-        }
-
-        /// <summary>
-        /// Whether this player is allowed to delete the given waypoint:
-        /// creator always; legacy markers with unknown/empty owner too.
-        /// </summary>
-        private bool CanDelete(string artifactId)
-        {
-            // Creator.
-            if (waypointOwners.TryGetValue(artifactId, out string owner))
-            {
-                if (!string.IsNullOrEmpty(owner))
-                    return owner == localPlayerId;
-            }
-            // Legacy marker with no recorded creator — allow anyone.
-            return true;
         }
 
         /// <summary>
