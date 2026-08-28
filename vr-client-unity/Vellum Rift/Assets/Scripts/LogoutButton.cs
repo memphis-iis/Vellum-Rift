@@ -33,6 +33,12 @@ namespace VellumRift
 
         private void Awake()
         {
+            if (WebGlShellMode.UsesExternalShell)
+            {
+                enabled = false;
+                return;
+            }
+
             BuildLogoutUI();
         }
 

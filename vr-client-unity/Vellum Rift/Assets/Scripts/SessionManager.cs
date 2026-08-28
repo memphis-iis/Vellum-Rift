@@ -93,9 +93,12 @@ namespace VellumRift
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
-            if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
-            if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
-            if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
+            if (!WebGlShellMode.UsesExternalShell)
+            {
+                if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
+                if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
+                if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
+            }
             // Create model host at scene root so it doesn't move with the player
             if (modelLoader == null)
             {
@@ -107,7 +110,10 @@ namespace VellumRift
             if (modelLoader != null)
                 modelLoader.loadOnStart = false;
             if (healthChecker == null) healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
-            if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
+            if (!WebGlShellMode.UsesExternalShell)
+            {
+                if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
+            }
             if (playerSpawner == null) playerSpawner = GetComponent<PlayerSpawner>() ?? gameObject.AddComponent<PlayerSpawner>();
             if (playerSpawner != null && gallery != null)
                 playerSpawner.SetSpawnPoints(gallery.GetSpawnPointTransforms());
@@ -134,7 +140,9 @@ namespace VellumRift
                 getCliArg: GetCliArg,
                 getEnvVar: System.Environment.GetEnvironmentVariable,
                 pageQueryModelId: pageModel,
-                log: msg => Debug.Log($"[SessionManager] {msg}"));
+                log: msg => Debug.Log($"[SessionManager] {msg}"),
+                // Stale SampleScene modelId must not override session playlist in WebGL.
+                allowInspectorDefault: Application.isEditor);
         }
 
         private void Start()

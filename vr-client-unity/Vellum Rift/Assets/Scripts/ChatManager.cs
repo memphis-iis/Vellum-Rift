@@ -125,6 +125,12 @@ namespace VellumRift
 
         private void Awake()
         {
+            if (WebGlShellMode.UsesExternalShell)
+            {
+                enabled = false;
+                return;
+            }
+
             EnsureEventSystem();
             BuildChatUI();
             if (playerSpawner == null) playerSpawner = FindObjectOfType<PlayerSpawner>();

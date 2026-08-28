@@ -130,7 +130,8 @@ namespace VellumRift
             healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
 
             // On-screen session id + one-click copy-link (WebGL: full invite URL).
-            gameObject.AddComponent<SessionLinkOverlay>().Init(this);
+            if (!WebGlShellMode.UsesExternalShell)
+                gameObject.AddComponent<SessionLinkOverlay>().Init(this);
 
             // Session id + host/admin intent from CLI / env / page query. Player
             // name is resolved in bootstrap so Bluekey identity can participate.

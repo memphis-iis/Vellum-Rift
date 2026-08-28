@@ -1,11 +1,14 @@
 using System;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace VellumRift
 {
     /// <summary>
     /// On-screen session info (drawn below BackendHealthChecker's status label):
-    /// shows the shared session id and a one-click "Copy link" button.
+    /// shows the shared session id, a one-click "Copy link" button, and a
+    /// "Logout" button that leaves the session and clears the Bluekey token so
+    /// the login overlay returns.
     ///
     /// - WebGL: copies the full shareable page URL (with ?session=...), so the
     ///   host can paste it into chat to invite other players.
@@ -23,6 +26,10 @@ namespace VellumRift
         private float copiedUntil = -1f;
         private bool copiedIsLink;
 
+        // Logout feedback.
+        private float logoutUntil = -1f;
+        private const float LogoutFeedbackSeconds = 2f;
+
 #if UNITY_WEBGL
         private static readonly bool IsWebGL = true;
 #else
@@ -37,6 +44,9 @@ namespace VellumRift
 
         private void OnGUI()
         {
+            if (WebGlShellMode.UsesExternalShell)
+                return;
+
             if (session == null || string.IsNullOrEmpty(session.SessionId))
                 return;
 
@@ -61,6 +71,40 @@ namespace VellumRift
                 copiedUntil = Time.time + CopiedFeedbackSeconds;
                 Debug.Log($"[SessionLinkOverlay] Copied: {copy}");
             }
+
+            // Logout button next to Copy — leaves the session and clears the
+            // Bluekey token so the login overlay returns.
+            string logoutLabel = logoutUntil > Time.time ? "Left session" : "Logout";
+            if (GUI.Button(new Rect(x + 150f, y + 24f, 120f, 26f), logoutLabel))
+            {
+                _ = LogoutAsync();
+            }
+        }
+
+        private async Task LogoutAsync()
+        {
+            string hadSession = session != null ? session.SessionId : null;
+
+            // Leave the shared session cleanly before clearing credentials.
+            if (session != null)
+            {
+                try { await session.LeaveSession(); }
+                catch (Exception ex) { Debug.LogWarning($"[SessionLinkOverlay] Leave session failed: {ex.Message}"); }
+            }
+
+            // Clear the Bluekey token so BluekeyAuth shows the login overlay again.
+            var auth = FindObjectOfType<BluekeyAuth>();
+            if (auth != null)
+            {
+                auth.ClearToken();
+            }
+            else
+            {
+                Debug.LogWarning("[SessionLinkOverlay] BluekeyAuth not found — cannot clear token.");
+            }
+
+            logoutUntil = Time.time + LogoutFeedbackSeconds;
+            Debug.Log($"[SessionLinkOverlay] Logged out (left session {(string.IsNullOrEmpty(hadSession) ? "none" : hadSession)}).");
         }
     }
 }

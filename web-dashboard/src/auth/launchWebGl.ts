@@ -1,7 +1,11 @@
 import { TOKEN_STORAGE_KEY, EMAIL_STORAGE_KEY } from "../auth/config";
+import {
+  mountWebGlAuthHandoff,
+  AUTH_HANDOFF_READY,
+  AUTH_HANDOFF_MESSAGE,
+} from "./mountWebGlAuthHandoff";
 
-export const AUTH_HANDOFF_READY = "vellum-rift-webgl-ready";
-export const AUTH_HANDOFF_MESSAGE = "vellum-rift-auth-handoff";
+export { AUTH_HANDOFF_READY, AUTH_HANDOFF_MESSAGE, mountWebGlAuthHandoff };
 
 /** Derive the WebGL page origin from VITE_WEBGL_BASE_URL for postMessage targeting. */
 export function webGlOriginFromBaseUrl(baseUrl: string): string | null {
@@ -54,43 +58,11 @@ export function launchWebGlWithAuthHandoff(options: {
     return null;
   }
 
-  if (!accessToken) {
-    console.info("[VellumRift] No dashboard token — WebGL will use Bluekey popup fallback.");
-    return win;
-  }
-
-  const payload = {
-    type: AUTH_HANDOFF_MESSAGE,
+  mountWebGlAuthHandoff({
+    target: win,
     accessToken,
     email,
-  };
-
-  const post = () => {
-    try {
-      if (!win.closed) win.postMessage(payload, webGlOrigin);
-    } catch (err) {
-      console.warn("[VellumRift] Auth handoff postMessage failed:", err);
-    }
-  };
-
-  const onMessage = (event: MessageEvent) => {
-    if (event.origin !== webGlOrigin) return;
-    if (event.source !== win) return;
-    const data = event.data;
-    if (!data || typeof data !== "object") return;
-    if ((data as { type?: string }).type !== AUTH_HANDOFF_READY) return;
-    post();
-  };
-
-  window.addEventListener("message", onMessage);
-  // Retry for a short window in case the ready ping was missed.
-  const interval = window.setInterval(post, 400);
-  window.setTimeout(() => {
-    window.clearInterval(interval);
-    window.removeEventListener("message", onMessage);
-  }, 12000);
-
-  // Immediate attempt (Unity may already be listening).
-  post();
+    webGlOrigin,
+  });
   return win;
 }

@@ -86,6 +86,12 @@ namespace VellumRift
 
         private void Awake()
         {
+            if (WebGlShellMode.UsesExternalShell)
+            {
+                enabled = false;
+                return;
+            }
+
             BuildCanvas();
             isVisible = startVisible;
             ApplyVisibility();

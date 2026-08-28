@@ -21,8 +21,11 @@ import {
   shortModelLabel,
 } from "../api/playlistHelpers";
 import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
+import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ShareQrPanel } from "../components/ShareQrPanel";
+import { SpaceChatPanel } from "../components/SpaceChatPanel";
+import { WebGlEmbed } from "../components/WebGlEmbed";
 import { useAuth } from "../auth/AuthContext";
 import {
   launchWebGlWithAuthHandoff,
@@ -56,31 +59,10 @@ function displayNameFromEmail(email: string): string {
   return local || trimmed;
 }
 
-function formatTime(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "";
-  return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
 function shortSessionLabel(label: string | undefined, sessionId: string): string {
   const name = label?.trim();
   if (name) return name.length > 28 ? `${name.slice(0, 26)}…` : name;
   return sessionId.length > 12 ? `${sessionId.slice(0, 8)}…` : sessionId;
-}
-
-function buildWebGlLaunchUrl(
-  sessionId: string,
-  playerName: string,
-  isHost: boolean,
-): string | null {
-  const base = (import.meta.env.VITE_WEBGL_BASE_URL ?? "").trim().replace(/\/$/, "");
-  if (!base) return null;
-  const url = new URL(base.includes("://") ? base : `https://${base}`);
-  url.searchParams.set("session", sessionId);
-  url.searchParams.set("playerName", playerName);
-  url.searchParams.set("isHost", isHost ? "true" : "false");
-  url.searchParams.set("backendUrl", API_BASE_URL);
-  return url.toString();
 }
 
 function buildDesktopCommand(
@@ -134,6 +116,8 @@ export default function Enter({
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [in3d, setIn3d] = useState(false);
   const [showDesktop, setShowDesktop] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
@@ -236,7 +220,21 @@ export default function Enter({
 
   const webGlUrl = useMemo(() => {
     if (!sessionId || !me) return null;
-    return buildWebGlLaunchUrl(sessionId, me.displayName, me.isHost);
+    return buildWebGlLaunchUrl({
+      sessionId,
+      playerName: me.displayName,
+      isHost: me.isHost,
+    });
+  }, [sessionId, me]);
+
+  const webGlEmbedUrl = useMemo(() => {
+    if (!sessionId || !me) return null;
+    return buildWebGlLaunchUrl({
+      sessionId,
+      playerName: me.displayName,
+      isHost: me.isHost,
+      embed: true,
+    });
   }, [sessionId, me]);
 
   const desktopCmd = useMemo(() => {
@@ -454,10 +452,15 @@ export default function Enter({
   };
 
   const launchWebGl = () => {
-    if (!webGlUrl) {
+    if (!webGlEmbedUrl) {
       setShowDesktop(true);
       return;
     }
+    setIn3d(true);
+  };
+
+  const openWebGlNewTab = () => {
+    if (!webGlUrl) return;
     const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
     if (!origin) {
       window.open(webGlUrl, "vellumRiftWebGL");
@@ -490,6 +493,27 @@ export default function Enter({
   }
 
   const label = shortSessionLabel(session?.label, sessionId);
+
+  if (in3d && webGlEmbedUrl) {
+    return (
+      <WebGlEmbed
+        url={webGlEmbedUrl}
+        sessionLabel={label}
+        email={readDashboardEmail() || user?.email || ""}
+        messages={messages}
+        me={me}
+        status={status}
+        draft={draft}
+        onDraftChange={setDraft}
+        onSend={onSend}
+        onExit={() => setIn3d(false)}
+        onLeaveSession={() => {
+          setIn3d(false);
+          onLeave();
+        }}
+      />
+    );
+  }
 
   return (
     <main className="vr-enter">
@@ -583,6 +607,16 @@ export default function Enter({
             <MaterialIcon name="content_copy" />
             {copied === "invite" ? "Copied" : "Copy Invite"}
           </button>
+          {primaryShareUrl ? (
+            <button
+              type="button"
+              className="vr-enter__text-btn"
+              onClick={() => setShareOpen(true)}
+            >
+              <MaterialIcon name="qr_code_2" />
+              Share QR
+            </button>
+          ) : null}
           <button type="button" className="vr-btn vr-btn--ghost" onClick={onLeave}>
             Leave space
           </button>
@@ -612,6 +646,8 @@ export default function Enter({
 
       {primaryShareUrl ? (
         <ShareQrPanel
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
           url={primaryShareUrl}
           title={kioskEnabled ? "Kiosk / public join" : "Share invite link"}
           hint={
@@ -894,8 +930,19 @@ export default function Enter({
               disabled={status !== "ready" || !me}
             >
               <MaterialIcon name="view_in_ar" />
-              {webGlUrl ? "Enter 3D space" : "Launch options"}
+              {webGlEmbedUrl ? "Enter 3D space" : "Launch options"}
             </button>
+            {webGlUrl ? (
+              <button
+                type="button"
+                className="vr-btn vr-btn--outline"
+                onClick={openWebGlNewTab}
+                disabled={status !== "ready" || !me}
+              >
+                <MaterialIcon name="open_in_new" />
+                New tab
+              </button>
+            ) : null}
             <button
               type="button"
               className="vr-btn vr-btn--outline"
@@ -931,53 +978,14 @@ export default function Enter({
           ) : null}
         </section>
 
-        <aside className="vr-enter__chat glass-panel" aria-label="Space chat">
-          <div className="vr-enter__chat-head">
-            <MaterialIcon name="forum" />
-            <h3>Space chat</h3>
-          </div>
-          <div className="vr-enter__chat-log">
-            {messages.length === 0 ? (
-              <p className="vr-enter__chat-empty">No messages yet. Say hello to the room.</p>
-            ) : (
-              messages.map((m) => {
-                const mine = m.playerId === me?.playerId;
-                return (
-                  <div
-                    key={m.id}
-                    className={`vr-enter__bubble-wrap${mine ? " vr-enter__bubble-wrap--mine" : ""}`}
-                  >
-                    <span className="vr-enter__bubble-meta">
-                      {formatTime(m.sentAt)}
-                      {!mine && !m.system ? ` · ${m.displayName}` : ""}
-                    </span>
-                    <div
-                      className={`vr-enter__bubble${mine ? " vr-enter__bubble--mine" : ""}${
-                        m.system ? " vr-enter__bubble--system" : ""
-                      }`}
-                    >
-                      {m.text}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <form className="vr-enter__chat-compose" onSubmit={onSend}>
-            <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={me ? "Type a message…" : "Join the space to chat"}
-              disabled={!me || status !== "ready"}
-              maxLength={500}
-              aria-label="Chat message"
-            />
-            <button type="submit" disabled={!me || status !== "ready" || !draft.trim()}>
-              <MaterialIcon name="send" />
-            </button>
-          </form>
-        </aside>
+        <SpaceChatPanel
+          messages={messages}
+          me={me}
+          status={status}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSubmit={onSend}
+        />
       </div>
     </main>
   );
