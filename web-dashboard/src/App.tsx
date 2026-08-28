@@ -6,6 +6,7 @@ import { SideNav } from "./components/SideNav";
 import Documents from "./screens/Documents";
 import Enter from "./screens/Enter";
 import Home from "./screens/Home";
+import KioskJoin from "./screens/KioskJoin";
 import Login from "./screens/Login";
 import Sessions from "./screens/Sessions";
 import Upload from "./screens/Upload";
@@ -19,6 +20,18 @@ function readSessionDeepLink(): string | null {
     /* ignore */
   }
   return null;
+}
+
+function readKioskDeepLink(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const kiosk = params.get("kiosk");
+    if (kiosk !== "1" && kiosk?.toLowerCase() !== "true") return null;
+    const sessionId = params.get("session")?.trim();
+    return sessionId || null;
+  } catch {
+    return null;
+  }
 }
 
 function Dashboard() {
@@ -83,6 +96,7 @@ function Dashboard() {
           <Home
             onUpload={() => setSection("upload")}
             onJoinSession={() => setSection("sessions")}
+            onEnterSession={enterSession}
           />
         ) : null}
         {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
@@ -115,6 +129,13 @@ function Dashboard() {
 
 export default function App() {
   const { user } = useAuth();
+  const kioskSessionId = readKioskDeepLink();
+
+  // Museum QR path: skip Bluekey when ?session=&kiosk=1 (#145).
+  if (!user && kioskSessionId) {
+    return <KioskJoin sessionId={kioskSessionId} />;
+  }
+
   if (!user) return <Login />;
   return <Dashboard />;
 }

@@ -65,6 +65,7 @@ namespace VellumRift
 
         [Header("Desktop Input")]
         [SerializeField] private VellumRift.Control.PlayerController playerController;
+        [SerializeField] private PinNamePrompt pinNamePrompt;
 
         public string SessionId { get; private set; }
         public string LocalPlayerId { get; private set; }
@@ -81,8 +82,17 @@ namespace VellumRift
         private string _testPlayerId;
 #endif
 
+        private Vector3? _pendingPlacePosition;
+        private string _pendingRenameArtifactId;
+        private bool _shellPinPromptOpen;
+        private bool _chatInputFocused;
+        private bool _pinPromptFocused;
+
         private void Awake()
         {
+            // Museum gallery plate (floor/fog/spawn ring) — existing Vellum palette only.
+            var gallery = VellumRift.Environment.GalleryEnvironment.EnsureExists();
+
             if (apiClient == null) apiClient = gameObject.AddComponent<GameStateApiClient>();
             if (bluekeyAuth == null) bluekeyAuth = GetComponent<BluekeyAuth>() ?? gameObject.AddComponent<BluekeyAuth>();
             if (positionSender == null) positionSender = gameObject.AddComponent<PositionSender>();
@@ -90,9 +100,12 @@ namespace VellumRift
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
-            if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
-            if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
-            if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
+            if (!WebGlShellMode.UsesExternalShell)
+            {
+                if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
+                if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
+                if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
+            }
             // Create model host at scene root so it doesn't move with the player
             if (modelLoader == null)
             {
@@ -104,11 +117,21 @@ namespace VellumRift
             if (modelLoader != null)
                 modelLoader.loadOnStart = false;
             if (healthChecker == null) healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
-            if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
+            if (!WebGlShellMode.UsesExternalShell)
+            {
+                if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
+            }
             if (playerSpawner == null) playerSpawner = GetComponent<PlayerSpawner>() ?? gameObject.AddComponent<PlayerSpawner>();
+            if (playerSpawner != null && gallery != null)
+                playerSpawner.SetSpawnPoints(gallery.GetSpawnPointTransforms());
             if (gameStatePoller == null) gameStatePoller = GetComponent<GameStatePoller>() ?? gameObject.AddComponent<GameStatePoller>();
             if (multiplayerController == null) multiplayerController = GetComponent<MultiplayerController>() ?? gameObject.AddComponent<MultiplayerController>();
             if (playerController == null) playerController = FindObjectOfType<VellumRift.Control.PlayerController>();
+            if (pinNamePrompt == null) pinNamePrompt = GetComponent<PinNamePrompt>() ?? gameObject.AddComponent<PinNamePrompt>();
+            pinNamePrompt.FocusChanged += HandlePinNameFocusChanged;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            ShellPinBridge.RegisterTarget(gameObject.name);
+#endif
 
             // Prefer launch handoff over inspector defaults (dashboard WebGL / desktop).
             string pageSession = "";
@@ -129,7 +152,9 @@ namespace VellumRift
                 getCliArg: GetCliArg,
                 getEnvVar: System.Environment.GetEnvironmentVariable,
                 pageQueryModelId: pageModel,
-                log: msg => Debug.Log($"[SessionManager] {msg}"));
+                log: msg => Debug.Log($"[SessionManager] {msg}"),
+                // Stale SampleScene modelId must not override session playlist in WebGL.
+                allowInspectorDefault: Application.isEditor);
         }
 
         private void Start()
@@ -213,7 +238,9 @@ namespace VellumRift
                 launchHost = SessionIdResolver.ResolveIsHost(
                     GetCliArg, System.Environment.GetEnvironmentVariable);
 #endif
-                bool joinAsHost = createdSession || adoptHost || (launchHost == true);
+                // Kiosk guests never adopt host — dashboard owns host ops.
+                bool joinAsHost = !KioskMode.IsActive
+                    && (createdSession || adoptHost || (launchHost == true));
                 var player = await apiClient.AddPlayer(SessionId, resolvedPlayerName, isHost: joinAsHost);
                 if (player == null)
                 {
@@ -315,7 +342,7 @@ namespace VellumRift
             if (artifactManager != null)
             {
                 artifactManager.SetBaseUrl(backendUrl);
-                artifactManager.Initialize(SessionId, LocalPlayerId);
+                artifactManager.Initialize(SessionId, LocalPlayerId, IsHost);
             }
             if (controlsGuide != null)
             {
@@ -518,10 +545,29 @@ namespace VellumRift
             bool overUI = EventSystem.current != null &&
                           EventSystem.current.IsPointerOverGameObject();
 
-            // Right-click on an owned waypoint deletes it. UI clicks are still
-            // checked (not gated by overUI) so deleting a waypoint over the
-            // chat panel or indicator canvas works reliably.
-            if (playerController.RightClicked)
+            bool renameHandled = false;
+
+            // Left-click an owned pin to rename (takes priority over laser on that click).
+            if (playerController.LeftClicked && !overUI)
+            {
+                if (cam != null && artifactManager != null)
+                {
+                    Vector2 mousePos = Mouse.current?.position.ReadValue() ?? Vector2.zero;
+                    if (artifactManager.TrySelectOwnedWaypointAtScreenPoint(
+                            cam, mousePos, out string artifactId, out string currentLabel))
+                    {
+                        GameObject go = artifactManager.GetWaypointObject(artifactId);
+                        Vector3 pos = go != null ? go.transform.position : cam.transform.position;
+                        BeginRenamePin(artifactId, currentLabel, pos);
+                        renameHandled = true;
+                    }
+                }
+            }
+
+            // Shift+right-click deletes an owned pin.
+            if (playerController.RightClicked &&
+                Keyboard.current != null &&
+                Keyboard.current.leftShiftKey.isPressed)
             {
                 if (cam != null && artifactManager != null)
                 {
@@ -535,7 +581,7 @@ namespace VellumRift
             // input box) so clicking into the field doesn't also fire a beam.
             if (laserPointer != null)
             {
-                if (playerController.LaserPressed && !overUI)
+                if (playerController.LaserPressed && !overUI && !renameHandled)
                 {
                     laserPointer.ActivateLaser();
                 }
@@ -545,14 +591,11 @@ namespace VellumRift
                 }
             }
 
-            // Waypoint: F key press
-            if (playerController.WaypointTriggered && artifactManager != null)
+            // Waypoint: F key press — name before POST (#163).
+            if (playerController.WaypointTriggered && artifactManager != null && cam != null)
             {
-                if (cam != null)
-                {
-                    Vector3 pos = cam.transform.position + cam.transform.forward * 3f;
-                    artifactManager.CreateWaypoint(pos.x, pos.y, pos.z, "Marker");
-                }
+                Vector3 pos = cam.transform.position + cam.transform.forward * 3f;
+                BeginPlacePin(pos);
             }
 
             // Summon: G key press (host only)
@@ -589,8 +632,92 @@ namespace VellumRift
         private void OnDestroy()
         {
             if (chatManager != null) chatManager.FocusChanged -= HandleChatFocusChanged;
+            if (pinNamePrompt != null) pinNamePrompt.FocusChanged -= HandlePinNameFocusChanged;
             if (gameStatePoller != null)
                 gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
+        }
+
+        private void BeginPlacePin(Vector3 position)
+        {
+            if (_shellPinPromptOpen || (pinNamePrompt != null && pinNamePrompt.IsOpen))
+                return;
+
+            _pendingPlacePosition = position;
+            _pendingRenameArtifactId = null;
+
+            if (ShellPinBridge.TryRequestPinName(
+                    ShellPinBridge.PinNameMode.Place, position, null, null))
+            {
+                _shellPinPromptOpen = true;
+                ApplyGameplayInputGate();
+                return;
+            }
+
+            if (pinNamePrompt == null) return;
+            pinNamePrompt.ShowForPlace(
+                position,
+                label =>
+                {
+                    artifactManager.CreateWaypoint(position.x, position.y, position.z, label);
+                    _pendingPlacePosition = null;
+                },
+                () => _pendingPlacePosition = null);
+        }
+
+        private void BeginRenamePin(string artifactId, string currentLabel, Vector3 position)
+        {
+            if (_shellPinPromptOpen || (pinNamePrompt != null && pinNamePrompt.IsOpen))
+                return;
+
+            _pendingRenameArtifactId = artifactId;
+            _pendingPlacePosition = null;
+
+            if (ShellPinBridge.TryRequestPinName(
+                    ShellPinBridge.PinNameMode.Rename, position, artifactId, currentLabel))
+            {
+                _shellPinPromptOpen = true;
+                ApplyGameplayInputGate();
+                return;
+            }
+
+            if (pinNamePrompt == null) return;
+            pinNamePrompt.ShowForRename(
+                currentLabel,
+                label => artifactManager.UpdateWaypointLabel(artifactId, label),
+                () => _pendingRenameArtifactId = null);
+        }
+
+        /// <summary>WebGL shell / dashboard embed callback.</summary>
+        public void OnPinNameConfirmed(string label)
+        {
+            _shellPinPromptOpen = false;
+            ApplyGameplayInputGate();
+
+            if (string.IsNullOrWhiteSpace(label))
+                label = PinNamePrompt.DefaultLabel;
+
+            if (!string.IsNullOrEmpty(_pendingRenameArtifactId))
+            {
+                artifactManager.UpdateWaypointLabel(_pendingRenameArtifactId, label);
+                _pendingRenameArtifactId = null;
+                return;
+            }
+
+            if (_pendingPlacePosition.HasValue)
+            {
+                Vector3 p = _pendingPlacePosition.Value;
+                artifactManager.CreateWaypoint(p.x, p.y, p.z, label);
+                _pendingPlacePosition = null;
+            }
+        }
+
+        /// <summary>WebGL shell / dashboard embed callback.</summary>
+        public void OnPinNameCancelled()
+        {
+            _shellPinPromptOpen = false;
+            _pendingPlacePosition = null;
+            _pendingRenameArtifactId = null;
+            ApplyGameplayInputGate();
         }
 
         /// <summary>
@@ -599,11 +726,26 @@ namespace VellumRift
         /// </summary>
         private void HandleChatFocusChanged(bool focused)
         {
+            _chatInputFocused = focused;
+            ApplyGameplayInputGate();
+        }
+
+        private void HandlePinNameFocusChanged(bool focused)
+        {
+            _pinPromptFocused = focused;
+            ApplyGameplayInputGate();
+        }
+
+        private void ApplyGameplayInputGate()
+        {
             VellumRift.Control.PlayerController controller = playerController;
             if (controller == null)
                 controller = FindObjectOfType<VellumRift.Control.PlayerController>();
             if (controller != null)
-                controller.InputEnabled = !focused;
+            {
+                controller.InputEnabled =
+                    !_chatInputFocused && !_pinPromptFocused && !_shellPinPromptOpen;
+            }
         }
 
         private void OnApplicationQuit()

@@ -98,6 +98,17 @@ namespace VellumRift
 #endif
         }
 
+        /// <summary>
+        /// Clear credentials so the login overlay can return (LogoutButton).
+        /// </summary>
+        public void Logout()
+        {
+            ClearToken();
+            statusText = "";
+            pasteBuffer = "";
+            Debug.Log("[BluekeyAuth] Logged out — credentials cleared.");
+        }
+
         public void BeginLogin()
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -154,15 +165,26 @@ namespace VellumRift
 
         private IEnumerator WaitForHandoffThenPopup()
         {
-            // Give the dashboard opener a short window to postMessage the token.
-            float deadline = Time.realtimeSinceStartup + 2.5f;
+            // Kiosk guests get a longer wait; never fall back to Bluekey popup.
+            bool kiosk = KioskMode.IsActive;
+            float waitSeconds = kiosk ? 30f : 2.5f;
+            float deadline = Time.realtimeSinceStartup + waitSeconds;
             while (!IsAuthenticated && Time.realtimeSinceStartup < deadline)
                 yield return null;
 
             if (!IsAuthenticated)
             {
-                Debug.Log("[BluekeyAuth] No dashboard handoff — falling back to Bluekey popup.");
-                BeginLogin();
+                if (kiosk)
+                {
+                    Debug.LogWarning("[BluekeyAuth] Kiosk mode — still waiting for handoff token (no Bluekey popup).");
+                    statusText = "Waiting for kiosk join…";
+                    showPasteUi = false;
+                }
+                else
+                {
+                    Debug.Log("[BluekeyAuth] No dashboard handoff — falling back to Bluekey popup.");
+                    BeginLogin();
+                }
             }
         }
 
@@ -175,13 +197,14 @@ namespace VellumRift
 #if !UNITY_EDITOR
             token = GetCliArg("-accessToken");
 #endif
+            // Qualify System.Environment — VellumRift.Environment namespace exists.
             if (string.IsNullOrEmpty(token))
-                token = Environment.GetEnvironmentVariable("VELLUM_ACCESS_TOKEN");
+                token = System.Environment.GetEnvironmentVariable("VELLUM_ACCESS_TOKEN");
             token = token?.Trim();
             if (string.IsNullOrEmpty(token))
                 return false;
 
-            string email = Environment.GetEnvironmentVariable("VELLUM_PLAYER_NAME")?.Trim() ?? "";
+            string email = System.Environment.GetEnvironmentVariable("VELLUM_PLAYER_NAME")?.Trim() ?? "";
             Debug.Log("[BluekeyAuth] Applying access token from CLI/env.");
             SetToken(token, email);
             return true;
@@ -191,7 +214,7 @@ namespace VellumRift
 #if !UNITY_EDITOR
         private static string GetCliArg(string key)
         {
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             string prefix = key + "=";
             foreach (string arg in args)
             {
@@ -251,7 +274,8 @@ namespace VellumRift
 #if UNITY_EDITOR || !UNITY_WEBGL
         private void OnGUI()
         {
-            if (IsAuthenticated || !showPasteUi)
+            // Museum kiosk: never show paste-token chrome.
+            if (KioskMode.IsActive || IsAuthenticated || !showPasteUi)
                 return;
 
             float w = 420f;

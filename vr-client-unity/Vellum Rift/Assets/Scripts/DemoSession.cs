@@ -130,7 +130,8 @@ namespace VellumRift
             healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
 
             // On-screen session id + one-click copy-link (WebGL: full invite URL).
-            gameObject.AddComponent<SessionLinkOverlay>().Init(this);
+            if (!WebGlShellMode.UsesExternalShell)
+                gameObject.AddComponent<SessionLinkOverlay>().Init(this);
 
             // Session id + host/admin intent from CLI / env / page query. Player
             // name is resolved in bootstrap so Bluekey identity can participate.
@@ -325,6 +326,15 @@ namespace VellumRift
                 }
 #endif
                 Debug.Log($"[DemoSession] Ready — session {SessionId}, player '{playerName}' ({LocalPlayerId}), host={IsHost}");
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                ShellChatBridge.NotifySessionReady(
+                    SessionId,
+                    LocalPlayerId,
+                    playerName,
+                    StripHealthPath(ResolveBackendUrl()),
+                    bluekeyAuth != null ? bluekeyAuth.AccessToken : "");
+#endif
             }
             catch (Exception ex)
             {
@@ -426,7 +436,7 @@ namespace VellumRift
             return BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArg,
-                getEnvVar: Environment.GetEnvironmentVariable,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
                 log: msg => Debug.Log($"[DemoSession] {msg}"));
 #endif
         }
@@ -570,7 +580,7 @@ namespace VellumRift
 #if UNITY_EDITOR
             return null;
 #else
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             string prefix = key + "=";
             foreach (string arg in args)
             {

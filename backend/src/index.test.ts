@@ -48,6 +48,8 @@ vi.mock("./lib/sampleModelIngestor.js", () => {
 // 6. Mock the auth module to bypass authentication in tests
 vi.mock("./lib/auth.js", () => ({
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireAuthOrKiosk: (_req: unknown, _res: unknown, next: () => void) => next(),
+  isKioskGuest: () => false,
 }));
 
 // 7. Mock process.exit to prevent tests from exiting

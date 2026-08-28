@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
+import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { readSessionEvent } from "../lib/sessionEvent.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
@@ -306,6 +308,8 @@ export class GameState {
   /** Produce a serialisable snapshot of the current state. */
   toJSON(): Record<string, unknown> {
     const { playlist, activeModelId } = readPlaylist(this.metadata);
+    const kioskEnabled = readKioskEnabled(this.metadata);
+    const { kind, startsAt, endsAt } = readSessionEvent(this.metadata);
     return {
       sessionId: this.sessionId,
       label: this.label,
@@ -321,6 +325,13 @@ export class GameState {
       playlist,
       /** Currently loaded manuscript (#141) — also mirrored under metadata.activeModelId. */
       activeModelId,
+      /** Museum public join without Bluekey (#145) — also metadata.kioskEnabled. */
+      kioskEnabled,
+      /** exploration | event (#146) — also metadata.kind. */
+      kind,
+      /** Optional event window (#146). */
+      startsAt,
+      endsAt,
       metadata: { ...this.metadata },
     };
   }

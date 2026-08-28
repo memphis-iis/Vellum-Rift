@@ -76,4 +76,28 @@ describe("sessionAccess", () => {
     expect(isSessionHost({ sub: "acct:8", email: "delegate@memphis.edu" }, state)).toBe(true);
     expect(isSessionHost({ sub: "acct:8", email: "nope@memphis.edu" }, state)).toBe(false);
   });
+
+  it("kiosk guests never count as host and only access their kiosk session", async () => {
+    const state = new GameState("museum");
+    state.visibility = "private";
+    state.createdBySub = "acct:1";
+    state.metadata = { kioskEnabled: true };
+
+    const guest = {
+      sub: "kiosk:abc",
+      email: "",
+      kioskSessionId: state.sessionId,
+    };
+    expect(isSessionHost(guest, state)).toBe(false);
+
+    const allowlist = { isAllowlisted: vi.fn() };
+    expect(await canAccessSession(guest, state, allowlist as never)).toBe(true);
+    expect(allowlist.isAllowlisted).not.toHaveBeenCalled();
+
+    const wrongSession = { ...guest, kioskSessionId: "other-session" };
+    expect(await canAccessSession(wrongSession, state, allowlist as never)).toBe(false);
+
+    state.metadata = {};
+    expect(await canAccessSession(guest, state, allowlist as never)).toBe(false);
+  });
 });

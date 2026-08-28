@@ -54,7 +54,7 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
               onClick={() => onNavigate(item.id)}
             >
               <MaterialIcon name={item.icon} filled={active === item.id} />
-              {item.label}
+              <span className="vr-sidenav__link-label">{item.label}</span>
             </button>
           ))}
         </div>

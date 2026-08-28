@@ -2003,6 +2003,13 @@
   border-radius: 0.5rem;
 }
 
+.vr-enter-3d .glass-panel {
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 72%, transparent);
+  backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--vr-on-surface) 10%, transparent);
+  border-radius: 0.5rem;
+}
+
 .vr-enter__map {
   flex: 3;
   display: flex;
@@ -2258,6 +2265,8 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
 }
 
 .vr-enter__chat-log {
@@ -2372,5 +2381,701 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+
+/* Museum kiosk join (#145) */
+.vr-kiosk {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.vr-kiosk__logo {
+  display: block;
+  margin: 0 auto 0.75rem;
+}
+
+.vr-kiosk__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__title {
+  margin: 0.35rem 0 0.5rem;
+  font-family: var(--vr-font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+}
+
+.vr-kiosk__lead {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.45;
+}
+
+.vr-kiosk__card {
+  padding: 1.25rem 1.1rem 1.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--vr-surface) 88%, transparent);
+}
+
+.vr-kiosk__space {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.vr-kiosk__form,
+.vr-kiosk__joined {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-kiosk__label {
+  font-size: 0.8rem;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__input {
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface);
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__status {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-kiosk__error {
+  margin: 0;
+  color: #e57373;
+}
+
+.vr-kiosk__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--vr-outline);
+}
+
+/* Featured event on Home (#146) */
+.vr-home__featured {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--vr-outline-variant);
+  max-width: 28rem;
+}
+
+.vr-home__featured-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-home__featured-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--vr-font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.vr-home__featured-window {
+  margin: 0 0 1rem;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.95rem;
+}
+
+.vr-sessions__event-tag {
+  color: var(--vr-primary);
+  font-weight: 600;
+}
+
+.vr-enter__event-window {
+  margin: 0.35rem 1.25rem 0;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+/* Share + QR modal (#146) */
+.vr-share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.vr-share-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, #000 72%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.vr-share-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(24rem, 100%);
+  padding: 1.15rem 1.2rem 1.25rem;
+  border: 1px solid var(--vr-outline-variant);
+  border-radius: 0.75rem;
+  background: var(--vr-surface-container);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 55%, transparent);
+}
+
+.vr-share-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vr-share-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-share-modal__close:hover {
+  color: var(--vr-on-surface);
+  background: var(--vr-surface-highest);
+}
+
+.vr-share-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.vr-share__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vr-on-surface);
+}
+
+.vr-share__hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.4;
+}
+
+.vr-share__url {
+  margin: 0.75rem 0;
+  word-break: break-all;
+  font-size: 0.78rem;
+  color: var(--vr-outline);
+}
+
+.vr-share__url code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vr-share__qr {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vr-share__qr img {
+  display: block;
+  border-radius: 0.4rem;
+  background: #fff;
+  padding: 0.45rem;
+}
+
+.vr-share__qr figcaption {
+  font-size: 0.75rem;
+  color: var(--vr-outline);
+}
+
+/* —— Embedded WebGL (Enter 3D) —— */
+.vr-enter-3d {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #151310;
+  overflow: hidden;
+}
+
+.vr-enter-3d__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #151310;
+}
+
+.vr-enter-3d__chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vr-enter-3d__chrome > * {
+  pointer-events: auto;
+}
+
+.vr-enter-3d__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: color-mix(in srgb, #151310 82%, transparent);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-enter-3d__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.vr-enter-3d__wordmark {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.5vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--vr-primary);
+}
+
+.vr-enter-3d__divider {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--vr-outline-variant);
+  opacity: 0.5;
+}
+
+.vr-enter-3d__session {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1rem;
+  color: var(--vr-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(40vw, 20rem);
+}
+
+.vr-enter-3d__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vr-enter-3d__chat {
+  position: absolute;
+  top: 5.5rem;
+  right: 1.25rem;
+  bottom: 7.5rem;
+  width: min(24rem, calc(100vw - 2.5rem));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 12rem;
+  max-height: calc(100% - 13rem);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.vr-enter-3d__fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12rem;
+  pointer-events: none;
+  background: linear-gradient(to top, #151310 0%, transparent 100%);
+}
+
+.vr-enter-3d__controls {
+  position: absolute;
+  left: 50%;
+  bottom: 3rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, #1e1b18 60%, transparent);
+  backdrop-filter: blur(24px);
+  border-top: 1px solid color-mix(in srgb, #e8eef2 10%, transparent);
+  border-left: 1px solid color-mix(in srgb, #e8eef2 10%, transparent);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter-3d__controls > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vr-enter-3d__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.35rem;
+  border-radius: 0.125rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+  background: #2d2926;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vr-enter-3d__sep {
+  width: 1px;
+  height: 2rem;
+  background: color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+}
+
+@media (max-width: 720px) {
+  .vr-enter-3d__controls {
+    display: none;
+  }
+
+  .vr-enter-3d__session {
+    display: none;
+  }
+
+  .vr-enter-3d__chat {
+    top: auto;
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
+    max-height: 40vh;
+  }
+
+  .vr-enter-3d__nav {
+    top: auto;
+    left: 0.75rem;
+    right: auto;
+    bottom: 0.75rem;
+    width: auto;
+    max-width: calc(100vw - 1.5rem);
+    max-height: 40vh;
+  }
+
+  .vr-shell-tab--nav {
+    top: auto;
+    left: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .vr-shell-tab--chat {
+    top: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+}
+
+/* Immersive WebGL — hide dashboard chrome; embed shell owns left menu */
+html.vr-immersive .vr-sidenav,
+html.vr-immersive .vr-mobile-top {
+  display: none !important;
+}
+
+html.vr-immersive .vr-shell-main {
+  margin-left: 0 !important;
+}
+
+@media (min-width: 768px) {
+  html.vr-immersive .vr-shell-main {
+    margin-left: 0 !important;
+  }
+}
+
+/* Collapsible shell panels (WebGL embed + template) */
+.vr-shell-panel__collapse {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.vr-shell-panel__collapse:hover {
+  color: var(--vr-primary);
+  background: color-mix(in srgb, var(--vr-primary) 8%, transparent);
+}
+
+.vr-shell-tab {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 88%, transparent);
+  backdrop-filter: blur(16px);
+  color: var(--vr-primary);
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.vr-shell-tab--chat {
+  top: 5.5rem;
+  right: 1.25rem;
+}
+
+.vr-shell-tab--nav {
+  top: 5.5rem;
+  left: 1.25rem;
+}
+
+.vr-shell-tab__badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #e57373;
+  color: #1a0a0a;
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+.vr-enter-3d__nav {
+  position: absolute;
+  top: 5.5rem;
+  left: 1.25rem;
+  bottom: 7.5rem;
+  width: min(18rem, calc(100vw - 2.5rem));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 10rem;
+  max-height: calc(100% - 13rem);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.vr-enter-3d__nav-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 40%, transparent);
+}
+
+.vr-enter-3d__nav-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.vr-enter-3d__nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.vr-enter-3d__nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--vr-on-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.vr-enter-3d__nav-link:hover {
+  background: color-mix(in srgb, var(--vr-primary) 10%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-enter-3d__nav-meta {
+  margin: auto 0 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-pins-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-pins-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vr-primary);
+}
+
+.vr-pins-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.vr-pins-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.vr-pins-panel__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vr-pins-panel__actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.vr-pins-panel__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pins-panel__empty,
+.vr-pins-panel__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-pins-panel__error {
+  color: #f5a8a8;
+}
+
+.vr-pin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, #000 55%, transparent);
+  pointer-events: auto;
+}
+
+.vr-pin-modal__card {
+  width: min(420px, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: var(--vr-surface-container-high);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-pin-modal__card h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.vr-pin-modal__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pin-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 

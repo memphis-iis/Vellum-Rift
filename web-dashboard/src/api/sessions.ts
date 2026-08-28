@@ -36,6 +36,12 @@ export type GameSession = {
   /** Manuscript model ids (#141). */
   playlist?: string[];
   activeModelId?: string | null;
+  /** Museum public join (#145). */
+  kioskEnabled?: boolean;
+  /** exploration | event (#146). */
+  kind?: "exploration" | "event";
+  startsAt?: string | null;
+  endsAt?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -54,11 +60,16 @@ export async function fetchSessions(): Promise<GameSession[]> {
 export async function createSession(
   label?: string,
   visibility: "public" | "private" = "private",
+  kind: "exploration" | "event" = "exploration",
 ): Promise<GameSession> {
   const res = await fetch(`${API_BASE_URL}/api/game-state`, {
     method: "POST",
     headers: authHeaders(true),
-    body: JSON.stringify({ label: label?.trim() || undefined, visibility }),
+    body: JSON.stringify({
+      label: label?.trim() || undefined,
+      visibility,
+      kind,
+    }),
   });
   const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
   if (!res.ok) {
@@ -136,6 +147,30 @@ export async function patchSessionActiveModel(
   const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
   if (!res.ok) {
     throw new Error(data.error || `Update active model failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Host-only: set exploration/event kind and optional schedule (#146). */
+export async function patchSessionEvent(
+  sessionId: string,
+  patch: {
+    kind?: "exploration" | "event";
+    startsAt?: string | null;
+    endsAt?: string | null;
+  },
+): Promise<GameSession> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/event`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify(patch),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Update event chrome failed (${res.status})`);
   }
   return data;
 }

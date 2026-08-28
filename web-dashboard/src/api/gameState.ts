@@ -46,6 +46,12 @@ export interface GameSession {
   createdByEmail?: string;
   playlist?: string[];
   activeModelId?: string | null;
+  /** Museum public join without Bluekey (#145). */
+  kioskEnabled?: boolean;
+  /** exploration | event (#146). */
+  kind?: "exploration" | "event";
+  startsAt?: string | null;
+  endsAt?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -188,6 +194,20 @@ export function setSessionVisibility(
   );
 }
 
+/** Host enables/disables museum kiosk public join (#145). */
+export function setSessionKiosk(
+  sessionId: string,
+  enabled: boolean,
+): Promise<GameSession> {
+  return request<GameSession>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/kiosk`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    },
+  );
+}
+
 export function kickPlayer(sessionId: string, playerId: string): Promise<void> {
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/kick`,
@@ -216,5 +236,65 @@ export function transferHost(sessionId: string, playerId: string): Promise<GameS
       method: "PATCH",
       body: JSON.stringify({ playerId }),
     },
+  );
+}
+
+export interface SessionArtifact {
+  id: string;
+  artifactType: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function listArtifacts(sessionId: string): Promise<SessionArtifact[]> {
+  return request<SessionArtifact[]>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/artifacts`,
+  );
+}
+
+export function createArtifact(
+  sessionId: string,
+  body: Pick<SessionArtifact, "x" | "y" | "z" | "label"> & {
+    artifactType?: string;
+  },
+): Promise<SessionArtifact> {
+  return request<SessionArtifact>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/artifacts`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        artifactType: body.artifactType ?? "waypoint",
+        label: body.label ?? "",
+        x: body.x,
+        y: body.y,
+        z: body.z,
+      }),
+    },
+  );
+}
+
+export function updateArtifact(
+  sessionId: string,
+  artifactId: string,
+  patch: { label?: string },
+): Promise<SessionArtifact> {
+  return request<SessionArtifact>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    },
+  );
+}
+
+export function deleteArtifact(sessionId: string, artifactId: string): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
+    { method: "DELETE" },
   );
 }

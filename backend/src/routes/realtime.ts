@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { isKioskGuest } from "../lib/auth.js";
 import { signHs256Jwt } from "../lib/realtimeJwt.js";
 
 const router = Router();
@@ -15,13 +16,19 @@ function sfuPublicUrl(): string {
 
 /**
  * POST /api/realtime/token
- * Mint a short-lived token for SFU signaling. Requires Bluekey auth when AUTH_REQUIRED=true.
+ * Mint a short-lived token for SFU signaling. Requires Bluekey (or kiosk) auth
+ * when AUTH_REQUIRED=true. Kiosk guests may only mint for their session (#145).
  * Body: { sessionId: string, playerId?: string }
  */
 router.post("/token", (req: Request, res: Response) => {
   const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
   if (!sessionId || sessionId.length > 128) {
     res.status(400).json({ error: "sessionId is required" });
+    return;
+  }
+
+  if (isKioskGuest(req.user) && req.user?.kioskSessionId !== sessionId) {
+    res.status(403).json({ error: "Kiosk token does not match this space" });
     return;
   }
 

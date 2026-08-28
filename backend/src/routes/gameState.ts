@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { GameState } from "../components/gameState.js";
+import { isKioskGuest } from "../lib/auth.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
 import { JobRepository } from "../lib/jobRepository.js";
@@ -17,6 +18,12 @@ import {
   normalizeEmail,
   parseVisibility,
 } from "../lib/sessionAccess.js";
+import { writeKioskEnabled } from "../lib/sessionKiosk.js";
+import {
+  applyEventPatch,
+  parseSessionKind,
+  writeSessionEvent,
+} from "../lib/sessionEvent.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -56,6 +63,59 @@ function requireHost(req: Request, res: Response, state: GameState): boolean {
   return true;
 }
 
+/** Block museum kiosk guests from host/admin mutations (#145). */
+function rejectKioskGuest(req: Request, res: Response): boolean {
+  if (isKioskGuest(req.user)) {
+    res.status(403).json({ error: "Kiosk guests cannot do that" });
+    return true;
+  }
+  return false;
+}
+
+/** Sanitize nametag for kiosk / public join. */
+function sanitizeDisplayName(raw: string | undefined, kiosk: boolean): string {
+  const cleaned = String(raw ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, 40);
+  if (cleaned) return cleaned;
+  return kiosk ? "Guest" : "";
+}
+
+/** Player row for the authenticated user in this session, if any. */
+function resolveRequestPlayerId(
+  state: GameState,
+  user: Request["user"],
+): string | null {
+  if (!user) return null;
+  const email = normalizeEmail(user.email);
+  for (const p of state.players) {
+    if (user.sub && p.bluekeySub && p.bluekeySub === user.sub) return p.id;
+    if (email && normalizeEmail(p.bluekeyEmail) === email) return p.id;
+  }
+  return null;
+}
+
+type ArtifactRecord = Record<string, unknown> & {
+  id?: string;
+  createdBy?: string;
+  label?: string;
+};
+
+/** Creator or session host may mutate an artifact (#163). */
+function canModifyArtifact(
+  state: GameState,
+  user: Request["user"],
+  artifact: ArtifactRecord,
+): boolean {
+  if (isSessionHost(user, state)) return true;
+  const requestPlayerId = resolveRequestPlayerId(state, user);
+  if (!requestPlayerId) return false;
+  const owner = String(artifact.createdBy ?? "");
+  if (!owner) return false;
+  return owner === requestPlayerId;
+}
+
 /** Ensure every model id exists in gltf_models. */
 async function assertModelsExist(
   res: Response,
@@ -75,9 +135,12 @@ async function assertModelsExist(
 // POST /api/game-state  —  Create a new game session
 // ---------------------------------------------------------------
 router.post("/", async (req: Request, res: Response) => {
-  const { label, visibility: visibilityRaw } = req.body as {
+  if (rejectKioskGuest(req, res)) return;
+
+  const { label, visibility: visibilityRaw, kind: kindRaw } = req.body as {
     label?: string;
     visibility?: string;
+    kind?: string;
   };
   const visibility = parseVisibility(visibilityRaw);
   if (!visibility) {
@@ -85,15 +148,31 @@ router.post("/", async (req: Request, res: Response) => {
     return;
   }
 
+  let kind = parseSessionKind(kindRaw);
+  if (kindRaw !== undefined && !kind) {
+    res.status(400).json({ error: "kind must be 'exploration' or 'event'" });
+    return;
+  }
+  kind = kind ?? "exploration";
+
   const state = await repo.create(label, {
     visibility,
     createdBySub: req.user?.sub ?? "",
     createdByEmail: normalizeEmail(req.user?.email),
   });
+  let metadata = { ...state.metadata };
   if (req.user?.email) {
-    state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
-    await repo.save(state);
+    metadata = { ...metadata, hostEmail: normalizeEmail(req.user.email) };
   }
+  if (kind === "event") {
+    metadata = writeSessionEvent(metadata, {
+      kind: "event",
+      startsAt: null,
+      endsAt: null,
+    });
+  }
+  state.metadata = metadata;
+  await repo.save(state);
   res.status(201).json(state.toJSON());
 });
 
@@ -160,6 +239,12 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
   if (!state) return;
 
+  const kiosk = isKioskGuest(req.user);
+  if (kiosk && req.user?.kioskSessionId !== state.sessionId) {
+    res.status(403).json({ error: "Kiosk token does not match this space" });
+    return;
+  }
+
   const banned = await moderationRepo.isBanned(state.sessionId, {
     sub: req.user?.sub,
     email: req.user?.email,
@@ -169,22 +254,24 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName, isHost } = req.body as {
+  const { displayName: rawName, isHost } = req.body as {
     displayName?: string;
     isHost?: boolean;
   };
 
+  const displayName = sanitizeDisplayName(rawName, kiosk);
   if (!displayName) {
     res.status(400).json({ error: "displayName is required" });
     return;
   }
 
-  // First joiner on a public session may adopt host; otherwise only the
-  // durable creator / current host identity may claim host.
+  // Kiosk guests never become host. First joiner on a public session may
+  // adopt host; otherwise only the durable creator / current host identity.
   const wantHost =
-    (!state.hostId &&
+    !kiosk &&
+    ((!state.hostId &&
       (isSessionHost(req.user, state) || state.visibility === "public")) ||
-    (Boolean(isHost) && isSessionHost(req.user, state));
+      (Boolean(isHost) && isSessionHost(req.user, state)));
 
   const player = state.addPlayer(displayName, wantHost);
   player.bluekeySub = req.user?.sub ?? null;
@@ -211,6 +298,24 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
   const state = await loadAccessibleSession(req, res, sessionId);
   if (!state) return;
 
+  const target = state.getPlayer(playerId);
+  if (!target) {
+    res.status(404).json({ error: "Player not found" });
+    return;
+  }
+
+  const host = isSessionHost(req.user, state);
+  const self =
+    Boolean(req.user?.sub && target.bluekeySub && target.bluekeySub === req.user.sub) ||
+    Boolean(
+      normalizeEmail(req.user?.email) &&
+        normalizeEmail(target.bluekeyEmail) === normalizeEmail(req.user?.email),
+    );
+  if (!host && !self) {
+    res.status(403).json({ error: "You can only remove yourself" });
+    return;
+  }
+
   const removed = state.removePlayer(playerId);
   if (!removed) {
     res.status(404).json({ error: "Player not found" });
@@ -219,6 +324,69 @@ router.delete("/:sessionId/players/:playerId", async (req: Request, res: Respons
 
   await repo.save(state);
   res.json({ removed: true });
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/kiosk — Host enables museum public join (#145)
+// ---------------------------------------------------------------
+router.patch("/:sessionId/kiosk", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const enabled = (req.body as { enabled?: unknown }).enabled;
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+
+  state.metadata = writeKioskEnabled(state.metadata, enabled);
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/event — Host sets kind / schedule (#146)
+// Body: { kind?: 'exploration'|'event', startsAt?: string|null, endsAt?: string|null }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/event", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const body = req.body as {
+    kind?: unknown;
+    startsAt?: unknown;
+    endsAt?: unknown;
+  };
+  if (
+    body.kind === undefined &&
+    body.startsAt === undefined &&
+    body.endsAt === undefined
+  ) {
+    res.status(400).json({
+      error: "Provide kind, startsAt, and/or endsAt",
+    });
+    return;
+  }
+
+  const patched = applyEventPatch(state.metadata, body);
+  if (!patched.ok) {
+    res.status(400).json({ error: patched.error });
+    return;
+  }
+
+  state.metadata = patched.metadata;
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
 });
 
 // ---------------------------------------------------------------
@@ -976,10 +1144,10 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
-    const { artifactType, label, x, y, z, createdBy } = req.body as {
+    const { artifactType, label, x, y, z } = req.body as {
       artifactType?: string; label?: string; x?: number; y?: number; z?: number; createdBy?: string;
     };
 
@@ -990,6 +1158,12 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
     // Cap artifact metadata size (security review).
     if (label && String(label).length > 256) {
       res.status(400).json({ error: "label must be 256 characters or fewer" });
+      return;
+    }
+
+    const requestPlayerId = resolveRequestPlayerId(state, req.user);
+    if (!requestPlayerId) {
+      res.status(403).json({ error: "Join the session as a player before placing pins" });
       return;
     }
 
@@ -1007,7 +1181,7 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
       artifactType: artifactType ?? "waypoint",
       label: label ?? "",
       x, y, z,
-      createdBy: createdBy ?? "",
+      createdBy: requestPlayerId,
       createdAt: now,
       updatedAt: now,
     };
@@ -1028,8 +1202,8 @@ router.post("/:sessionId/artifacts", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.get("/:sessionId/artifacts", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     res.json(artifacts);
@@ -1045,17 +1219,27 @@ router.get("/:sessionId/artifacts", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.patch("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifactId = param(req, "artifactId");
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     const idx = artifacts.findIndex((a: any) => a.id === artifactId);
     if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
 
+    const existing = artifacts[idx] as ArtifactRecord;
+    if (!canModifyArtifact(state, req.user, existing)) {
+      res.status(403).json({ error: "You can only edit your own pins" });
+      return;
+    }
+
     const { label, x, y, z } = req.body as { label?: string; x?: number; y?: number; z?: number };
     if (label === undefined && x === undefined && y === undefined && z === undefined) {
       res.status(400).json({ error: "At least one field (label, x, y, z) is required" });
+      return;
+    }
+    if (label !== undefined && String(label).length > 256) {
+      res.status(400).json({ error: "label must be 256 characters or fewer" });
       return;
     }
 
@@ -1082,13 +1266,19 @@ router.patch("/:sessionId/artifacts/:artifactId", async (req: Request, res: Resp
 // ---------------------------------------------------------------
 router.delete("/:sessionId/artifacts/:artifactId", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const artifactId = param(req, "artifactId");
     const artifacts = (state.metadata.artifacts as Record<string, unknown>[]) ?? [];
     const idx = artifacts.findIndex((a: any) => a.id === artifactId);
     if (idx === -1) { res.status(404).json({ error: "Artifact not found" }); return; }
+
+    const existing = artifacts[idx] as ArtifactRecord;
+    if (!canModifyArtifact(state, req.user, existing)) {
+      res.status(403).json({ error: "You can only delete your own pins" });
+      return;
+    }
 
     artifacts.splice(idx, 1);
     state.metadata.artifacts = artifacts;

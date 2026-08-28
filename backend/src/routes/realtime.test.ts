@@ -7,6 +7,11 @@ vi.mock("../lib/auth.js", () => ({
     req.user = { sub: "acct:test", email: "test@memphis.edu", exp: 9999999999 };
     next();
   },
+  requireAuthOrKiosk: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = { sub: "acct:test", email: "test@memphis.edu", exp: 9999999999 };
+    next();
+  },
+  isKioskGuest: () => false,
 }));
 
 import { requireAuth } from "../lib/auth.js";

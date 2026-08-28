@@ -119,12 +119,33 @@ namespace VellumRift.Control
         // The current movement strategy
         private IMover mover;
 
+        /// <summary>
+        /// When false, gameplay input (movement, laser, waypoint, summon) is
+        /// blocked. The chat panel sets this while the input field has focus so
+        /// typing WASD/space into a message doesn't also move the player.
+        /// </summary>
+        public bool InputEnabled { get; set; } = true;
+
         // Input configuration instances managed directly in code
         private InputAction moveAction;        // WASD keys
         private InputAction verticalAction;   // Space and Left Ctrl
         private InputAction yawAction;        // Q and E keys
         private InputAction lookAction;       // Mouse movement delta
         private InputAction lookHoldAction;   // Right mouse button
+        private InputAction laserAction;      // Left mouse button (hold for laser)
+        private InputAction waypointAction;   // F key (place waypoint)
+        private InputAction summonAction;     // G key (host summon)
+
+        /// <summary>True while left mouse button is held (laser pointer).</summary>
+        public bool LaserPressed { get; private set; }
+        /// <summary>True on the frame right mouse button is pressed (look / delete with shift).</summary>
+        public bool RightClicked { get; private set; }
+        /// <summary>True on the frame left mouse button is pressed (rename pin).</summary>
+        public bool LeftClicked { get; private set; }
+        /// <summary>True on the frame F key is pressed (place waypoint).</summary>
+        public bool WaypointTriggered { get; private set; }
+        /// <summary>True on the frame Q key is pressed (host summon).</summary>
+        public bool SummonTriggered { get; private set; }
 
         private void Awake()
         {
@@ -136,21 +157,35 @@ namespace VellumRift.Control
                 .With("Left",  "<Keyboard>/a")
                 .With("Right", "<Keyboard>/d");
 
-            // Map Space (Up) and Left Ctrl (Down) to a single axis
+            // Map Space (Up) and Left Ctrl / X (Down) to a single axis.
+            // Two 1DAxis composites are stacked so either Left Ctrl or X
+            // produces a negative (down) value.
             verticalAction = new InputAction("Vertical", InputActionType.Value);
             verticalAction.AddCompositeBinding("1DAxis")
                 .With("Positive", "<Keyboard>/space")
                 .With("Negative", "<Keyboard>/leftCtrl");
+            verticalAction.AddCompositeBinding("1DAxis")
+                .With("Negative", "<Keyboard>/x");
 
-            // Map E (Right) and Q (Left) to a single turning axis
+            // Map E (Right) and Z (Left) to a single turning axis.
+            // Q is reserved for summoning.
             yawAction = new InputAction("Yaw", InputActionType.Value);
             yawAction.AddCompositeBinding("1DAxis")
                 .With("Positive", "<Keyboard>/e")
-                .With("Negative", "<Keyboard>/q");
+                .With("Negative", "<Keyboard>/z");
 
             // Bind mouse tracking and click logic
             lookAction = new InputAction("Look", InputActionType.Value, "<Mouse>/delta");
             lookHoldAction = new InputAction("LookHold", InputActionType.Button, "<Mouse>/rightButton");
+
+            // Laser pointer: left mouse button (hold)
+            laserAction = new InputAction("Laser", InputActionType.Button, "<Mouse>/leftButton");
+
+            // Waypoint: F key (press)
+            waypointAction = new InputAction("Waypoint", InputActionType.Button, "<Keyboard>/f");
+
+            // Summon: Q key (press, host only)
+            summonAction = new InputAction("Summon", InputActionType.Button, "<Keyboard>/q");
 
             // Initialize the default free fly mover
             mover = new FreeFlyMover(transform, moveSpeed, yawSpeed, lookSensitivity);
@@ -163,6 +198,9 @@ namespace VellumRift.Control
             yawAction.Enable();
             lookAction.Enable();
             lookHoldAction.Enable();
+            laserAction.Enable();
+            waypointAction.Enable();
+            summonAction.Enable();
         }
 
         private void OnDisable()
@@ -172,6 +210,9 @@ namespace VellumRift.Control
             yawAction.Disable();
             lookAction.Disable();
             lookHoldAction.Disable();
+            laserAction.Disable();
+            waypointAction.Disable();
+            summonAction.Disable();
         }
 
         private void OnDestroy()
@@ -181,6 +222,9 @@ namespace VellumRift.Control
             yawAction.Dispose();
             lookAction.Dispose();
             lookHoldAction.Dispose();
+            laserAction.Dispose();
+            waypointAction.Dispose();
+            summonAction.Dispose();
         }
 
         private void Update()
@@ -195,8 +239,26 @@ namespace VellumRift.Control
                 ffm.LookSensitivity = lookSensitivity;
             }
 
-            // Process the movement calculations every frame
-            mover.Tick(ReadIntent(), Time.deltaTime);
+            if (InputEnabled)
+            {
+                // Read feature inputs
+                LaserPressed = laserAction.IsPressed();
+                RightClicked = lookHoldAction.WasPressedThisFrame();
+                LeftClicked = laserAction.WasPressedThisFrame();
+                WaypointTriggered = waypointAction.WasPressedThisFrame();
+                SummonTriggered = summonAction.WasPressedThisFrame();
+
+                // Process the movement calculations every frame
+                mover.Tick(ReadIntent(), Time.deltaTime);
+            }
+            else
+            {
+                LaserPressed = false;
+                RightClicked = false;
+                LeftClicked = false;
+                WaypointTriggered = false;
+                SummonTriggered = false;
+            }
         }
 
         private MovementIntent ReadIntent()

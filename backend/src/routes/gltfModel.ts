@@ -1,11 +1,16 @@
 import { Router, type Request, type Response } from "express";
 
+import { isKioskGuest } from "../lib/auth.js";
+import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { getStorage } from "../lib/storage.js";
 import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
 import { JobQueue } from "../lib/jobQueue.js";
+import { readPlaylist } from "../lib/sessionPlaylist.js";
+import { readKioskEnabled } from "../lib/sessionKiosk.js";
 
 const router = Router();
 const repo = new GlTFModelRepository();
+const gameStateRepo = new GameStateRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
@@ -19,11 +24,35 @@ export function setJobQueue(q: JobQueue): void {
   jobQueue = q;
 }
 
+/** Kiosk guests may only touch models on their session playlist (#145). */
+async function kioskMayAccessModel(
+  req: Request,
+  modelId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!isKioskGuest(req.user)) return { ok: true };
+  const sessionId = req.user!.kioskSessionId!;
+  const state = await gameStateRepo.findById(sessionId);
+  if (!state || !readKioskEnabled(state.metadata) || !state.isActive) {
+    return { ok: false, status: 403, error: "Kiosk join is not enabled for this space" };
+  }
+  const { playlist, activeModelId } = readPlaylist(state.metadata);
+  const allowed = new Set(playlist);
+  if (activeModelId) allowed.add(activeModelId);
+  if (!allowed.has(modelId)) {
+    return { ok: false, status: 403, error: "Model is not on this space playlist" };
+  }
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/models/generate
 //   Enqueue an async glTF generation job and return 202 Accepted immediately.
 // ---------------------------------------------------------------------------
 router.post("/generate", async (req: Request, res: Response) => {
+  if (isKioskGuest(req.user)) {
+    res.status(403).json({ error: "Kiosk guests cannot generate models" });
+    return;
+  }
   try {
     const {
       pixels,
@@ -80,6 +109,23 @@ router.post("/generate", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 router.get("/", async (req: Request, res: Response) => {
   try {
+    if (isKioskGuest(req.user)) {
+      const sessionId = req.user!.kioskSessionId!;
+      const state = await gameStateRepo.findById(sessionId);
+      if (!state || !readKioskEnabled(state.metadata)) {
+        res.status(403).json({ error: "Kiosk join is not enabled for this space" });
+        return;
+      }
+      const { playlist } = readPlaylist(state.metadata);
+      const models = [];
+      for (const modelId of playlist) {
+        const record = await repo.findById(modelId);
+        if (record) models.push(record);
+      }
+      res.json(models);
+      return;
+    }
+
     const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
     const offset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
 
@@ -104,6 +150,12 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:modelId", async (req: Request, res: Response) => {
   try {
     const modelId = param(req, "modelId");
+
+    const gate = await kioskMayAccessModel(req, modelId);
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
 
     const record = await repo.findById(modelId);
     if (!record) {
@@ -137,6 +189,12 @@ router.get("/:modelId/meta", async (req: Request, res: Response) => {
   try {
     const modelId = param(req, "modelId");
 
+    const gate = await kioskMayAccessModel(req, modelId);
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
+
     const record = await repo.findById(modelId);
     if (!record) {
       res.status(404).json({ error: "Model not found" });
@@ -157,6 +215,10 @@ router.get("/:modelId/meta", async (req: Request, res: Response) => {
 //   Remove a model from both MinIO and the DB.
 // ---------------------------------------------------------------------------
 router.delete("/:modelId", async (req: Request, res: Response) => {
+  if (isKioskGuest(req.user)) {
+    res.status(403).json({ error: "Kiosk guests cannot delete models" });
+    return;
+  }
   try {
     const modelId = param(req, "modelId");
 
