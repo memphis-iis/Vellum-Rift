@@ -128,16 +128,13 @@ namespace VellumRift
             if (playerSpawner == null) playerSpawner = gameObject.AddComponent<PlayerSpawner>();
             if (multiplayerController == null) multiplayerController = gameObject.AddComponent<MultiplayerController>();
 
-            // The existing BackendHealthChecker label is the on-screen network
-            // indicator. Point it at the same resolved backend before its Start
-            // runs (its Inspector default is localhost, which is wrong on WebGL).
+            // Health checker is logging-only (#228); point it at the same resolved
+            // backend before its Start runs (Inspector default is localhost).
             if (healthChecker == null)
                 healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
             healthChecker.SetHealthCheckUrl(StripHealthPath(ResolveBackendUrl()) + "/api/health");
 
-            // On-screen session id + one-click copy-link (WebGL: full invite URL).
-            if (!WebGlShellMode.UsesExternalShell)
-                gameObject.AddComponent<SessionLinkOverlay>().Init(this);
+            // SessionLinkOverlay Space/Copy/Logout HUD removed (#228). Exit is LogoutButton.
 
             // Session id + host/admin intent from CLI / env / page query. Player
             // name is resolved in bootstrap so Bluekey identity can participate.

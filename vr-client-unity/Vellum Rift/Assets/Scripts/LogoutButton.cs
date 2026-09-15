@@ -5,10 +5,13 @@ using VellumRift.Control;
 namespace VellumRift
 {
     /// <summary>
-    /// LogoutButton — Creates a themed logout button in the bottom-left corner
+    /// Exit / Leave space control (#227) — themed button in the bottom-left corner
     /// of the viewport. On click it revokes Bluekey access, leaves the session,
-    /// and reloads the client so the login overlay reappears.
-    /// 
+    /// and returns to the Login / Spaces flow.
+    ///
+    /// Hidden when <see cref="WebGlShellMode.UsesExternalShell"/> (dashboard shell
+    /// owns Back to lobby / Leave space chrome).
+    ///
     /// Attach to any GameObject (or add via SessionManager). No scene setup required.
     /// </summary>
     public class LogoutButton : MonoBehaviour
@@ -17,16 +20,11 @@ namespace VellumRift
         [Tooltip("Padding from the bottom-left corner in pixels.")]
         [SerializeField] private float padding = 16f;
 
-        [Tooltip("Button width in pixels.")]
-        [SerializeField] private float buttonWidth = 120f;
+        [Tooltip("Button width in pixels (at least VrTheme.MinHitWidthPx).")]
+        [SerializeField] private float buttonWidth = VrTheme.MinHitWidthPx;
 
-        [Tooltip("Button height in pixels.")]
-        [SerializeField] private float buttonHeight = 36f;
-
-        // Design tokens matching the Vellum Rift palette.
-        private static readonly Color COLOR_SURFACE_LOWEST = new Color(13f / 255f, 13f / 255f, 21f / 255f, 0.85f);
-        private static readonly Color COLOR_CYAN           = new Color(0f, 219f / 255f, 233f / 255f);
-        private static readonly Color COLOR_ON_SURFACE     = new Color(228f / 255f, 225f / 255f, 237f / 255f);
+        [Tooltip("Button height in pixels (at least VrTheme.MinHitHeightPx).")]
+        [SerializeField] private float buttonHeight = VrTheme.MinHitHeightPx;
 
         private GameObject canvasGO;
         private Button button;
@@ -39,7 +37,7 @@ namespace VellumRift
                 return;
             }
 
-            BuildLogoutUI();
+            BuildExitUI();
         }
 
         private void OnDestroy()
@@ -47,11 +45,16 @@ namespace VellumRift
             if (canvasGO != null) Destroy(canvasGO);
         }
 
-        private void BuildLogoutUI()
+        private void BuildExitUI()
         {
             EnsureEventSystem();
 
-            canvasGO = new GameObject("LogoutCanvas");
+            float w = Mathf.Max(buttonWidth, VrTheme.MinHitWidthPx);
+            float h = Mathf.Max(buttonHeight, VrTheme.MinHitHeightPx);
+            Color fill = VrTheme.WithAlpha(VrTheme.SurfaceLow, 0.92f);
+            Color border = VrTheme.Accent;
+
+            canvasGO = new GameObject("ExitCanvas");
             var canvas = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 9999; // above everything else.
@@ -61,16 +64,16 @@ namespace VellumRift
             scaler.matchWidthOrHeight = 0f; // match width for consistent horizontal padding.
             canvasGO.AddComponent<GraphicRaycaster>();
 
-            // Button background — dark pill with cyan border.
+            // Button background — dark pill with cyan border (VrTheme).
             var bg = CreateUIObject("Bg", canvasGO.transform);
             var bgImg = bg.AddComponent<Image>();
-            bgImg.sprite = CreateRoundedRectSprite((int)buttonWidth, (int)buttonHeight, 18f, COLOR_SURFACE_LOWEST, 1f, COLOR_CYAN);
-            bgImg.raycastTarget = false;
+            bgImg.sprite = CreateRoundedRectSprite((int)w, (int)h, h * 0.5f, fill, 1.5f, border);
+            bgImg.raycastTarget = true;
             var bgRect = bg.GetComponent<RectTransform>();
             bgRect.anchorMin = new Vector2(0, 0);
             bgRect.anchorMax = new Vector2(0, 0);
             bgRect.pivot = new Vector2(0, 0);
-            bgRect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
+            bgRect.sizeDelta = new Vector2(w, h);
             bgRect.anchoredPosition = new Vector2(padding, padding);
 
             // Button component.
@@ -80,25 +83,29 @@ namespace VellumRift
             button.colors = new ColorBlock
             {
                 normalColor = Color.white,
-                highlightedColor = new Color(0.85f, 0.85f, 0.85f),
-                pressedColor = new Color(0.6f, 0.6f, 0.6f),
+                highlightedColor = new Color(0.9f, 0.95f, 0.97f),
+                pressedColor = new Color(0.7f, 0.75f, 0.78f),
                 selectedColor = Color.white,
-                disabledColor = new Color(1f, 1f, 1f, 0.5f)
+                disabledColor = new Color(1f, 1f, 1f, 0.5f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.1f
             };
-            button.onClick.AddListener(OnLogoutClicked);
+            button.onClick.AddListener(OnExitClicked);
 
-            // Label text.
-            var label = CreateText("Label", bg.transform, "LOG OUT", 12, TextAnchor.MiddleCenter, COLOR_ON_SURFACE);
+            // Label aligned with dashboard Leave space (Exit / Back to lobby live in the shell).
+            var label = CreateText("Label", bg.transform, "Leave space", 16, TextAnchor.MiddleCenter, VrTheme.OnSurface);
             label.fontStyle = FontStyle.Bold;
             var labelRect = label.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
             labelRect.anchorMax = Vector2.one;
             labelRect.sizeDelta = Vector2.zero;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
         }
 
-        private void OnLogoutClicked()
+        private void OnExitClicked()
         {
-            Debug.Log("[LogoutButton] Logout requested.");
+            Debug.Log("[LogoutButton] Leave space / Exit requested.");
 
             // 0. CRITICAL: Clear credentials SYNCHRONOUSLY FIRST.  This must happen
             //    before any async work so that if the user closes the app immediately,
@@ -140,7 +147,7 @@ namespace VellumRift
 #else
             // World-space Login lobby (#187) needs EventSystem + its canvas.
             if (auth != null)
-                auth.ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
+                auth.ShowLoginLobby("Left space. Sign in with Bluekey or join as a guest.");
             Debug.Log("[LogoutButton] Controls disabled — Bluekey Login lobby will appear.");
 #endif
         }
@@ -152,7 +159,9 @@ namespace VellumRift
         {
             foreach (var canvas in FindObjectsOfType<Canvas>())
             {
-                if (canvas != null && canvas.gameObject.name == "BluekeyLoginLobbyCanvas")
+                if (canvas == null) continue;
+                string name = canvas.gameObject.name;
+                if (name == "BluekeyLoginLobbyCanvas" || name == "SpacesLobbyCanvas")
                     continue;
                 canvas.gameObject.SetActive(false);
             }
