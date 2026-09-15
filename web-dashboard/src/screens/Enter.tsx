@@ -517,7 +517,7 @@ export default function Enter({
   }
 
   return (
-    <main className="vr-enter">
+    <main className={`vr-enter ${isHost ? "vr-enter--host" : "vr-enter--visitor"}`}>
       <header className="vr-enter__top">
         <div className="vr-enter__brand">
           <span className="vr-enter__wordmark">VELLUM RIFT</span>
@@ -528,96 +528,6 @@ export default function Enter({
           </span>
         </div>
         <div className="vr-enter__top-actions">
-          {isHost ? (
-            <>
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => void toggleVisibility()}
-                disabled={hostBusy}
-              >
-                <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
-                {visibility === "private" ? "Private" : "Public"}
-              </button>
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => void toggleEventKind()}
-                disabled={hostBusy}
-                title="Feature this space as an event on Home"
-              >
-                <MaterialIcon name={spaceKind === "event" ? "event_available" : "event"} />
-                {spaceKind === "event" ? "Event" : "Exploration"}
-              </button>
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => void toggleKiosk()}
-                disabled={hostBusy}
-                title="Let museum guests join without Bluekey"
-              >
-                <MaterialIcon name={kioskEnabled ? "storefront" : "store"} />
-                {kioskEnabled ? "Kiosk on" : "Kiosk off"}
-              </button>
-              {kioskEnabled ? (
-                <button
-                  type="button"
-                  className="vr-enter__text-btn"
-                  onClick={() => void copy("kiosk", kioskJoinText)}
-                  disabled={!kioskJoinText}
-                >
-                  <MaterialIcon name="qr_code_2" />
-                  {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
-                </button>
-              ) : null}
-              <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
-                <input
-                  type="email"
-                  className="vr-enter__invite-input"
-                  placeholder="colleague@memphis.edu"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  aria-label="Invite email"
-                  required
-                />
-                <label className="vr-enter__allowlist-check">
-                  <input
-                    type="checkbox"
-                    checked={addInviteToAllowlist}
-                    onChange={(e) => setAddInviteToAllowlist(e.target.checked)}
-                  />
-                  Allowlist
-                </label>
-                <button
-                  type="submit"
-                  className="vr-enter__text-btn"
-                  disabled={inviteBusy || !inviteEmail.trim()}
-                >
-                  <MaterialIcon name="mail" />
-                  {inviteBusy ? "Sending…" : "Email Invite"}
-                </button>
-              </form>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="vr-enter__text-btn"
-            onClick={() => void copy("invite", inviteText)}
-            disabled={!inviteText}
-          >
-            <MaterialIcon name="content_copy" />
-            {copied === "invite" ? "Copied" : "Copy Invite"}
-          </button>
-          {primaryShareUrl ? (
-            <button
-              type="button"
-              className="vr-enter__text-btn"
-              onClick={() => setShareOpen(true)}
-            >
-              <MaterialIcon name="qr_code_2" />
-              Share QR
-            </button>
-          ) : null}
           <button type="button" className="vr-btn vr-btn--ghost" onClick={onLeave}>
             Leave space
           </button>
@@ -633,7 +543,7 @@ export default function Enter({
         </div>
       </header>
 
-      {inviteStatus ? (
+      {inviteStatus && isHost ? (
         <p className="vr-enter__invite-status" role="status">
           {inviteStatus}
         </p>
@@ -645,7 +555,7 @@ export default function Enter({
         </p>
       ) : null}
 
-      {primaryShareUrl ? (
+      {isHost && primaryShareUrl ? (
         <ShareQrPanel
           open={shareOpen}
           onClose={() => setShareOpen(false)}
@@ -661,118 +571,212 @@ export default function Enter({
         />
       ) : null}
 
-      {isHost ? (
-        <section className="vr-enter__allowlist" aria-label="Space allowlist">
-          <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
-            <span className="vr-enter__allowlist-label">Allowlist</span>
-            <input
-              type="email"
-              className="vr-enter__invite-input"
-              placeholder="add@memphis.edu"
-              value={allowlistEmail}
-              onChange={(e) => setAllowlistEmail(e.target.value)}
-              aria-label="Allowlist email"
-            />
-            <button
-              type="submit"
-              className="vr-enter__text-btn"
-              disabled={hostBusy || !allowlistEmail.trim()}
-            >
-              <MaterialIcon name="person_add" />
-              Add
-            </button>
-          </form>
-          {allowlist.length ? (
-            <ul className="vr-enter__allowlist-list">
-              {allowlist.map((entry) => (
-                <li key={entry.id}>
-                  <span>{entry.email || entry.subjectSub || "entry"}</span>
-                  <button
-                    type="button"
-                    className="vr-enter__text-btn"
-                    onClick={() => void onRemoveAllowlist(entry.id)}
-                    disabled={hostBusy}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="vr-enter__allowlist-empty">
-              {visibility === "private"
-                ? "Private space — add emails (or check Allowlist on invite)."
-                : "Optional allowlist (used if you switch to Private)."}
-            </p>
-          )}
-        </section>
+      {!isHost && (status === "ready" || session) && activeTitle ? (
+        <p className="vr-enter__visitor-now" role="status">
+          Now in this space: <strong>{activeTitle}</strong>
+        </p>
       ) : null}
 
-      {status === "ready" || session ? (
-        <section className="vr-enter__playlist" aria-label="Manuscript playlist">
-          <div className="vr-enter__playlist-head">
-            <h2 className="vr-enter__playlist-title">
-              <MaterialIcon name="menu_book" />
-              Manuscripts
-            </h2>
-            {isHost && sessionId && onAddFromLibrary ? (
+      {isHost ? (
+        <details className="vr-enter__host-ops" open>
+          <summary className="vr-enter__host-ops-summary">
+            <MaterialIcon name="admin_panel_settings" />
+            Host tools
+            <span className="vr-enter__host-ops-hint">Visibility, kiosk, invites, manuscripts, participants</span>
+          </summary>
+
+          <div className="vr-enter__host-ops-toolbar">
+            <button
+              type="button"
+              className="vr-enter__text-btn"
+              onClick={() => void toggleVisibility()}
+              disabled={hostBusy}
+            >
+              <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
+              {visibility === "private" ? "Private" : "Public"}
+            </button>
+            <button
+              type="button"
+              className="vr-enter__text-btn"
+              onClick={() => void toggleEventKind()}
+              disabled={hostBusy}
+              title="Feature this space as an event on Home"
+            >
+              <MaterialIcon name={spaceKind === "event" ? "event_available" : "event"} />
+              {spaceKind === "event" ? "Event" : "Exploration"}
+            </button>
+            <button
+              type="button"
+              className="vr-enter__text-btn"
+              onClick={() => void toggleKiosk()}
+              disabled={hostBusy}
+              title="Let museum guests join without Bluekey"
+            >
+              <MaterialIcon name={kioskEnabled ? "storefront" : "store"} />
+              {kioskEnabled ? "Kiosk on" : "Kiosk off"}
+            </button>
+            {kioskEnabled ? (
               <button
                 type="button"
                 className="vr-enter__text-btn"
-                onClick={() => onAddFromLibrary(sessionId)}
-                disabled={playlistBusy}
+                onClick={() => void copy("kiosk", kioskJoinText)}
+                disabled={!kioskJoinText}
               >
-                <MaterialIcon name="library_add" />
-                Add from library
+                <MaterialIcon name="qr_code_2" />
+                {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
               </button>
             ) : null}
+            <button
+              type="button"
+              className="vr-enter__text-btn"
+              onClick={() => void copy("invite", inviteText)}
+              disabled={!inviteText}
+            >
+              <MaterialIcon name="content_copy" />
+              {copied === "invite" ? "Copied" : "Copy Invite"}
+            </button>
+            {primaryShareUrl ? (
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => setShareOpen(true)}
+              >
+                <MaterialIcon name="qr_code_2" />
+                Share QR
+              </button>
+            ) : null}
+            <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
+              <input
+                type="email"
+                className="vr-enter__invite-input"
+                placeholder="colleague@memphis.edu"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                aria-label="Invite email"
+                required
+              />
+              <label className="vr-enter__allowlist-check">
+                <input
+                  type="checkbox"
+                  checked={addInviteToAllowlist}
+                  onChange={(e) => setAddInviteToAllowlist(e.target.checked)}
+                />
+                Allowlist
+              </label>
+              <button
+                type="submit"
+                className="vr-enter__text-btn"
+                disabled={inviteBusy || !inviteEmail.trim()}
+              >
+                <MaterialIcon name="mail" />
+                {inviteBusy ? "Sending…" : "Email Invite"}
+              </button>
+            </form>
           </div>
-          {playlistError ? (
-            <p className="vr-enter__error" role="alert">
-              {playlistError}
-            </p>
-          ) : null}
-          {!playlist.length ? (
-            <p className="vr-enter__playlist-empty">
-              No documents in this space yet.
-              {isHost && onAddFromLibrary && sessionId ? (
-                <>
-                  {" "}
+
+          <section className="vr-enter__allowlist" aria-label="Space allowlist">
+            <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
+              <span className="vr-enter__allowlist-label">Allowlist</span>
+              <input
+                type="email"
+                className="vr-enter__invite-input"
+                placeholder="add@memphis.edu"
+                value={allowlistEmail}
+                onChange={(e) => setAllowlistEmail(e.target.value)}
+                aria-label="Allowlist email"
+              />
+              <button
+                type="submit"
+                className="vr-enter__text-btn"
+                disabled={hostBusy || !allowlistEmail.trim()}
+              >
+                <MaterialIcon name="person_add" />
+                Add
+              </button>
+            </form>
+            {allowlist.length ? (
+              <ul className="vr-enter__allowlist-list">
+                {allowlist.map((entry) => (
+                  <li key={entry.id}>
+                    <span>{entry.email || entry.subjectSub || "entry"}</span>
+                    <button
+                      type="button"
+                      className="vr-enter__text-btn"
+                      onClick={() => void onRemoveAllowlist(entry.id)}
+                      disabled={hostBusy}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="vr-enter__allowlist-empty">
+                {visibility === "private"
+                  ? "Private space — add emails (or check Allowlist on invite)."
+                  : "Optional allowlist (used if you switch to Private)."}
+              </p>
+            )}
+          </section>
+
+          {(status === "ready" || session) ? (
+            <section className="vr-enter__playlist" aria-label="Manuscript playlist">
+              <div className="vr-enter__playlist-head">
+                <h2 className="vr-enter__playlist-title">
+                  <MaterialIcon name="menu_book" />
+                  Manuscripts
+                </h2>
+                {sessionId && onAddFromLibrary ? (
                   <button
                     type="button"
-                    className="vr-enter__retry"
+                    className="vr-enter__text-btn"
                     onClick={() => onAddFromLibrary(sessionId)}
+                    disabled={playlistBusy}
                   >
+                    <MaterialIcon name="library_add" />
                     Add from library
                   </button>
-                </>
-              ) : null}
-            </p>
-          ) : (
-            <>
-              {!isHost ? (
-                <p className="vr-enter__playlist-active">
-                  Active: <strong>{activeTitle ?? "None"}</strong>
+                ) : null}
+              </div>
+              {playlistError ? (
+                <p className="vr-enter__error" role="alert">
+                  {playlistError}
                 </p>
               ) : null}
-              <ul className="vr-enter__playlist-list">
-                {playlist.map((modelId) => {
-                  const isActive = modelId === activeModelId;
-                  const title = shortModelLabel(modelId, modelLabels[modelId]);
-                  return (
-                    <li
-                      key={modelId}
-                      className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}`}
-                    >
-                      <span className="vr-enter__playlist-name" title={modelId}>
-                        {isActive ? (
-                          <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
-                        ) : (
-                          <MaterialIcon name="radio_button_unchecked" />
-                        )}
-                        {title}
-                      </span>
-                      {isHost ? (
+              {!playlist.length ? (
+                <p className="vr-enter__playlist-empty">
+                  No documents in this space yet.
+                  {onAddFromLibrary && sessionId ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="vr-enter__retry"
+                        onClick={() => onAddFromLibrary(sessionId)}
+                      >
+                        Add from library
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              ) : (
+                <ul className="vr-enter__playlist-list">
+                  {playlist.map((modelId) => {
+                    const isActive = modelId === activeModelId;
+                    const title = shortModelLabel(modelId, modelLabels[modelId]);
+                    return (
+                      <li
+                        key={modelId}
+                        className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}`}
+                      >
+                        <span className="vr-enter__playlist-name" title={modelId}>
+                          {isActive ? (
+                            <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
+                          ) : (
+                            <MaterialIcon name="radio_button_unchecked" />
+                          )}
+                          {title}
+                        </span>
                         <span className="vr-enter__playlist-actions">
                           {!isActive ? (
                             <button
@@ -795,14 +799,64 @@ export default function Enter({
                             Remove
                           </button>
                         </span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </section>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
+          <section className="vr-enter__moderation" aria-label="Participant moderation">
+            <h2 className="vr-enter__playlist-title">
+              <MaterialIcon name="group" />
+              Participants
+            </h2>
+            <ul className="vr-enter__roster" aria-label="Participants">
+              {players.map((player) => {
+                const isMe = player.id === me?.playerId;
+                const canModerate = !player.isHost && !isMe;
+                return (
+                  <li key={player.id} className="vr-enter__roster-row">
+                    <span className="vr-enter__roster-name">
+                      {isMe ? "You" : player.displayName}
+                      {player.isHost ? " · host" : ""}
+                      {player.chatMuted ? " · muted" : ""}
+                    </span>
+                    {canModerate ? (
+                      <span className="vr-enter__roster-actions">
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
+                        >
+                          {player.chatMuted ? "Unmute" : "Mute"}
+                        </button>
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onMakeHost(player.id)}
+                        >
+                          Make host
+                        </button>
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          disabled={hostBusy}
+                          onClick={() => void onKick(player.id)}
+                        >
+                          Kick
+                        </button>
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </details>
       ) : null}
 
       {error ? (
@@ -865,50 +919,6 @@ export default function Enter({
             </div>
           </div>
 
-          {isHost ? (
-            <ul className="vr-enter__roster" aria-label="Participants">
-              {players.map((player) => {
-                const isMe = player.id === me?.playerId;
-                const canModerate = !player.isHost && !isMe;
-                return (
-                  <li key={player.id} className="vr-enter__roster-row">
-                    <span className="vr-enter__roster-name">
-                      {isMe ? "You" : player.displayName}
-                      {player.isHost ? " · host" : ""}
-                      {player.chatMuted ? " · muted" : ""}
-                    </span>
-                    {canModerate ? (
-                      <span className="vr-enter__roster-actions">
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
-                        >
-                          {player.chatMuted ? "Unmute" : "Mute"}
-                        </button>
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onMakeHost(player.id)}
-                        >
-                          Make host
-                        </button>
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onKick(player.id)}
-                        >
-                          Kick
-                        </button>
-                      </span>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
           ) : null}
 
           <div className="vr-enter__controls-hint" aria-label="Controls">
