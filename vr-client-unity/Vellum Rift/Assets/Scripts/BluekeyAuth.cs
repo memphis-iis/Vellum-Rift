@@ -94,8 +94,9 @@ namespace VellumRift
                 StartCoroutine(WaitForHandoffThenPopup());
             }
 #else
-            showLobbyUi = true;
-            ShowLoginLobby();
+            // Museum-first: skip path picker — go straight to public Events lobby.
+            // Staff can Sign in with Bluekey from the Events panel.
+            HandleJoinExhibit();
 #endif
         }
 
@@ -149,7 +150,7 @@ namespace VellumRift
             Debug.Log("[BluekeyAuth] Logged out — credentials cleared.");
         }
 
-        /// <summary>Show the Login lobby after logout (world-space + EventSystem).</summary>
+        /// <summary>Show Login after logout — museum-first: public Events, no path picker.</summary>
         public void ShowLoginLobby(string status = "")
         {
             if (KioskMode.IsActive || IsAuthenticated)
@@ -157,9 +158,11 @@ namespace VellumRift
 
             EnsureLobby();
             statusText = status ?? "";
-            loginLobby.SetStatus(statusText);
-            loginLobby.Show(statusText);
             showLobbyUi = true;
+            // Skip "How do you want to enter?" — go straight to public Events.
+            HandleJoinExhibit();
+            if (!string.IsNullOrEmpty(statusText))
+                loginLobby?.SetStatus(statusText);
         }
 
         public void BeginLogin()
@@ -176,7 +179,8 @@ namespace VellumRift
             showLobbyUi = true;
             OpenBluekeyInBrowser();
             statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
-            ShowLoginLobby(statusText);
+            EnsureLobby();
+            loginLobby?.ShowBluekeyOnly(statusText);
 #endif
         }
 
@@ -236,6 +240,18 @@ namespace VellumRift
         {
             if (loginLobby != null)
                 loginLobby.Hide();
+        }
+
+        /// <summary>Open Bluekey from Events lobby (staff path) without path picker.</summary>
+        public void BeginBluekeyFromEventsLobby()
+        {
+            PendingGuestEventsLobby = false;
+            EnsureLobby();
+            OpenBluekeyInBrowser();
+            statusText = "Complete Bluekey in the browser. Events will refresh when sign-in finishes.";
+            loginLobby?.ShowBluekeyOnly(statusText);
+            showLobbyUi = true;
+            Debug.Log("[BluekeyAuth] Bluekey from Events lobby");
         }
 
         private void HandleSignInWithBluekey()

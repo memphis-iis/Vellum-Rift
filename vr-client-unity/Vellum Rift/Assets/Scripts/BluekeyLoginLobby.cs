@@ -51,13 +51,19 @@ namespace VellumRift
             EnsureBuilt();
             if (!string.IsNullOrEmpty(status))
                 statusMessage = status;
-            screen = Screen.Path;
+            screen = Screen.Bluekey;
             RebuildContent();
             if (canvasGO != null)
                 canvasGO.SetActive(true);
             visible = true;
             PlaceInFrontOfCamera();
             EnsureEventSystem();
+        }
+
+        /// <summary>Staff sign-in only — no path picker / Join exhibit screens.</summary>
+        public void ShowBluekeyOnly(string status = "")
+        {
+            Show(status);
         }
 
         public void Hide()

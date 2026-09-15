@@ -63,8 +63,27 @@ namespace VellumRift
             canvasGO.SetActive(true);
             PlaceInFrontOfCamera();
             EnsureEventSystem();
+            var auth = FindObjectOfType<BluekeyAuth>();
+            if (auth != null)
+            {
+                auth.AuthSucceeded -= OnAuthSucceededRefresh;
+                auth.AuthSucceeded += OnAuthSucceededRefresh;
+            }
             _ = RefreshListAsync();
             return pending.Task;
+        }
+
+        private void OnAuthSucceededRefresh()
+        {
+            if (!visible)
+                return;
+            Debug.Log("[SpacesLobby] Auth succeeded — refreshing event list (signed-in)");
+            guestPublicEvents = false;
+            if (staffCreateRoot != null)
+                staffCreateRoot.SetActive(true);
+            if (apiClient != null && !string.IsNullOrEmpty(ApiAuth.Token))
+                apiClient.SetAuthToken(ApiAuth.Token);
+            _ = RefreshListAsync();
         }
 
         private void LateUpdate()
@@ -145,6 +164,25 @@ namespace VellumRift
                 y - 44f,
                 () => _ = RefreshListAsync(),
                 absoluteRight: true);
+            y -= 52f;
+
+            // Staff escape hatch when guest/public list fails or for host tools.
+            CreateButton(
+                panel.transform,
+                "BluekeyBtn",
+                "Sign in with Bluekey",
+                VrTheme.SurfaceHighest,
+                VrTheme.OnSurface,
+                48f,
+                y,
+                -48f,
+                y - 44f,
+                () =>
+                {
+                    var auth = FindObjectOfType<BluekeyAuth>();
+                    auth?.BeginBluekeyFromEventsLobby();
+                },
+                outline: true);
             y -= 56f;
 
             GameObject scrollGO = CreateUIObject("Scroll", panel.transform);
@@ -321,13 +359,38 @@ namespace VellumRift
                 var list = guestPublicEvents
                     ? await apiClient.ListPublicEvents(err => loadError = err)
                     : await apiClient.ListSessions(err => loadError = err);
+
+                // IIS may not have /api/kiosk/events until backend redeploy — fall back to
+                // authenticated list when Bluekey already signed in.
+                if (list == null && guestPublicEvents && IsNotFound(loadError) &&
+                    !string.IsNullOrEmpty(ApiAuth.Token))
+                {
+                    Debug.LogWarning(
+                        "[SpacesLobby] ListPublicEvents 404 — falling back to ListSessions (signed-in)");
+                    guestPublicEvents = false;
+                    if (staffCreateRoot != null)
+                        staffCreateRoot.SetActive(true);
+                    apiClient.SetAuthToken(ApiAuth.Token);
+                    loadError = null;
+                    list = await apiClient.ListSessions(err => loadError = err);
+                }
+
                 if (list == null)
                 {
                     Debug.LogError($"[SpacesLobby] list returned null. error={loadError ?? "(none)"}");
                     RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
-                    SetStatus(string.IsNullOrEmpty(loadError)
-                        ? "Could not load events. Check the backend and try Refresh."
-                        : $"Could not load events ({loadError}). Try Refresh after sign-in.");
+                    if (guestPublicEvents && IsNotFound(loadError))
+                    {
+                        SetStatus(
+                            "Public events API missing on this server (need backend deploy of GET /api/kiosk/events). " +
+                            "Sign in with Bluekey to list events, or run a local backend.");
+                    }
+                    else
+                    {
+                        SetStatus(string.IsNullOrEmpty(loadError)
+                            ? "Could not load events. Check the backend and try Refresh."
+                            : $"Could not load events ({loadError}).");
+                    }
                 }
                 else
                 {
@@ -378,6 +441,14 @@ namespace VellumRift
                 parts.Add($"{id}:{(string.IsNullOrEmpty(s.kind) ? "∅" : s.kind)}:{(s.isActive ? "on" : "off")}");
             }
             return string.Join(", ", parts);
+        }
+
+        private static bool IsNotFound(string loadError)
+        {
+            if (string.IsNullOrEmpty(loadError))
+                return false;
+            return loadError.IndexOf("404", StringComparison.Ordinal) >= 0
+                || loadError.IndexOf("Cannot GET /api/kiosk/events", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private async Task JoinAsync(string sessionId)
