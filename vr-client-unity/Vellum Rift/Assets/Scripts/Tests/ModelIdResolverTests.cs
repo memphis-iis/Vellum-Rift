@@ -41,6 +41,14 @@ namespace VellumRift.Tests
         }
 
         [Test]
+        public void ResolveOverride_DisallowInspector_IgnoresDefault()
+        {
+            string result = ModelIdResolver.ResolveOverride(
+                "inspector", None(), None(), allowInspectorDefault: false);
+            Assert.That(result, Is.EqualTo(""));
+        }
+
+        [Test]
         public void ResolveActive_OverrideBeatsSession()
         {
             Assert.That(
