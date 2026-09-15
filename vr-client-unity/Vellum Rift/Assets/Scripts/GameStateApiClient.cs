@@ -140,7 +140,13 @@ namespace VellumRift
             if (string.IsNullOrEmpty(authToken) && !string.IsNullOrEmpty(ApiAuth.Token))
                 authToken = ApiAuth.Token;
 
-            ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbGET, BuildUrl(""));
+            string url = BuildUrl("");
+            bool hasBearer = !string.IsNullOrEmpty(authToken);
+            Debug.Log(
+                $"[GameStateApiClient] ListSessions GET {url} " +
+                $"(Bearer={(hasBearer ? "yes,len=" + authToken.Length : "NO")})");
+
+            ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbGET, url);
             if (!res.IsSuccess)
             {
                 LogFailure("ListSessions", res);
@@ -149,13 +155,22 @@ namespace VellumRift
                     : (res.Error ?? "network error");
                 if (res.StatusCode == 401 || res.StatusCode == 403)
                     detail += " (sign in again — missing or expired token)";
+                Debug.LogError($"[GameStateApiClient] ListSessions FAILED: {detail}");
                 error?.Invoke(detail);
                 return null;
             }
 
+            string body = res.Body ?? "";
+            string preview = body.Length <= 280 ? body : body.Substring(0, 280) + "…";
+            Debug.Log(
+                $"[GameStateApiClient] ListSessions OK HTTP {res.StatusCode}, " +
+                $"bodyLen={body.Length}, preview={preview}");
+
             try
             {
-                return ParseSessionList(res.Body);
+                SessionListItem[] items = ParseSessionList(body);
+                Debug.Log($"[GameStateApiClient] ListSessions parsed {items.Length} session row(s)");
+                return items;
             }
             catch (Exception ex)
             {
@@ -169,20 +184,55 @@ namespace VellumRift
         public static SessionListItem[] ParseSessionList(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
+            {
+                Debug.LogWarning("[GameStateApiClient] ParseSessionList: empty body");
                 return Array.Empty<SessionListItem>();
+            }
 
             string trimmed = raw.Trim();
             if (!trimmed.StartsWith("["))
-                return Array.Empty<SessionListItem>();
-
-            var items = new List<SessionListItem>();
-            foreach (string objJson in SplitTopLevelJsonObjects(trimmed))
             {
-                SessionListItem item = ParseSessionListItem(objJson);
-                if (item != null && !string.IsNullOrEmpty(item.sessionId))
-                    items.Add(item);
+                string head = trimmed.Length <= 120 ? trimmed : trimmed.Substring(0, 120) + "…";
+                Debug.LogWarning(
+                    $"[GameStateApiClient] ParseSessionList: body is not a JSON array (starts with '{head}')");
+                return Array.Empty<SessionListItem>();
             }
+
+            var objects = SplitTopLevelJsonObjects(trimmed);
+            var items = new List<SessionListItem>();
+            int parseFail = 0;
+            for (int i = 0; i < objects.Count; i++)
+            {
+                SessionListItem item = ParseSessionListItem(objects[i]);
+                if (item != null && !string.IsNullOrEmpty(item.sessionId))
+                {
+                    items.Add(item);
+                    Debug.Log(
+                        $"[GameStateApiClient] ParseSessionList[{i}] " +
+                        $"id={ShortId(item.sessionId)} label='{item.label}' " +
+                        $"kind='{item.kind}' active={item.isActive} " +
+                        $"vis={item.visibility} endsAt={item.endsAt ?? "null"}");
+                }
+                else
+                {
+                    parseFail++;
+                    string snippet = objects[i];
+                    if (snippet.Length > 100) snippet = snippet.Substring(0, 100) + "…";
+                    Debug.LogWarning(
+                        $"[GameStateApiClient] ParseSessionList[{i}] skipped (SimpleJson failed or no sessionId). snippet={snippet}");
+                }
+            }
+
+            Debug.Log(
+                $"[GameStateApiClient] ParseSessionList done: objects={objects.Count}, " +
+                $"ok={items.Count}, skipped={parseFail}");
             return items.ToArray();
+        }
+
+        private static string ShortId(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return "?";
+            return id.Length <= 8 ? id : id.Substring(0, 8);
         }
 
         private static SessionListItem ParseSessionListItem(string objJson)

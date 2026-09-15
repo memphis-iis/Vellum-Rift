@@ -222,9 +222,11 @@ namespace VellumRift
                 var empty = CreateText("Empty", listContent, emptyMsg, 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
                 empty.horizontalOverflow = HorizontalWrapMode.Wrap;
                 empty.rectTransform.sizeDelta = new Vector2(0f, 64f);
+                Debug.Log($"[SpacesLobby] RebuildList: 0 cards (empty state). listContent={(listContent != null ? "ok" : "NULL")}");
                 return;
             }
 
+            Debug.Log($"[SpacesLobby] RebuildList: building {events.Length} event card(s)");
             foreach (var space in events)
             {
                 if (space == null || string.IsNullOrEmpty(space.sessionId))
@@ -232,7 +234,11 @@ namespace VellumRift
                 string label = string.IsNullOrWhiteSpace(space.label) ? "Untitled event" : space.label.Trim();
                 string window = SessionEventList.FormatWindow(space.startsAt, space.endsAt) ?? "Open now";
                 AddEventCard(label, window, space.sessionId);
+                Debug.Log($"[SpacesLobby] card '{label}' ({space.sessionId}) — {window}");
             }
+            Debug.Log(
+                $"[SpacesLobby] RebuildList done: childCount={listContent.childCount}, " +
+                $"canvasActive={(canvasGO != null && canvasGO.activeSelf)}");
         }
 
         private void AddEventCard(string label, string subtitle, string sessionId)
@@ -288,6 +294,7 @@ namespace VellumRift
                 var list = await apiClient.ListSessions(err => loadError = err);
                 if (list == null)
                 {
+                    Debug.LogError($"[SpacesLobby] ListSessions returned null. error={loadError ?? "(none)"}");
                     RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
                     SetStatus(string.IsNullOrEmpty(loadError)
                         ? "Could not load events. Check the backend and try Refresh."
@@ -295,11 +302,11 @@ namespace VellumRift
                 }
                 else
                 {
+                    Debug.Log($"[SpacesLobby] Refresh: raw list has {list.Length} space(s) before event filter");
                     var events = SessionEventList.CurrentEvents(list);
                     RebuildList(events);
                     Debug.Log(
-                        $"[SpacesLobby] ListSessions returned {list.Length} space(s); " +
-                        $"{events.Length} current event(s). " +
+                        $"[SpacesLobby] Refresh summary: spaces={list.Length} events={events.Length} | " +
                         SummarizeKinds(list));
                     if (events.Length == 0 && list.Length > 0)
                     {
@@ -315,6 +322,7 @@ namespace VellumRift
             }
             catch (Exception ex)
             {
+                Debug.LogException(ex);
                 RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
                 SetStatus($"Load failed: {ex.Message}");
             }

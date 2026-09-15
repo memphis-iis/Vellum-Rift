@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace VellumRift
 {
@@ -18,20 +19,41 @@ namespace VellumRift
             DateTime? utcNow = null)
         {
             if (sessions == null || sessions.Length == 0)
+            {
+                Debug.Log("[SessionEventList] CurrentEvents: input empty → 0 events");
                 return Array.Empty<GameStateApiClient.SessionListItem>();
+            }
 
             DateTime now = utcNow ?? DateTime.UtcNow;
             var filtered = new List<GameStateApiClient.SessionListItem>();
             foreach (var s in sessions)
             {
                 if (s == null || string.IsNullOrEmpty(s.sessionId))
+                {
+                    Debug.Log("[SessionEventList] skip: null row / empty id");
                     continue;
+                }
+
+                string id = s.sessionId.Length <= 8 ? s.sessionId : s.sessionId.Substring(0, 8);
                 if (!s.isActive)
+                {
+                    Debug.Log($"[SessionEventList] skip {id} '{s.label}': not active (archived)");
                     continue;
+                }
                 if (!IsEventKind(s))
+                {
+                    Debug.Log(
+                        $"[SessionEventList] skip {id} '{s.label}': kind='{s.kind}' (need 'event')");
                     continue;
+                }
                 if (HasEnded(s.endsAt, now))
+                {
+                    Debug.Log(
+                        $"[SessionEventList] skip {id} '{s.label}': ended at {s.endsAt} (now utc {now:o})");
                     continue;
+                }
+
+                Debug.Log($"[SessionEventList] KEEP {id} '{s.label}' kind={s.kind} vis={s.visibility}");
                 filtered.Add(s);
             }
 
@@ -41,6 +63,9 @@ namespace VellumRift
                 long ta = ParseTime(a.updatedAt);
                 return tb.CompareTo(ta);
             });
+            Debug.Log(
+                $"[SessionEventList] CurrentEvents: {filtered.Count} kept of {sessions.Length} " +
+                $"(filter=active+kind:event+not ended)");
             return filtered.ToArray();
         }
 
