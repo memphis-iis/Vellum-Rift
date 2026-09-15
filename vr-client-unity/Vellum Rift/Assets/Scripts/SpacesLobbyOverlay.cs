@@ -55,6 +55,15 @@ namespace VellumRift
                 $"[SpacesLobby] PickAsync OPEN — Events list will load. " +
                 $"guestPublic={guestPublicEvents} hasApi={(client != null)} " +
                 $"hasToken={!string.IsNullOrEmpty(ApiAuth.Token)} banner='{banner}'");
+
+            // Never stack Login path-picker under Events.
+            var authForHide = FindObjectOfType<BluekeyAuth>();
+            if (authForHide != null)
+            {
+                var lobby = authForHide.GetComponent<BluekeyLoginLobby>();
+                lobby?.Hide();
+            }
+
             EnsureBuilt();
             if (staffCreateRoot != null)
                 staffCreateRoot.SetActive(!guestPublicEvents);
@@ -63,7 +72,7 @@ namespace VellumRift
             canvasGO.SetActive(true);
             PlaceInFrontOfCamera();
             EnsureEventSystem();
-            var auth = FindObjectOfType<BluekeyAuth>();
+            var auth = authForHide ?? FindObjectOfType<BluekeyAuth>();
             if (auth != null)
             {
                 auth.AuthSucceeded -= OnAuthSucceededRefresh;

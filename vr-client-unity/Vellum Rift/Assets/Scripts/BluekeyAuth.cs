@@ -15,8 +15,8 @@ namespace VellumRift
     ///   2. CLI/env <c>-accessToken=</c> / <c>VELLUM_ACCESS_TOKEN</c> (desktop / testing)
     ///   3. Bluekey portal popup fallback
     ///
-    /// Editor/standalone/Quest-bound builds: world-space Login lobby —
-    /// tap-first path picker (Join exhibit / Open Bluekey). No token paste UI.
+    /// Editor/standalone: museum-first — skip path picker, open public Events.
+    /// Staff Sign in from Events shows Bluekey-only UI. No token paste.
     /// Tokens always land in <see cref="ApiAuth"/> via <see cref="SetToken"/>.
     /// </summary>
     public class BluekeyAuth : MonoBehaviour
@@ -53,7 +53,8 @@ namespace VellumRift
         public event Action AuthSucceeded;
 
         private string statusText = "";
-        private bool showLobbyUi = true;
+        /// <summary>IMGUI fallback only while waiting on Bluekey (never path-picker).</summary>
+        private bool showLobbyUi;
         private bool handoffWaitStarted;
         private bool guestBusy;
         private BluekeyLoginLobby loginLobby;
@@ -79,6 +80,11 @@ namespace VellumRift
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             RegisterAuthHandoffTarget(gameObject.name);
+#else
+            // Before any other Start() (e.g. DemoSession), mark museum-first so
+            // EnsureAuthenticatedAsync never flashes ShowLoginLobby / path UI.
+            PendingGuestEventsLobby = true;
+            showLobbyUi = false;
 #endif
         }
 
@@ -117,6 +123,7 @@ namespace VellumRift
                 : null;
 
             ApiAuth.Token = token;
+            PendingGuestEventsLobby = false;
             showLobbyUi = false;
             statusText = "";
             guestBusy = false;
@@ -138,7 +145,7 @@ namespace VellumRift
             foreach (var client in FindObjectsByType<GameStateApiClient>(FindObjectsSortMode.None))
                 client.SetAuthToken("");
 #if !UNITY_WEBGL || UNITY_EDITOR
-            showLobbyUi = true;
+            showLobbyUi = false;
             ShowLoginLobby("Signed out. Choose how to enter.");
 #endif
         }
@@ -150,19 +157,15 @@ namespace VellumRift
             Debug.Log("[BluekeyAuth] Logged out — credentials cleared.");
         }
 
-        /// <summary>Show Login after logout — museum-first: public Events, no path picker.</summary>
+        /// <summary>After logout / re-entry — museum-first: public Events, no path picker.</summary>
         public void ShowLoginLobby(string status = "")
         {
             if (KioskMode.IsActive || IsAuthenticated)
                 return;
 
-            EnsureLobby();
             statusText = status ?? "";
-            showLobbyUi = true;
-            // Skip "How do you want to enter?" — go straight to public Events.
+            // Never build Path / IMGUI path-picker — Events overlay owns this flow.
             HandleJoinExhibit();
-            if (!string.IsNullOrEmpty(statusText))
-                loginLobby?.SetStatus(statusText);
         }
 
         public void BeginLogin()
@@ -265,8 +268,9 @@ namespace VellumRift
         {
             PendingGuestEventsLobby = true;
             PendingJoinSessionId = null;
-            statusText = "Opening public events…";
-            loginLobby?.SetStatus(statusText);
+            // Suppress IMGUI path-picker and any Login canvas while Events opens.
+            showLobbyUi = false;
+            statusText = "";
             HideLoginLobby();
             Debug.Log("[BluekeyAuth] Join exhibit → public Events lobby (mint token on card tap)");
         }
@@ -521,30 +525,28 @@ namespace VellumRift
         }
 
 #if UNITY_EDITOR || !UNITY_WEBGL
-        // IMGUI fallback if world-space lobby is unavailable (e.g. after Logout hid canvases incorrectly).
+        // IMGUI fallback only while waiting on Bluekey (staff Sign in from Events).
+        // Never draw path-picker / Join exhibit — that races SpacesLobbyOverlay.
         private void OnGUI()
         {
             if (KioskMode.IsActive || IsAuthenticated || !showLobbyUi)
+                return;
+            if (PendingGuestEventsLobby)
                 return;
             if (loginLobby != null && loginLobby.IsVisible)
                 return;
 
             float w = 420f;
-            float h = 260f;
+            float h = 220f;
             float x = (Screen.width - w) * 0.5f;
             float y = (Screen.height - h) * 0.5f;
             GUI.Box(new Rect(x, y, w, h), "Vellum Rift");
             GUILayout.BeginArea(new Rect(x + 16, y + 28, w - 32, h - 40));
-            GUILayout.Label("How do you want to enter?");
+            GUILayout.Label("Sign in with Bluekey");
             if (!string.IsNullOrEmpty(statusText))
                 GUILayout.Label(statusText);
             GUILayout.Space(8);
-            string museumId = ResolveMuseumKioskSpaceId();
-            GUI.enabled = !string.IsNullOrEmpty(museumId);
-            if (GUILayout.Button("Join exhibit", GUILayout.Height(32)))
-                HandleGuestJoin(museumId);
-            GUI.enabled = true;
-            if (GUILayout.Button("Sign in with Bluekey", GUILayout.Height(32)))
+            if (GUILayout.Button("Open Bluekey", GUILayout.Height(32)))
                 HandleSignInWithBluekey();
             GUILayout.EndArea();
         }

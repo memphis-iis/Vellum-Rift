@@ -362,10 +362,19 @@ namespace VellumRift
 
         private async Task EnsureAuthenticatedAsync()
         {
+            // Museum-first: PendingGuestEventsLobby is set in BluekeyAuth.Awake —
+            // never flash Login / path-picker UI while Events lobby opens.
             if (bluekeyAuth == null || bluekeyAuth.CanContinuePastLogin)
                 return;
 
-            // World-space Login (Open Bluekey / Join exhibit) — wait until done.
+            // Wait briefly for BluekeyAuth.Start/Awake on script-order races.
+            float settleDeadline = Time.realtimeSinceStartup + 1f;
+            while (!bluekeyAuth.CanContinuePastLogin && Time.realtimeSinceStartup < settleDeadline)
+                await Task.Yield();
+            if (bluekeyAuth.CanContinuePastLogin)
+                return;
+
+            // Staff / WebGL fallback only — ShowLoginLobby routes to Events, not Path.
             bluekeyAuth.ShowLoginLobby("Sign in or join an exhibit to continue.");
             Debug.Log("[DemoSession] Waiting for Bluekey / Join exhibit…");
             const float timeoutSeconds = 300f;

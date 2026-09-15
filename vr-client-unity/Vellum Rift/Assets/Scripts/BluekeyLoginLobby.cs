@@ -9,13 +9,14 @@ using UnityEngine.InputSystem.UI;
 namespace VellumRift
 {
     /// <summary>
-    /// World-space Login lobby (#224): museum-first two-step IA — path picker,
-    /// then Guest (public Events lobby) or Bluekey only. No token paste.
+    /// World-space Login lobby (#224): Bluekey-only when staff signs in from
+    /// Events. Path picker is dead — museum guests go straight to public Events.
     /// </summary>
     public class BluekeyLoginLobby : MonoBehaviour
     {
         private enum Screen
         {
+            /// <summary>Unused in default flow; kept for legacy RebuildContent safety.</summary>
             Path,
             Guest,
             Bluekey,
@@ -34,7 +35,7 @@ namespace VellumRift
         private Transform panelTransform;
         private Text statusText;
         private bool visible;
-        private Screen screen = Screen.Path;
+        private Screen screen = Screen.Bluekey;
         private string statusMessage = "";
 
         public bool IsVisible => visible;
@@ -160,7 +161,8 @@ namespace VellumRift
             switch (screen)
             {
                 case Screen.Path:
-                    y = BuildPathScreen(y);
+                    // Path picker removed from default flow — Bluekey-only UI.
+                    y = BuildBluekeyScreen(y);
                     break;
                 case Screen.Guest:
                     y = BuildGuestScreen(y);
@@ -183,54 +185,9 @@ namespace VellumRift
             }
         }
 
-        private float BuildPathScreen(float y)
-        {
-            Text lead = CreateText(
-                "Lead",
-                panelTransform,
-                "How do you want to enter?",
-                22,
-                TextAnchor.UpperCenter,
-                VrTheme.OnSurface);
-            SetRect(lead.rectTransform, 48f, y, -48f, y - 36f);
-            y -= 52f;
-
-            CreateButton(
-                panelTransform,
-                "JoinExhibitBtn",
-                "Join exhibit",
-                VrTheme.Accent,
-                VrTheme.OnAccent,
-                48f,
-                y,
-                -48f,
-                y - VrTheme.MinHitHeightPx,
-                () =>
-                {
-                    screen = Screen.Guest;
-                    RebuildContent();
-                });
-            y -= VrTheme.MinHitHeightPx + 16f;
-
-            CreateButton(
-                panelTransform,
-                "BluekeyBtn",
-                "Sign in with Bluekey",
-                VrTheme.SurfaceHighest,
-                VrTheme.OnSurface,
-                48f,
-                y,
-                -48f,
-                y - VrTheme.MinHitHeightPx,
-                () =>
-                {
-                    screen = Screen.Bluekey;
-                    RebuildContent();
-                },
-                outline: true);
-            y -= VrTheme.MinHitHeightPx + 24f;
-            return y;
-        }
+        // Path picker ("How do you want to enter?") removed from default museum flow.
+        // Kept as a no-op stub so any stale Screen.Path rebuilds fall through to Bluekey.
+        private float BuildPathScreen(float y) => BuildBluekeyScreen(y);
 
         private float BuildGuestScreen(float y)
         {
@@ -280,23 +237,7 @@ namespace VellumRift
                 y -= VrTheme.MinHitHeightPx + 16f;
             }
 
-            CreateButton(
-                panelTransform,
-                "BackBtn",
-                "Back",
-                VrTheme.SurfaceHighest,
-                VrTheme.OnSurface,
-                48f,
-                y,
-                -48f,
-                y - VrTheme.MinHitHeightPx,
-                () =>
-                {
-                    screen = Screen.Path;
-                    RebuildContent();
-                },
-                outline: true);
-            y -= VrTheme.MinHitHeightPx + 24f;
+            y -= 24f;
             return y;
         }
 
@@ -309,7 +250,7 @@ namespace VellumRift
             Text hint = CreateText(
                 "Hint",
                 panelTransform,
-                "Opens Bluekey in your browser. Return here when finished — no token paste.",
+                "Opens Bluekey in the browser. Return here when finished — no token paste.",
                 18,
                 TextAnchor.UpperLeft,
                 VrTheme.OnSurfaceVariant);
@@ -328,24 +269,6 @@ namespace VellumRift
                 -48f,
                 y - VrTheme.MinHitHeightPx,
                 () => OnSignInWithBluekey?.Invoke());
-            y -= VrTheme.MinHitHeightPx + 16f;
-
-            CreateButton(
-                panelTransform,
-                "BackBtn",
-                "Back",
-                VrTheme.SurfaceHighest,
-                VrTheme.OnSurface,
-                48f,
-                y,
-                -48f,
-                y - VrTheme.MinHitHeightPx,
-                () =>
-                {
-                    screen = Screen.Path;
-                    RebuildContent();
-                },
-                outline: true);
             y -= VrTheme.MinHitHeightPx + 24f;
             return y;
         }
