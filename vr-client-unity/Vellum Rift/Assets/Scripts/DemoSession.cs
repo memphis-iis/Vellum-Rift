@@ -365,19 +365,18 @@ namespace VellumRift
 
         private async Task EnsureAuthenticatedAsync()
         {
-            if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
+            if (bluekeyAuth == null || bluekeyAuth.CanContinuePastLogin)
                 return;
 
             // World-space Login (Open Bluekey / Join exhibit) — wait until done.
-            // Do not proceed to Events with an empty Bearer against AUTH_REQUIRED hosts (IIS).
             bluekeyAuth.ShowLoginLobby("Sign in or join an exhibit to continue.");
-            Debug.Log("[DemoSession] Waiting for Bluekey / guest authentication…");
+            Debug.Log("[DemoSession] Waiting for Bluekey / Join exhibit…");
             const float timeoutSeconds = 300f;
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
-            while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
+            while (!bluekeyAuth.CanContinuePastLogin && Time.realtimeSinceStartup < deadline)
                 await Task.Yield();
 
-            if (!bluekeyAuth.IsAuthenticated)
+            if (!bluekeyAuth.CanContinuePastLogin)
             {
                 throw new InvalidOperationException(
                     "Timed out waiting for sign-in. Use Open Bluekey or Join exhibit, then try again.");
@@ -443,7 +442,9 @@ namespace VellumRift
         {
             lastSessionCreated = false;
 
-            // Guest Login path (#224): Space ID chosen before auth completes.
+            bool guestEvents = BluekeyAuth.ConsumePendingGuestEventsLobby();
+
+            // Legacy Advanced: baked Space ID guest mint before Events lobby.
             if (string.IsNullOrEmpty(sessionIdOverride))
             {
                 string pendingGuest = BluekeyAuth.ConsumePendingJoinSessionId();
@@ -451,12 +452,11 @@ namespace VellumRift
                 {
                     sessionIdOverride = pendingGuest;
                     Debug.Log(
-                        $"[DemoSession] Join exhibit path — skipping Events list, " +
-                        $"joining guest Space {sessionIdOverride} directly");
+                        $"[DemoSession] Direct guest Space — joining {sessionIdOverride} (skipping Events list)");
                 }
             }
 
-            if (!string.IsNullOrEmpty(sessionIdOverride))
+            if (!guestEvents && !string.IsNullOrEmpty(sessionIdOverride))
             {
                 Debug.Log($"[DemoSession] Resolving session override '{sessionIdOverride}'…");
                 GameStateApiClient.GetSessionResult result = await apiClient.GetSession(sessionIdOverride);
@@ -464,28 +464,34 @@ namespace VellumRift
                 {
                     Debug.Log(
                         $"[DemoSession] Joined existing session {sessionIdOverride} " +
-                        $"(Events lobby NOT shown — override/exhibit path)");
+                        $"(Events lobby NOT shown — override/direct path)");
                     return result.State;
                 }
 
                 Debug.LogWarning(
                     $"[DemoSession] Session '{sessionIdOverride}' missing or archived — opening Events lobby.");
             }
+            else if (guestEvents)
+            {
+                Debug.Log("[DemoSession] Join exhibit — opening public Events lobby");
+            }
             else
             {
                 Debug.Log("[DemoSession] No session override — opening Events lobby");
             }
 
-            // No sticky session: pick a current site event (#226), same as SessionManager.
             if (spacesLobbyOverlay == null)
                 spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>()
                     ?? gameObject.AddComponent<SpacesLobbyOverlay>();
 
             var pick = await spacesLobbyOverlay.PickAsync(
                 apiClient,
-                string.IsNullOrEmpty(sessionIdOverride)
-                    ? ""
-                    : "That space is missing or archived. Pick an event or create a new space.");
+                guestEvents
+                    ? "Public events — tap a card to enter."
+                    : (string.IsNullOrEmpty(sessionIdOverride)
+                        ? ""
+                        : "That space is missing or archived. Pick an event or create a new space."),
+                guestPublicEvents: guestEvents);
             if (pick.Session == null || string.IsNullOrEmpty(pick.Session.sessionId))
             {
                 throw new InvalidOperationException("Events lobby returned no session.");

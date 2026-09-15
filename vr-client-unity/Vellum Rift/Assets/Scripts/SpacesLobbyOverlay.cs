@@ -26,6 +26,7 @@ namespace VellumRift
         private bool visible;
         private string banner = "";
         private bool busy;
+        private bool guestPublicEvents;
         private TaskCompletionSource<PickResult> pending;
 
         private GameObject canvasGO;
@@ -34,22 +35,29 @@ namespace VellumRift
         private InputField newLabelField;
         private Transform listContent;
         private ScrollRect scrollRect;
+        private GameObject staffCreateRoot;
 
-        public Task<PickResult> PickAsync(GameStateApiClient client, string bannerMessage = "")
+        public Task<PickResult> PickAsync(
+            GameStateApiClient client,
+            string bannerMessage = "",
+            bool guestPublicEvents = false)
         {
             if (pending != null && !pending.Task.IsCompleted)
                 pending.TrySetCanceled();
 
             apiClient = client;
             banner = bannerMessage ?? "";
+            this.guestPublicEvents = guestPublicEvents;
             busy = false;
             visible = true;
             pending = new TaskCompletionSource<PickResult>();
             Debug.Log(
                 $"[SpacesLobby] PickAsync OPEN — Events list will load. " +
-                $"hasApi={(client != null)} hasToken={!string.IsNullOrEmpty(ApiAuth.Token)} " +
-                $"banner='{banner}'");
+                $"guestPublic={guestPublicEvents} hasApi={(client != null)} " +
+                $"hasToken={!string.IsNullOrEmpty(ApiAuth.Token)} banner='{banner}'");
             EnsureBuilt();
+            if (staffCreateRoot != null)
+                staffCreateRoot.SetActive(!guestPublicEvents);
             ApplyBanner();
             SetStatus("Loading events…");
             canvasGO.SetActive(true);
@@ -109,7 +117,7 @@ namespace VellumRift
             Text lead = CreateText(
                 "Lead",
                 panel.transform,
-                "Current events on Vellum Rift. Tap a card to enter.",
+                "Public events on Vellum Rift. Tap a card to enter.",
                 18,
                 TextAnchor.UpperLeft,
                 VrTheme.OnSurfaceVariant);
@@ -174,15 +182,19 @@ namespace VellumRift
             scrollRect.content = contentRt;
 
             y -= 380f;
-            Text newHead = CreateText("NewHead", panel.transform, "Staff — new space", 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
+            staffCreateRoot = CreateUIObject("StaffCreate", panel.transform);
+            StretchFull(staffCreateRoot.GetComponent<RectTransform>());
+            // Layout children with absolute offsets relative to panel via SetRect on parent coords —
+            // parent is full panel; children use same y offsets as before.
+            Text newHead = CreateText("NewHead", staffCreateRoot.transform, "Staff — new space", 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
             SetRect(newHead.rectTransform, 48f, y, -48f, y - 28f);
             y -= 36f;
 
-            newLabelField = CreateInput(panel.transform, "NewLabel", "Optional label", 48f, y, -48f, y - 48f);
+            newLabelField = CreateInput(staffCreateRoot.transform, "NewLabel", "Optional label", 48f, y, -48f, y - 48f);
             y -= 60f;
 
             CreateButton(
-                panel.transform,
+                staffCreateRoot.transform,
                 "CreateBtn",
                 "New space",
                 VrTheme.SurfaceHighest,
@@ -291,20 +303,27 @@ namespace VellumRift
 
             busy = true;
             SetStatus("Loading events…");
-            Debug.Log("[SpacesLobby] RefreshListAsync START — calling ListSessions…");
+            Debug.Log(
+                $"[SpacesLobby] RefreshListAsync START — " +
+                $"{(guestPublicEvents ? "ListPublicEvents" : "ListSessions")}…");
             try
             {
                 // Login may complete after the lobby opened — pull latest Bearer.
-                if (!string.IsNullOrEmpty(ApiAuth.Token))
-                    apiClient.SetAuthToken(ApiAuth.Token);
-                else
-                    Debug.LogWarning("[SpacesLobby] RefreshListAsync — ApiAuth.Token empty (expect 401 on IIS)");
+                if (!guestPublicEvents)
+                {
+                    if (!string.IsNullOrEmpty(ApiAuth.Token))
+                        apiClient.SetAuthToken(ApiAuth.Token);
+                    else
+                        Debug.LogWarning("[SpacesLobby] RefreshListAsync — ApiAuth.Token empty (expect 401 on IIS)");
+                }
 
                 string loadError = null;
-                var list = await apiClient.ListSessions(err => loadError = err);
+                var list = guestPublicEvents
+                    ? await apiClient.ListPublicEvents(err => loadError = err)
+                    : await apiClient.ListSessions(err => loadError = err);
                 if (list == null)
                 {
-                    Debug.LogError($"[SpacesLobby] ListSessions returned null. error={loadError ?? "(none)"}");
+                    Debug.LogError($"[SpacesLobby] list returned null. error={loadError ?? "(none)"}");
                     RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
                     SetStatus(string.IsNullOrEmpty(loadError)
                         ? "Could not load events. Check the backend and try Refresh."
@@ -312,15 +331,17 @@ namespace VellumRift
                 }
                 else
                 {
-                    Debug.Log($"[SpacesLobby] Refresh: raw list has {list.Length} space(s) before event filter");
+                    Debug.Log($"[SpacesLobby] Refresh: raw list has {list.Length} row(s) before event filter");
                     var events = SessionEventList.CurrentEvents(list);
                     RebuildList(events);
                     Debug.Log(
-                        $"[SpacesLobby] Refresh summary: spaces={list.Length} events={events.Length} | " +
+                        $"[SpacesLobby] Refresh summary: rows={list.Length} events={events.Length} | " +
                         SummarizeKinds(list));
                     if (events.Length == 0 && list.Length > 0)
                     {
-                        SetStatus($"No current events among {list.Length} space(s). Mark a space as Event on the site.");
+                        SetStatus(guestPublicEvents
+                            ? "No joinable public events right now. Ask staff to publish an event."
+                            : $"No current public events among {list.Length} space(s).");
                     }
                     else
                     {
@@ -368,6 +389,34 @@ namespace VellumRift
             SetStatus("Joining…");
             try
             {
+                if (guestPublicEvents)
+                {
+                    string mintError = null;
+                    string token = await apiClient.MintKioskToken(sessionId, err => mintError = err);
+                    if (string.IsNullOrEmpty(token))
+                    {
+                        SetStatus(string.IsNullOrEmpty(mintError)
+                            ? "Could not join as guest. Is kiosk join enabled for this event?"
+                            : $"Guest join failed ({mintError}).");
+                        await RefreshListAsync();
+                        return;
+                    }
+
+                    var auth = FindObjectOfType<BluekeyAuth>();
+                    if (auth != null)
+                        auth.SetToken(token, "");
+                    else
+                    {
+                        ApiAuth.Token = token;
+                        apiClient.SetAuthToken(token);
+                    }
+                    Debug.Log($"[SpacesLobby] Guest mint OK for {sessionId}");
+                }
+                else if (!string.IsNullOrEmpty(ApiAuth.Token))
+                {
+                    apiClient.SetAuthToken(ApiAuth.Token);
+                }
+
                 var result = await apiClient.GetSession(sessionId);
                 if (result.State == null || !result.State.isActive)
                 {

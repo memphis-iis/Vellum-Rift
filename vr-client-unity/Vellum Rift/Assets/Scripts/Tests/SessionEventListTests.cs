@@ -10,7 +10,8 @@ namespace VellumRift.Tests
             string kind,
             bool active,
             string updatedAt,
-            string endsAt = null)
+            string endsAt = null,
+            string visibility = "public")
         {
             return new GameStateApiClient.SessionListItem
             {
@@ -20,11 +21,12 @@ namespace VellumRift.Tests
                 isActive = active,
                 updatedAt = updatedAt,
                 endsAt = endsAt,
+                visibility = visibility,
             };
         }
 
         [Test]
-        public void CurrentEvents_OnlyActiveEventKind()
+        public void CurrentEvents_OnlyActivePublicEventKind()
         {
             var now = new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
             var list = new[]
@@ -33,6 +35,7 @@ namespace VellumRift.Tests
                 Item("event-old", "event", true, "2026-09-14T10:00:00Z"),
                 Item("event-new", "event", true, "2026-09-15T11:30:00Z"),
                 Item("archived", "event", false, "2026-09-15T11:45:00Z"),
+                Item("private-ev", "event", true, "2026-09-15T11:40:00Z", visibility: "private"),
             };
 
             var events = SessionEventList.CurrentEvents(list, now);

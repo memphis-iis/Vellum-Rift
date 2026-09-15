@@ -27,20 +27,28 @@ namespace VellumRift
         public const string MuseumSpaceEnvVar = "VELLUM_MUSEUM_KIOSK_SPACE_ID";
 
         /// <summary>
-        /// Space id chosen on the guest join path before SessionManager bootstrap continues.
+        /// Space id chosen on the legacy direct guest-join path before bootstrap continues.
         /// </summary>
         public static string PendingJoinSessionId { get; private set; }
+
+        /// <summary>
+        /// Join exhibit chose the public Events lobby (no token yet; mint on card tap).
+        /// </summary>
+        public static bool PendingGuestEventsLobby { get; private set; }
 
         [Tooltip("Fallback backend URL for kiosk mint before SessionManager configures the API client.")]
         [SerializeField] private string defaultBackendUrl = "https://iis.memphis.edu/apis/vellumrift";
 
-        [Tooltip("Baked museum exhibit Space ID for one-tap Join exhibit (Unity twin of VITE_MUSEUM_KIOSK_SPACE_ID).")]
+        [Tooltip("Optional baked museum Space ID for Advanced one-tap join.")]
         [SerializeField] private string museumKioskSpaceId = "";
 
         public string AccessToken { get; private set; }
         public string UserEmail { get; private set; }
         public string UserDisplayName { get; private set; }
         public bool IsAuthenticated => !string.IsNullOrEmpty(AccessToken);
+
+        /// <summary>Bluekey token present, or Join exhibit pending Events lobby.</summary>
+        public bool CanContinuePastLogin => IsAuthenticated || PendingGuestEventsLobby;
 
         public event Action AuthSucceeded;
 
@@ -58,6 +66,13 @@ namespace VellumRift
             string id = PendingJoinSessionId;
             PendingJoinSessionId = null;
             return id;
+        }
+
+        public static bool ConsumePendingGuestEventsLobby()
+        {
+            bool pending = PendingGuestEventsLobby;
+            PendingGuestEventsLobby = false;
+            return pending;
         }
 
         private void Awake()
@@ -211,8 +226,10 @@ namespace VellumRift
             loginLobby.MuseumKioskSpaceId = ResolveMuseumKioskSpaceId();
             loginLobby.OnSignInWithBluekey -= HandleSignInWithBluekey;
             loginLobby.OnGuestJoinSpaceId -= HandleGuestJoin;
+            loginLobby.OnJoinExhibit -= HandleJoinExhibit;
             loginLobby.OnSignInWithBluekey += HandleSignInWithBluekey;
             loginLobby.OnGuestJoinSpaceId += HandleGuestJoin;
+            loginLobby.OnJoinExhibit += HandleJoinExhibit;
         }
 
         private void HideLoginLobby()
@@ -226,6 +243,16 @@ namespace VellumRift
             OpenBluekeyInBrowser();
             statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
             loginLobby?.SetStatus(statusText);
+        }
+
+        private void HandleJoinExhibit()
+        {
+            PendingGuestEventsLobby = true;
+            PendingJoinSessionId = null;
+            statusText = "Opening public events…";
+            loginLobby?.SetStatus(statusText);
+            HideLoginLobby();
+            Debug.Log("[BluekeyAuth] Join exhibit → public Events lobby (mint token on card tap)");
         }
 
         private void HandleGuestJoin(string spaceId)

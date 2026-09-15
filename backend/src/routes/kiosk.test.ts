@@ -85,6 +85,28 @@ describe("Kiosk public join (#145)", () => {
         const meta = savedMetadata ?? (base.metadata as Record<string, unknown>);
         return { rows: [{ ...base, metadata: meta }] };
       }
+      if (text.includes("FROM game_sessions") && !text.includes("WHERE session_id")) {
+        // findAll for GET /api/kiosk/events
+        return {
+          rows: [
+            sessionRow({
+              visibility: "public",
+              metadata: {
+                playlist: [MODEL_A],
+                activeModelId: MODEL_A,
+                kioskEnabled: true,
+                kind: "event",
+              },
+            }),
+            sessionRow({
+              session_id: "private-explore",
+              label: "Private",
+              visibility: "private",
+              metadata: { playlist: [MODEL_A], kind: "exploration" },
+            }),
+          ],
+        };
+      }
       if (text.includes("UPDATE game_sessions")) {
         const metadataParam = params?.[3];
         if (typeof metadataParam === "string") {
@@ -112,6 +134,19 @@ describe("Kiosk public join (#145)", () => {
 
   afterEach(() => {
     BLUEKEY_CONFIG.required = false;
+  });
+
+  it("lists joinable public events anonymously", async () => {
+    const res = await request(app).get("/api/kiosk/events");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body[0]).toMatchObject({
+      sessionId: "session-1",
+      visibility: "public",
+      kind: "event",
+      kioskEnabled: true,
+    });
   });
 
   it("status returns 403 when kiosk is off", async () => {

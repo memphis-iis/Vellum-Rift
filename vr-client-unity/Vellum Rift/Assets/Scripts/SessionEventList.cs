@@ -5,14 +5,14 @@ using UnityEngine;
 namespace VellumRift
 {
     /// <summary>
-    /// Filters session list to current site events (#226), matching dashboard
-    /// Featured pool: active + kind event, newest activity first.
+    /// Filters session list to current public site events (#226): active +
+    /// kind event + visibility public, newest activity first.
     /// </summary>
     public static class SessionEventList
     {
         /// <summary>
-        /// Active event-kind spaces, sorted by <c>updatedAt</c> descending.
-        /// Excludes exploration spaces and archived sessions.
+        /// Active public event-kind spaces, sorted by <c>updatedAt</c> descending.
+        /// Excludes exploration spaces, private spaces, and archived sessions.
         /// </summary>
         public static GameStateApiClient.SessionListItem[] CurrentEvents(
             GameStateApiClient.SessionListItem[] sessions,
@@ -46,6 +46,12 @@ namespace VellumRift
                         $"[SessionEventList] skip {id} '{s.label}': kind='{s.kind}' (need 'event')");
                     continue;
                 }
+                if (!IsPublic(s))
+                {
+                    Debug.Log(
+                        $"[SessionEventList] skip {id} '{s.label}': visibility='{s.visibility}' (need public)");
+                    continue;
+                }
                 if (HasEnded(s.endsAt, now))
                 {
                     Debug.Log(
@@ -65,7 +71,7 @@ namespace VellumRift
             });
             Debug.Log(
                 $"[SessionEventList] CurrentEvents: {filtered.Count} kept of {sessions.Length} " +
-                $"(filter=active+kind:event+not ended)");
+                $"(filter=active+public+kind:event+not ended)");
             return filtered.ToArray();
         }
 
@@ -75,6 +81,17 @@ namespace VellumRift
             if (s == null)
                 return false;
             return string.Equals((s.kind ?? "").Trim(), "event", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>True when visibility is public (empty treated as public for older rows).</summary>
+        public static bool IsPublic(GameStateApiClient.SessionListItem s)
+        {
+            if (s == null)
+                return false;
+            string vis = (s.visibility ?? "").Trim();
+            if (string.IsNullOrEmpty(vis))
+                return true;
+            return string.Equals(vis, "public", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>Short schedule label for a card subtitle, or null if open-ended.</summary>

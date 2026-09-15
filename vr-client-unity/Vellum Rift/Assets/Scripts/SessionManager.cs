@@ -184,7 +184,9 @@ namespace VellumRift
                 if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
                     apiClient.SetAuthToken(bluekeyAuth.AccessToken);
 
-                // Guest lobby path (#187): Space ID chosen before auth completes.
+                bool guestEvents = BluekeyAuth.ConsumePendingGuestEventsLobby();
+
+                // Legacy Advanced: Space ID chosen before auth completes.
                 if (string.IsNullOrEmpty(sessionIdOverride))
                 {
                     string pendingGuest = BluekeyAuth.ConsumePendingJoinSessionId();
@@ -199,7 +201,7 @@ namespace VellumRift
                 // Otherwise open the Spaces lobby — never silently create (#188).
                 GameState session = null;
                 string lobbyBanner = "";
-                if (!string.IsNullOrEmpty(sessionIdOverride))
+                if (!guestEvents && !string.IsNullOrEmpty(sessionIdOverride))
                 {
                     var result = await apiClient.GetSession(sessionIdOverride);
                     if (result.State != null && result.State.isActive)
@@ -222,7 +224,13 @@ namespace VellumRift
                         spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>()
                             ?? gameObject.AddComponent<SpacesLobbyOverlay>();
 
-                    var pick = await spacesLobbyOverlay.PickAsync(apiClient, lobbyBanner);
+                    if (guestEvents)
+                        lobbyBanner = "Public events — tap a card to enter.";
+
+                    var pick = await spacesLobbyOverlay.PickAsync(
+                        apiClient,
+                        lobbyBanner,
+                        guestPublicEvents: guestEvents);
                     if (pick.Session == null || string.IsNullOrEmpty(pick.Session.sessionId))
                     {
                         Debug.LogError("[SessionManager] Spaces lobby returned no session.");
@@ -292,22 +300,22 @@ namespace VellumRift
 
         private async System.Threading.Tasks.Task EnsureAuthenticatedAsync()
         {
-            if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
+            if (bluekeyAuth == null || bluekeyAuth.CanContinuePastLogin)
                 return;
 
-            Debug.Log("[SessionManager] Waiting for Bluekey authentication (popup or paste-token)...");
+            Debug.Log("[SessionManager] Waiting for Bluekey / Join exhibit…");
             const float timeoutSeconds = 300f;
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
 
-            while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
+            while (!bluekeyAuth.CanContinuePastLogin && Time.realtimeSinceStartup < deadline)
             {
                 await System.Threading.Tasks.Task.Yield();
             }
 
-            if (!bluekeyAuth.IsAuthenticated)
+            if (!bluekeyAuth.CanContinuePastLogin)
             {
                 throw new InvalidOperationException(
-                    "Timed out waiting for Bluekey authentication. Complete the popup login or paste a valid token.");
+                    "Timed out waiting for sign-in. Complete Bluekey or Join exhibit.");
             }
         }
 

@@ -10,6 +10,7 @@ import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { mintKioskToken } from "../lib/kioskJwt.js";
 import { checkRateLimit } from "../lib/kioskRateLimit.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { readSessionEvent } from "../lib/sessionEvent.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -23,6 +24,57 @@ function clientIp(req: Request): string {
   }
   return req.socket.remoteAddress ?? "unknown";
 }
+
+function eventHasEnded(endsAt: string | null, nowMs: number): boolean {
+  if (!endsAt) return false;
+  const t = Date.parse(endsAt);
+  return Number.isFinite(t) && t < nowMs;
+}
+
+/**
+ * GET /api/kiosk/events — anonymous list of joinable public events for VR
+ * Join exhibit / museum walk-up (active + public + kind event + kiosk on).
+ * Must be registered before /:sessionId routes.
+ */
+router.get("/events", async (_req: Request, res: Response) => {
+  try {
+    const sessions = await repo.findAll();
+    const nowMs = Date.now();
+    const events = sessions
+      .filter((s) => {
+        if (!s.isActive) return false;
+        if (s.visibility !== "public") return false;
+        if (!readKioskEnabled(s.metadata)) return false;
+        const { kind, endsAt } = readSessionEvent(s.metadata);
+        if (kind !== "event") return false;
+        if (eventHasEnded(endsAt, nowMs)) return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          Date.parse(b.updatedAt) - Date.parse(a.updatedAt) ||
+          b.sessionId.localeCompare(a.sessionId),
+      )
+      .map((s) => {
+        const { kind, startsAt, endsAt } = readSessionEvent(s.metadata);
+        return {
+          sessionId: s.sessionId,
+          label: s.label,
+          isActive: s.isActive,
+          visibility: s.visibility,
+          kind,
+          startsAt,
+          endsAt,
+          updatedAt: s.updatedAt,
+          kioskEnabled: true,
+        };
+      });
+    res.json(events);
+  } catch (err) {
+    console.error("GET /api/kiosk/events failed:", err);
+    res.status(500).json({ error: "Failed to list public events" });
+  }
+});
 
 // GET /api/kiosk/:sessionId/status — discover whether public join is open
 router.get("/:sessionId/status", async (req: Request, res: Response) => {

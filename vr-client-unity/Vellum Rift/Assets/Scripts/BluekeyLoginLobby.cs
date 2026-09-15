@@ -10,8 +10,7 @@ namespace VellumRift
 {
     /// <summary>
     /// World-space Login lobby (#224): museum-first two-step IA — path picker,
-    /// then Guest or Bluekey only. No token paste. Tap Join exhibit when a
-    /// museum Space ID is configured (Unity twin of <c>VITE_MUSEUM_KIOSK_SPACE_ID</c>).
+    /// then Guest (public Events lobby) or Bluekey only. No token paste.
     /// </summary>
     public class BluekeyLoginLobby : MonoBehaviour
     {
@@ -23,9 +22,12 @@ namespace VellumRift
         }
 
         public event Action OnSignInWithBluekey;
+        /// <summary>Join exhibit → browse public events (no baked Space ID).</summary>
+        public event Action OnJoinExhibit;
+        /// <summary>Legacy: guest mint for a specific Space ID (optional Advanced).</summary>
         public event Action<string> OnGuestJoinSpaceId;
 
-        /// <summary>Baked exhibit Space ID for one-tap Join (inspector / Auth).</summary>
+        /// <summary>Optional baked exhibit Space ID (Advanced one-tap).</summary>
         [SerializeField] private string museumKioskSpaceId = "";
 
         private GameObject canvasGO;
@@ -230,45 +232,46 @@ namespace VellumRift
             SetRect(title.rectTransform, 48f, y, -48f, y - 36f);
             y -= 48f;
 
+            Text hint = CreateText(
+                "Hint",
+                panelTransform,
+                "Browse public events and tap a card to enter. No account needed.",
+                18,
+                TextAnchor.UpperLeft,
+                VrTheme.OnSurfaceVariant);
+            hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(hint.rectTransform, 48f, y, -48f, y - 56f);
+            y -= 68f;
+
+            CreateButton(
+                panelTransform,
+                "JoinBtn",
+                "See public events",
+                VrTheme.Accent,
+                VrTheme.OnAccent,
+                48f,
+                y,
+                -48f,
+                y - VrTheme.MinHitHeightPx,
+                () => OnJoinExhibit?.Invoke());
+            y -= VrTheme.MinHitHeightPx + 16f;
+
             string spaceId = MuseumKioskSpaceId;
             if (!string.IsNullOrEmpty(spaceId))
             {
-                Text hint = CreateText(
-                    "Hint",
-                    panelTransform,
-                    "One tap joins the museum exhibit. No account needed.",
-                    18,
-                    TextAnchor.UpperLeft,
-                    VrTheme.OnSurfaceVariant);
-                hint.horizontalOverflow = HorizontalWrapMode.Wrap;
-                SetRect(hint.rectTransform, 48f, y, -48f, y - 48f);
-                y -= 60f;
-
                 CreateButton(
                     panelTransform,
-                    "JoinBtn",
-                    "Join exhibit",
-                    VrTheme.Accent,
-                    VrTheme.OnAccent,
+                    "DirectJoinBtn",
+                    "Join configured exhibit",
+                    VrTheme.SurfaceHighest,
+                    VrTheme.OnSurface,
                     48f,
                     y,
                     -48f,
                     y - VrTheme.MinHitHeightPx,
-                    () => OnGuestJoinSpaceId?.Invoke(spaceId));
+                    () => OnGuestJoinSpaceId?.Invoke(spaceId),
+                    outline: true);
                 y -= VrTheme.MinHitHeightPx + 16f;
-            }
-            else
-            {
-                Text hint = CreateText(
-                    "Hint",
-                    panelTransform,
-                    "No exhibit configured on this build. Ask staff for the kiosk link or QR.",
-                    18,
-                    TextAnchor.UpperLeft,
-                    VrTheme.OnSurfaceVariant);
-                hint.horizontalOverflow = HorizontalWrapMode.Wrap;
-                SetRect(hint.rectTransform, 48f, y, -48f, y - 64f);
-                y -= 76f;
             }
 
             CreateButton(

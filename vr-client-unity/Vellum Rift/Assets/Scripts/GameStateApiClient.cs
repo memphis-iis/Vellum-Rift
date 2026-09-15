@@ -180,6 +180,101 @@ namespace VellumRift
             }
         }
 
+        /// <summary>
+        /// GET /api/kiosk/events — anonymous joinable public events (Join exhibit).
+        /// No Bearer required.
+        /// </summary>
+        public async Task<SessionListItem[]> ListPublicEvents(Action<string> error = null)
+        {
+            string url = $"{baseUrl.TrimEnd('/')}/api/kiosk/events";
+            Debug.Log($"[GameStateApiClient] ListPublicEvents GET {url}");
+
+            // Intentionally no Authorization — this route is anonymous.
+            string saved = authToken;
+            authToken = "";
+            ApiResponse res;
+            try
+            {
+                res = await SendRequest(UnityWebRequest.kHttpVerbGET, url);
+            }
+            finally
+            {
+                authToken = saved;
+            }
+
+            if (!res.IsSuccess)
+            {
+                LogFailure("ListPublicEvents", res);
+                string detail = res.StatusCode > 0
+                    ? $"HTTP {res.StatusCode}" + (string.IsNullOrEmpty(res.Error) ? "" : $" — {res.Error}")
+                    : (res.Error ?? "network error");
+                Debug.LogError($"[GameStateApiClient] ListPublicEvents FAILED: {detail}");
+                error?.Invoke(detail);
+                return null;
+            }
+
+            try
+            {
+                SessionListItem[] items = ParseSessionList(res.Body);
+                Debug.Log($"[GameStateApiClient] ListPublicEvents parsed {items.Length} event(s)");
+                return items;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[GameStateApiClient] ListPublicEvents parse failed: {ex.Message}");
+                error?.Invoke("parse error: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// POST /api/kiosk/:sessionId/token — mint guest JWT for a public event join.
+        /// </summary>
+        public async Task<string> MintKioskToken(string sessionId, Action<string> error = null)
+        {
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                error?.Invoke("missing session id");
+                return null;
+            }
+
+            string url = $"{baseUrl.TrimEnd('/')}/api/kiosk/{Uri.EscapeDataString(sessionId)}/token";
+            Debug.Log($"[GameStateApiClient] MintKioskToken POST {url}");
+
+            string saved = authToken;
+            authToken = "";
+            ApiResponse res;
+            try
+            {
+                res = await SendRequest(UnityWebRequest.kHttpVerbPOST, url, "{}");
+            }
+            finally
+            {
+                authToken = saved;
+            }
+
+            if (!res.IsSuccess)
+            {
+                LogFailure("MintKioskToken", res);
+                string detail = res.StatusCode > 0
+                    ? $"HTTP {res.StatusCode}" + (string.IsNullOrEmpty(res.Error) ? "" : $" — {res.Error}")
+                    : (res.Error ?? "network error");
+                error?.Invoke(detail);
+                return null;
+            }
+
+            var map = SimpleJson.ParseObject(res.Body ?? "");
+            string token = null;
+            if (map != null && map.TryGetValue("accessToken", out var t))
+                token = t;
+            if (string.IsNullOrEmpty(token))
+            {
+                error?.Invoke("kiosk mint returned no accessToken");
+                return null;
+            }
+            return token;
+        }
+
         /// <summary>Parse GET /api/game-state array into list DTOs (kind from top-level or metadata).</summary>
         public static SessionListItem[] ParseSessionList(string raw)
         {
