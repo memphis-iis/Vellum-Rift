@@ -13,6 +13,7 @@ import {
   resumeSession,
   type GameSession,
 } from "../api/sessions";
+import { sessionKind } from "../api/sessionEvent";
 
 type SessionsProps = {
   onEnterSession?: (sessionId: string) => void;
@@ -64,6 +65,7 @@ export default function Sessions({
   const [error, setError] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [newVisibility, setNewVisibility] = useState<"public" | "private">("private");
+  const [newKind, setNewKind] = useState<"exploration" | "event">("exploration");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
 
@@ -103,7 +105,7 @@ export default function Sessions({
     setCreating(true);
     setError(null);
     try {
-      const created = await createSession(label, newVisibility);
+      const created = await createSession(label, newVisibility, newKind);
       setNewLabel("");
       setSessions((prev) => [created, ...prev.filter((s) => s.sessionId !== created.sessionId)]);
     } catch (err) {
@@ -199,6 +201,27 @@ export default function Sessions({
             Public
           </label>
         </fieldset>
+        <fieldset className="vr-sessions__visibility" disabled={creating}>
+          <legend className="vr-sessions__create-label">Type</legend>
+          <label className="vr-sessions__visibility-option">
+            <input
+              type="radio"
+              name="vr-session-kind"
+              checked={newKind === "exploration"}
+              onChange={() => setNewKind("exploration")}
+            />
+            Exploration
+          </label>
+          <label className="vr-sessions__visibility-option">
+            <input
+              type="radio"
+              name="vr-session-kind"
+              checked={newKind === "event"}
+              onChange={() => setNewKind("event")}
+            />
+            Event
+          </label>
+        </fieldset>
         {onNewSessionUpload ? (
           <button type="button" className="vr-btn vr-btn--outline" onClick={onNewSessionUpload}>
             Upload manuscript
@@ -229,6 +252,7 @@ export default function Sessions({
         {!loading
           ? sessions.map((session) => {
               const kind = sessionStatus(session);
+              const spaceKind = sessionKind(session);
               const name = session.label?.trim() || "Untitled space";
               const activeId = sessionActiveModelId(session);
               const playlist = sessionPlaylist(session);
@@ -260,6 +284,12 @@ export default function Sessions({
                       <span className="vr-sessions__visibility-tag">
                         {(session.visibility ?? "public") === "private" ? "Private" : "Public"}
                       </span>
+                      {spaceKind === "event" ? (
+                        <>
+                          {" · "}
+                          <span className="vr-sessions__event-tag">Event</span>
+                        </>
+                      ) : null}
                     </span>
                   </div>
 

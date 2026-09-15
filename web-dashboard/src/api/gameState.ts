@@ -48,6 +48,10 @@ export interface GameSession {
   activeModelId?: string | null;
   /** Museum public join without Bluekey (#145). */
   kioskEnabled?: boolean;
+  /** exploration | event (#146). */
+  kind?: "exploration" | "event";
+  startsAt?: string | null;
+  endsAt?: string | null;
   metadata?: Record<string, unknown>;
 }
 
