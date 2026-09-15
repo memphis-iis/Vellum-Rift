@@ -478,10 +478,10 @@ export default function Enter({
     return (
       <main className="vr-enter">
         <header className="vr-enter__empty-header">
-          <h1 className="vr-enter__title">Space room</h1>
+          <h1 className="vr-enter__title">Lobby</h1>
           <p className="vr-enter__lead">
-            Pick a learning space from Spaces, then Launch to open the lobby — presence map, chat, and
-            3D launch for web or VR.
+            Pick a space from Spaces, then Launch to open this lobby — presence map, chat, and 3D for
+            web or VR.
           </p>
           <button type="button" className="vr-btn vr-btn--primary" onClick={onBrowseSessions}>
             <MaterialIcon name="hub" />
@@ -628,7 +628,7 @@ export default function Enter({
             disabled={status !== "ready" || !me}
           >
             <MaterialIcon name="view_in_ar" />
-            Enter 3D space
+            Enter 3D
           </button>
         </div>
       </header>
@@ -931,7 +931,7 @@ export default function Enter({
               disabled={status !== "ready" || !me}
             >
               <MaterialIcon name="view_in_ar" />
-              {webGlEmbedUrl ? "Enter 3D space" : "Launch options"}
+              {webGlEmbedUrl ? "Enter 3D" : "Launch options"}
             </button>
             {webGlUrl ? (
               <button

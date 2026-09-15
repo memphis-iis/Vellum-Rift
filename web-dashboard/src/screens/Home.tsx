@@ -49,8 +49,8 @@ export default function Home({ onUpload, onJoinSession, onEnterSession }: HomePr
             for web and VR
           </h1>
           <p className="vr-home__lead">
-            Collaborative learning rooms on the web and in VR — bring manuscripts into a shared
-            spatial space your group can explore together.
+            Collaborative spaces on the web and in VR — bring manuscripts into a shared place your
+            group can explore together.
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export default function Home({ onUpload, onJoinSession, onEnterSession }: HomePr
             {windowLabel ? (
               <p className="vr-home__featured-window">{windowLabel}</p>
             ) : (
-              <p className="vr-home__featured-window">Open learning space</p>
+              <p className="vr-home__featured-window">Open space</p>
             )}
             <button
               type="button"

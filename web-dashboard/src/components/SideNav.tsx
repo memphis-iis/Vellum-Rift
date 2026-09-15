@@ -15,7 +15,7 @@ const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "upload", label: "Upload", icon: "upload_file" },
   { id: "documents", label: "Library", icon: "view_in_ar" },
   { id: "sessions", label: "Spaces", icon: "history_edu" },
-  { id: "enter", label: "Enter", icon: "login" },
+  { id: "enter", label: "Lobby", icon: "login" },
 ];
 
 export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: SideNavProps) {
