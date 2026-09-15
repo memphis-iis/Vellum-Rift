@@ -300,6 +300,7 @@ namespace VellumRift
                             ? "No current events."
                             : $"{events.Length} event{(events.Length == 1 ? "" : "s")}");
                     }
+                }
             }
             catch (Exception ex)
             {
