@@ -1,10 +1,11 @@
 using UnityEngine;
+using VellumRift;
 
 namespace VellumRift.Environment
 {
     /// <summary>
     /// Museum gallery plate — floor + fog using the existing Vellum dark palette
-    /// (no retheme). Builds at runtime so SampleScene YAML stays light.
+    /// (VrTheme.GalleryVoid). Builds at runtime so SampleScene YAML stays light.
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public sealed class GalleryEnvironment : MonoBehaviour
@@ -13,11 +14,11 @@ namespace VellumRift.Environment
 
         [Header("Floor")]
         [SerializeField] private float floorSize = 40f;
-        [SerializeField] private Color floorColor = new Color(13f / 255f, 13f / 255f, 21f / 255f, 1f); // #0D0D15
+        [SerializeField] private Color floorColor = VrTheme.GalleryVoid;
 
         [Header("Fog (existing HUD-adjacent neutrals)")]
         [SerializeField] private bool enableFog = true;
-        [SerializeField] private Color fogColor = new Color(13f / 255f, 13f / 255f, 21f / 255f, 1f);
+        [SerializeField] private Color fogColor = VrTheme.GalleryVoid;
         [SerializeField] private float fogDensity = 0.035f;
 
         [Header("Spawn ring (for PlayerSpawner defaults)")]

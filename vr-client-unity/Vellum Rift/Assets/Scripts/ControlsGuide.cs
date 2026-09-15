@@ -39,18 +39,19 @@ namespace VellumRift
         // ---------------------------------------------------------------
         // Material 3 palette (Vellum Rift HUD design tokens)
         // ---------------------------------------------------------------
-        private static readonly Color COLOR_SURFACE_TOP       = new Color(27f/255f, 27f/255f, 35f/255f, 0.70f);  // #1B1B23 glass top
-        private static readonly Color COLOR_SURFACE_BOT       = new Color(13f/255f, 13f/255f, 21f/255f, 0.80f);  // #0D0D15 glass bottom
-        private static readonly Color COLOR_SURFACE_HIGH      = new Color(0.161f, 0.161f, 0.196f, 0.40f);         // #292932 @ 40%
-        private static readonly Color COLOR_GOLD              = new Color(1.000f, 0.855f, 0.616f);                // #FFDB9D
-        private static readonly Color COLOR_GOLD_DEEP         = new Color(0.996f, 0.718f, 0.000f);                // #FEB700
-        private static readonly Color COLOR_TEXT              = new Color(0.784f, 0.773f, 0.792f);                // #C8C5CA
-        private static readonly Color COLOR_DIVIDER           = new Color(0.784f, 0.773f, 0.792f, 0.20f);         // on-surface-variant / 20
-        private static readonly Color COLOR_CYAN_EDGE         = new Color(0.000f, 219f/255f, 233f/255f, 0.30f);   // #00DBE9 @ 30%
-        private static readonly Color COLOR_NEUTRAL_EDGE      = new Color(200f/255f, 197f/255f, 202f/255f, 0.10f);// border rgba(200,197,202,.1)
-        private static readonly Color COLOR_SURFACE_VARIANT   = new Color(52f/255f, 52f/255f, 61f/255f);          // #34343D dots
-        private static readonly Color COLOR_BADGE_FILL        = new Color(0.996f, 0.718f, 0.000f, 0.10f);        // secondary-container / 10
-        private static readonly Color COLOR_BADGE_BORDER      = new Color(1.000f, 0.855f, 0.616f, 0.20f);        // secondary / 20
+        // VrTheme (#189) — parchment/cyan parity with dashboard vr-theme.css
+        private static readonly Color COLOR_SURFACE_TOP       = VrTheme.GlassTop;
+        private static readonly Color COLOR_SURFACE_BOT       = VrTheme.GlassBottom;
+        private static readonly Color COLOR_SURFACE_HIGH      = VrTheme.WithAlpha(VrTheme.SurfaceHighest, 0.40f);
+        private static readonly Color COLOR_GOLD              = VrTheme.Primary;
+        private static readonly Color COLOR_GOLD_DEEP         = VrTheme.PrimaryContainer;
+        private static readonly Color COLOR_TEXT              = VrTheme.OnSurfaceVariant;
+        private static readonly Color COLOR_DIVIDER           = VrTheme.WithAlpha(VrTheme.OnSurfaceVariant, 0.20f);
+        private static readonly Color COLOR_CYAN_EDGE         = VrTheme.WithAlpha(VrTheme.Accent, 0.35f);
+        private static readonly Color COLOR_NEUTRAL_EDGE      = VrTheme.WithAlpha(VrTheme.Outline, 0.15f);
+        private static readonly Color COLOR_SURFACE_VARIANT   = VrTheme.SurfaceHighest;
+        private static readonly Color COLOR_BADGE_FILL        = VrTheme.WithAlpha(VrTheme.PrimaryContainer, 0.12f);
+        private static readonly Color COLOR_BADGE_BORDER      = VrTheme.WithAlpha(VrTheme.Primary, 0.25f)
 
         // ---------------------------------------------------------------
         // Layout (canvas reference pixels)
