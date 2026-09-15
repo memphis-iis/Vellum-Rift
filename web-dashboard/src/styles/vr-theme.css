@@ -1796,6 +1796,64 @@
   color: var(--vr-on-surface-variant, #c4c6cf);
 }
 
+
+.vr-enter--visitor .vr-enter__top-actions {
+  margin-left: auto;
+}
+
+.vr-enter__visitor-now {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--vr-ink-muted, #4f6280);
+}
+
+.vr-enter__host-ops {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid rgba(101, 128, 178, 0.28);
+  border-radius: 12px;
+  background: rgba(243, 247, 255, 0.72);
+}
+
+.vr-enter__host-ops-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-weight: 700;
+  color: #23427b;
+  list-style: none;
+}
+
+.vr-enter__host-ops-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-enter__host-ops-hint {
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: #5a6f8c;
+}
+
+.vr-enter__host-ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(101, 128, 178, 0.18);
+}
+
+.vr-enter__moderation {
+  margin-top: 1rem;
+}
+
+.vr-enter__moderation .vr-enter__roster {
+  margin-top: 0.5rem;
+}
+
 .vr-enter__allowlist {
   margin: 0.5rem 1.25rem 0;
   padding: 0.65rem 0.85rem;

@@ -14,3 +14,9 @@ User-facing chrome uses **Space** as the one product noun.
 Canonical definitions: [glossary.md](../reference/glossary.md) (**Space**, **Lobby**, **Session (API)**).
 
 Related audit finding: U-02 in [museum-vr-usability-a11y-cicd-audit.md](museum-vr-usability-a11y-cicd-audit.md).
+
+## Visitor vs host chrome (#183)
+
+- **Visitor (web Lobby):** enter-only — Leave space, Enter 3D, presence, chat. No allowlist, kiosk, playlist, or moderation controls.
+- **Host (web Lobby):** same enter chrome plus a labeled **Host tools** panel for ops.
+- **VR / Quest (product intent):** enter-only when a VR lobby ships; host ops stay on the web dashboard.
