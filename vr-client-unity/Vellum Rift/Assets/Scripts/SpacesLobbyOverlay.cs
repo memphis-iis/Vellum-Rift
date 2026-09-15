@@ -10,9 +10,9 @@ using UnityEngine.InputSystem.UI;
 namespace VellumRift
 {
     /// <summary>
-    /// World-space Spaces picker (#188 / #189): list via GET /api/game-state,
-    /// join selected, create only via New space. VrTheme parchment/cyan.
-    /// Krug: pick a Space or create one — no silent create. Norman: Join = cyan CTA.
+    /// World-space Events picker (#226): lists current Vellum Rift site events
+    /// (active <c>kind: event</c>), full-card tap to join. Create space remains
+    /// a secondary staff path. VrTheme parchment/cyan.
     /// </summary>
     public class SpacesLobbyOverlay : MonoBehaviour
     {
@@ -47,7 +47,7 @@ namespace VellumRift
             pending = new TaskCompletionSource<PickResult>();
             EnsureBuilt();
             ApplyBanner();
-            SetStatus("Loading spaces…");
+            SetStatus("Loading events…");
             canvasGO.SetActive(true);
             PlaceInFrontOfCamera();
             EnsureEventSystem();
@@ -98,20 +98,20 @@ namespace VellumRift
             SetRect(rim.GetComponent<RectTransform>(), 0f, 0f, 0f, -4f);
 
             float y = -28f;
-            Text title = CreateText("Title", panel.transform, "Spaces", 34, TextAnchor.UpperLeft, VrTheme.Primary);
-            title.fontStyle = FontStyle.Bold;
+            Text title = CreateText("Title", panel.transform, "Events", 34, TextAnchor.UpperLeft, VrTheme.Primary);
             SetRect(title.rectTransform, 48f, y, -48f, y - 42f);
             y -= 50f;
 
             Text lead = CreateText(
                 "Lead",
                 panel.transform,
-                "Pick a space to enter, or create a new one.",
+                "Current events on Vellum Rift. Tap a card to enter.",
                 18,
                 TextAnchor.UpperLeft,
                 VrTheme.OnSurfaceVariant);
-            SetRect(lead.rectTransform, 48f, y, -48f, y - 32f);
-            y -= 40f;
+            lead.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(lead.rectTransform, 48f, y, -48f, y - 40f);
+            y -= 48f;
 
             bannerText = CreateText("Banner", panel.transform, "", 16, TextAnchor.UpperLeft, VrTheme.Primary);
             bannerText.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -135,7 +135,6 @@ namespace VellumRift
                 absoluteRight: true);
             y -= 56f;
 
-            // Scroll list
             GameObject scrollGO = CreateUIObject("Scroll", panel.transform);
             SetRect(scrollGO.GetComponent<RectTransform>(), 48f, y, -48f, y - 360f);
             var scrollImg = scrollGO.AddComponent<Image>();
@@ -163,7 +162,7 @@ namespace VellumRift
             layout.childControlWidth = true;
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = true;
-            layout.spacing = 10f;
+            layout.spacing = 12f;
             layout.padding = new RectOffset(12, 12, 12, 12);
             content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
@@ -171,8 +170,7 @@ namespace VellumRift
             scrollRect.content = contentRt;
 
             y -= 380f;
-            Text newHead = CreateText("NewHead", panel.transform, "New space", 20, TextAnchor.MiddleLeft, VrTheme.Primary);
-            newHead.fontStyle = FontStyle.Bold;
+            Text newHead = CreateText("NewHead", panel.transform, "Staff — new space", 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
             SetRect(newHead.rectTransform, 48f, y, -48f, y - 28f);
             y -= 36f;
 
@@ -183,13 +181,14 @@ namespace VellumRift
                 panel.transform,
                 "CreateBtn",
                 "New space",
-                VrTheme.Accent,
-                VrTheme.OnAccent,
+                VrTheme.SurfaceHighest,
+                VrTheme.OnSurface,
                 48f,
                 y,
                 -48f,
                 y - VrTheme.MinHitHeightPx,
-                () => _ = CreateAsync());
+                () => _ = CreateAsync(),
+                outline: true);
         }
 
         private void ApplyBanner()
@@ -212,60 +211,64 @@ namespace VellumRift
                 Destroy(listContent.GetChild(i).gameObject);
         }
 
-        private void RebuildList(GameStateApiClient.SessionListItem[] spaces)
+        private void RebuildList(GameStateApiClient.SessionListItem[] events)
         {
             ClearList();
-            if (spaces == null || spaces.Length == 0)
+            if (events == null || events.Length == 0)
             {
-                var empty = CreateText("Empty", listContent, busy ? "Loading spaces…" : "No spaces yet. Create one below.", 16, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
-                empty.rectTransform.sizeDelta = new Vector2(0f, 40f);
+                string emptyMsg = busy
+                    ? "Loading events…"
+                    : "No current events. Ask staff or check back on the Vellum Rift site.";
+                var empty = CreateText("Empty", listContent, emptyMsg, 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
+                empty.horizontalOverflow = HorizontalWrapMode.Wrap;
+                empty.rectTransform.sizeDelta = new Vector2(0f, 64f);
                 return;
             }
 
-            foreach (var space in spaces)
+            foreach (var space in events)
             {
                 if (space == null || string.IsNullOrEmpty(space.sessionId))
                     continue;
-                string label = string.IsNullOrWhiteSpace(space.label) ? "Untitled space" : space.label.Trim();
-                string live = space.isActive ? "LIVE" : "ARCHIVED";
-                AddSpaceRow(label, live, space.sessionId, space.isActive);
+                string label = string.IsNullOrWhiteSpace(space.label) ? "Untitled event" : space.label.Trim();
+                string window = SessionEventList.FormatWindow(space.startsAt, space.endsAt) ?? "Open now";
+                AddEventCard(label, window, space.sessionId);
             }
         }
 
-        private void AddSpaceRow(string label, string live, string sessionId, bool canJoin)
+        private void AddEventCard(string label, string subtitle, string sessionId)
         {
-            GameObject row = CreateUIObject("Row_" + sessionId, listContent);
+            GameObject row = CreateUIObject("Event_" + sessionId, listContent);
             var le = row.AddComponent<LayoutElement>();
-            le.minHeight = VrTheme.MinHitHeightPx;
-            le.preferredHeight = VrTheme.MinHitHeightPx + 8f;
-            row.AddComponent<Image>().color = VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.95f);
+            le.minHeight = Mathf.Max(VrTheme.MinHitHeightPx + 16f, 72f);
+            le.preferredHeight = 80f;
 
-            Text name = CreateText("Name", row.transform, $"{label}  ·  {live}", 18, TextAnchor.MiddleLeft, VrTheme.OnSurface);
-            var nr = name.rectTransform;
-            nr.anchorMin = new Vector2(0f, 0f);
-            nr.anchorMax = new Vector2(1f, 1f);
-            nr.offsetMin = new Vector2(16f, 4f);
-            nr.offsetMax = new Vector2(-180f, -4f);
+            var img = row.AddComponent<Image>();
+            img.color = VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.95f);
 
-            if (!canJoin)
-                return;
-
-            GameObject btnGO = CreateUIObject("Join", row.transform);
-            var btnImg = btnGO.AddComponent<Image>();
-            btnImg.color = VrTheme.Accent;
-            var br = btnGO.GetComponent<RectTransform>();
-            br.anchorMin = new Vector2(1f, 0.5f);
-            br.anchorMax = new Vector2(1f, 0.5f);
-            br.pivot = new Vector2(1f, 0.5f);
-            br.sizeDelta = new Vector2(VrTheme.MinHitWidthPx, VrTheme.MinHitHeightPx - 8f);
-            br.anchoredPosition = new Vector2(-12f, 0f);
-            var btn = btnGO.AddComponent<Button>();
-            btn.targetGraphic = btnImg;
+            var btn = row.AddComponent<Button>();
+            btn.targetGraphic = img;
+            var colors = btn.colors;
+            colors.highlightedColor = Color.Lerp(img.color, VrTheme.Accent, 0.25f);
+            colors.pressedColor = Color.Lerp(img.color, Color.black, 0.12f);
+            btn.colors = colors;
             string id = sessionId;
             btn.onClick.AddListener(() => _ = JoinAsync(id));
-            Text jt = CreateText("JoinLabel", btnGO.transform, "Join", 18, TextAnchor.MiddleCenter, VrTheme.OnAccent);
-            jt.fontStyle = FontStyle.Bold;
-            StretchFull(jt.rectTransform);
+
+            Text name = CreateText("Name", row.transform, label, 22, TextAnchor.MiddleLeft, VrTheme.OnSurface);
+            var nr = name.rectTransform;
+            nr.anchorMin = new Vector2(0f, 0.45f);
+            nr.anchorMax = new Vector2(1f, 1f);
+            nr.offsetMin = new Vector2(20f, 0f);
+            nr.offsetMax = new Vector2(-20f, -8f);
+            name.raycastTarget = false;
+
+            Text sub = CreateText("Sub", row.transform, subtitle, 16, TextAnchor.MiddleLeft, VrTheme.Accent);
+            var sr = sub.rectTransform;
+            sr.anchorMin = new Vector2(0f, 0f);
+            sr.anchorMax = new Vector2(1f, 0.5f);
+            sr.offsetMin = new Vector2(20f, 8f);
+            sr.offsetMax = new Vector2(-20f, 0f);
+            sub.raycastTarget = false;
         }
 
         private async Task RefreshListAsync()
@@ -274,19 +277,22 @@ namespace VellumRift
                 return;
 
             busy = true;
-            SetStatus("Loading spaces…");
+            SetStatus("Loading events…");
             try
             {
                 var list = await apiClient.ListSessions();
                 if (list == null)
                 {
                     RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
-                    SetStatus("Could not load spaces. Check the backend and try Refresh.");
+                    SetStatus("Could not load events. Check the backend and try Refresh.");
                 }
                 else
                 {
-                    RebuildList(list);
-                    SetStatus(list.Length == 0 ? "No spaces yet." : $"{list.Length} space(s)");
+                    var events = SessionEventList.CurrentEvents(list);
+                    RebuildList(events);
+                    SetStatus(events.Length == 0
+                        ? "No current events."
+                        : $"{events.Length} event{(events.Length == 1 ? "" : "s")}");
                 }
             }
             catch (Exception ex)
@@ -312,7 +318,7 @@ namespace VellumRift
                 var result = await apiClient.GetSession(sessionId);
                 if (result.State == null || !result.State.isActive)
                 {
-                    SetStatus("That space is missing or archived. Pick another or create a new one.");
+                    SetStatus("That event is missing or archived. Pick another or ask staff.");
                     await RefreshListAsync();
                     return;
                 }
@@ -436,7 +442,8 @@ namespace VellumRift
             float right,
             float bottom,
             Action onClick,
-            bool absoluteRight = false)
+            bool absoluteRight = false,
+            bool outline = false)
         {
             GameObject go = CreateUIObject(name, parent);
             var img = go.AddComponent<Image>();
@@ -453,6 +460,20 @@ namespace VellumRift
             else
             {
                 SetRect(go.GetComponent<RectTransform>(), left, top, right, bottom);
+            }
+
+            if (outline)
+            {
+                GameObject border = CreateUIObject("Border", go.transform);
+                var bImg = border.AddComponent<Image>();
+                bImg.color = VrTheme.OutlineVariant;
+                bImg.raycastTarget = false;
+                var br = border.GetComponent<RectTransform>();
+                br.anchorMin = Vector2.zero;
+                br.anchorMax = Vector2.one;
+                br.offsetMin = new Vector2(-2f, -2f);
+                br.offsetMax = new Vector2(2f, 2f);
+                border.transform.SetAsFirstSibling();
             }
 
             var btn = go.AddComponent<Button>();

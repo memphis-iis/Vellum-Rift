@@ -49,6 +49,8 @@ namespace VellumRift
             public string updatedAt;
             public string visibility;
             public string kind;
+            public string startsAt;
+            public string endsAt;
         }
 
         [Serializable] private class SessionListWrapper { public SessionListItem[] items; }
