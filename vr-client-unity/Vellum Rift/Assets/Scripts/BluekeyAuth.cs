@@ -8,7 +8,7 @@ using UnityEngine.Networking;
 namespace VellumRift
 {
     /// <summary>
-    /// Bluekey SSO + museum guest entry for WebGL / Editor / standalone (#187).
+    /// Bluekey SSO + museum guest entry for WebGL / Editor / standalone (#187 / #224).
     ///
     /// WebGL auth order:
     ///   1. Dashboard postMessage handoff (<c>vellum-rift-auth-handoff</c>)
@@ -16,13 +16,15 @@ namespace VellumRift
     ///   3. Bluekey portal popup fallback
     ///
     /// Editor/standalone/Quest-bound builds: world-space Login lobby —
-    /// Bluekey for anyone with an IIS account, plus guest Space ID (kiosk).
+    /// tap-first path picker (Join exhibit / Open Bluekey). No token paste UI.
     /// Tokens always land in <see cref="ApiAuth"/> via <see cref="SetToken"/>.
     /// </summary>
     public class BluekeyAuth : MonoBehaviour
     {
         public const string SoftwareId = "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
         public const string PortalUrl = "https://iis.memphis.edu/static/bluekey/";
+        public const string MuseumSpaceCliFlag = "-museumSpaceId";
+        public const string MuseumSpaceEnvVar = "VELLUM_MUSEUM_KIOSK_SPACE_ID";
 
         /// <summary>
         /// Space id chosen on the guest join path before SessionManager bootstrap continues.
@@ -32,6 +34,9 @@ namespace VellumRift
         [Tooltip("Fallback backend URL for kiosk mint before SessionManager configures the API client.")]
         [SerializeField] private string defaultBackendUrl = "https://iis.memphis.edu/apis/vellumrift";
 
+        [Tooltip("Baked museum exhibit Space ID for one-tap Join exhibit (Unity twin of VITE_MUSEUM_KIOSK_SPACE_ID).")]
+        [SerializeField] private string museumKioskSpaceId = "";
+
         public string AccessToken { get; private set; }
         public string UserEmail { get; private set; }
         public string UserDisplayName { get; private set; }
@@ -39,8 +44,6 @@ namespace VellumRift
 
         public event Action AuthSucceeded;
 
-        private string pasteBuffer = "";
-        private string guestSpaceBuffer = "";
         private string statusText = "";
         private bool showLobbyUi = true;
         private bool handoffWaitStarted;
@@ -82,7 +85,7 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Apply a token from dashboard handoff, popup, paste, guest mint, or CLI/env.
+        /// Apply a token from dashboard handoff, popup, guest mint, or CLI/env.
         /// Always mirrors into <see cref="ApiAuth.Token"/>.
         /// </summary>
         public void SetToken(string token, string email)
@@ -120,7 +123,7 @@ namespace VellumRift
                 client.SetAuthToken("");
 #if !UNITY_WEBGL || UNITY_EDITOR
             showLobbyUi = true;
-            ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
+            ShowLoginLobby("Signed out. Choose how to enter.");
 #endif
         }
 
@@ -128,7 +131,6 @@ namespace VellumRift
         {
             ClearToken();
             statusText = "";
-            pasteBuffer = "";
             Debug.Log("[BluekeyAuth] Logged out — credentials cleared.");
         }
 
@@ -158,7 +160,7 @@ namespace VellumRift
 #else
             showLobbyUi = true;
             OpenBluekeyInBrowser();
-            statusText = "Complete Bluekey in the browser, then paste the access token here.";
+            statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
             ShowLoginLobby(statusText);
 #endif
         }
@@ -206,11 +208,10 @@ namespace VellumRift
             if (loginLobby == null)
                 loginLobby = GetComponent<BluekeyLoginLobby>() ?? gameObject.AddComponent<BluekeyLoginLobby>();
 
+            loginLobby.MuseumKioskSpaceId = ResolveMuseumKioskSpaceId();
             loginLobby.OnSignInWithBluekey -= HandleSignInWithBluekey;
-            loginLobby.OnSubmitBluekeyToken -= HandleSubmitToken;
             loginLobby.OnGuestJoinSpaceId -= HandleGuestJoin;
             loginLobby.OnSignInWithBluekey += HandleSignInWithBluekey;
-            loginLobby.OnSubmitBluekeyToken += HandleSubmitToken;
             loginLobby.OnGuestJoinSpaceId += HandleGuestJoin;
         }
 
@@ -223,20 +224,8 @@ namespace VellumRift
         private void HandleSignInWithBluekey()
         {
             OpenBluekeyInBrowser();
-            statusText = "Complete Bluekey in the browser, then paste the access token below.";
+            statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
             loginLobby?.SetStatus(statusText);
-        }
-
-        private void HandleSubmitToken(string token)
-        {
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                statusText = "Token is empty.";
-                loginLobby?.SetStatus(statusText);
-                return;
-            }
-
-            SetToken(token.Trim(), "");
         }
 
         private void HandleGuestJoin(string spaceId)
@@ -244,6 +233,22 @@ namespace VellumRift
             if (guestBusy)
                 return;
             StartCoroutine(GuestJoinCoroutine(spaceId));
+        }
+
+        /// <summary>Inspector → CLI → env (same idea as dashboard VITE_MUSEUM_KIOSK_SPACE_ID).</summary>
+        private string ResolveMuseumKioskSpaceId()
+        {
+            string fromInspector = (museumKioskSpaceId ?? "").Trim();
+            if (!string.IsNullOrEmpty(fromInspector))
+                return fromInspector;
+
+#if !UNITY_EDITOR && !UNITY_WEBGL
+            string cli = GetCliArg(MuseumSpaceCliFlag);
+            if (!string.IsNullOrEmpty(cli))
+                return cli.Trim();
+#endif
+            string env = System.Environment.GetEnvironmentVariable(MuseumSpaceEnvVar);
+            return string.IsNullOrEmpty(env) ? "" : env.Trim();
         }
 
         private void OpenBluekeyInBrowser()
@@ -261,7 +266,7 @@ namespace VellumRift
             string spaceId = (spaceIdRaw ?? "").Trim();
             if (string.IsNullOrEmpty(spaceId))
             {
-                statusText = "Enter a Space ID from the exhibit QR or staff.";
+                statusText = "No exhibit configured. Ask staff for the kiosk link or QR.";
                 loginLobby?.SetStatus(statusText);
                 yield break;
             }
@@ -479,26 +484,23 @@ namespace VellumRift
             if (loginLobby != null && loginLobby.IsVisible)
                 return;
 
-            float w = 460f;
-            float h = 340f;
+            float w = 420f;
+            float h = 260f;
             float x = (Screen.width - w) * 0.5f;
             float y = (Screen.height - h) * 0.5f;
             GUI.Box(new Rect(x, y, w, h), "Vellum Rift");
             GUILayout.BeginArea(new Rect(x + 16, y + 28, w - 32, h - 40));
-            GUILayout.Label("Sign in with Bluekey if you have an IIS account — or join as a guest.");
+            GUILayout.Label("How do you want to enter?");
             if (!string.IsNullOrEmpty(statusText))
                 GUILayout.Label(statusText);
             GUILayout.Space(8);
-            if (GUILayout.Button("Sign in with Bluekey", GUILayout.Height(28)))
+            string museumId = ResolveMuseumKioskSpaceId();
+            GUI.enabled = !string.IsNullOrEmpty(museumId);
+            if (GUILayout.Button("Join exhibit", GUILayout.Height(32)))
+                HandleGuestJoin(museumId);
+            GUI.enabled = true;
+            if (GUILayout.Button("Sign in with Bluekey", GUILayout.Height(32)))
                 HandleSignInWithBluekey();
-            pasteBuffer = GUILayout.TextField(pasteBuffer ?? "");
-            if (GUILayout.Button("Continue with token", GUILayout.Height(28)))
-                HandleSubmitToken(pasteBuffer);
-            GUILayout.Space(10);
-            GUILayout.Label("Museum / guest — Space ID");
-            guestSpaceBuffer = GUILayout.TextField(guestSpaceBuffer ?? "");
-            if (GUILayout.Button("Join as guest", GUILayout.Height(28)))
-                HandleGuestJoin(guestSpaceBuffer);
             GUILayout.EndArea();
         }
 #endif

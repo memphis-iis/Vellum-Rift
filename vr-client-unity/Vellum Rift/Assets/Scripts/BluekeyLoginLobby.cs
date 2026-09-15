@@ -9,29 +9,48 @@ using UnityEngine.InputSystem.UI;
 namespace VellumRift
 {
     /// <summary>
-    /// World-space Login lobby (#187 / #189): dark parchment/cyan matching dashboard
-    /// <c>vr-theme.css</c>. Bluekey for account holders; guest Space ID for kiosk.
-    /// Krug: one obvious primary CTA per block. Norman: cyan = go; guest panel distinct.
+    /// World-space Login lobby (#224): museum-first two-step IA — path picker,
+    /// then Guest or Bluekey only. No token paste. Tap Join exhibit when a
+    /// museum Space ID is configured (Unity twin of <c>VITE_MUSEUM_KIOSK_SPACE_ID</c>).
     /// </summary>
     public class BluekeyLoginLobby : MonoBehaviour
     {
+        private enum Screen
+        {
+            Path,
+            Guest,
+            Bluekey,
+        }
+
         public event Action OnSignInWithBluekey;
-        public event Action<string> OnSubmitBluekeyToken;
         public event Action<string> OnGuestJoinSpaceId;
 
+        /// <summary>Baked exhibit Space ID for one-tap Join (inspector / Auth).</summary>
+        [SerializeField] private string museumKioskSpaceId = "";
+
         private GameObject canvasGO;
-        private InputField tokenField;
-        private InputField guestSpaceField;
+        private Transform panelTransform;
         private Text statusText;
         private bool visible;
+        private Screen screen = Screen.Path;
+        private string statusMessage = "";
 
         public bool IsVisible => visible;
+
+        /// <summary>Configured museum Space ID (trimmed), or empty.</summary>
+        public string MuseumKioskSpaceId
+        {
+            get => (museumKioskSpaceId ?? "").Trim();
+            set => museumKioskSpaceId = value ?? "";
+        }
 
         public void Show(string status = "")
         {
             EnsureBuilt();
-            if (statusText != null && !string.IsNullOrEmpty(status))
-                statusText.text = status;
+            if (!string.IsNullOrEmpty(status))
+                statusMessage = status;
+            screen = Screen.Path;
+            RebuildContent();
             if (canvasGO != null)
                 canvasGO.SetActive(true);
             visible = true;
@@ -49,8 +68,9 @@ namespace VellumRift
         public void SetStatus(string status)
         {
             EnsureBuilt();
+            statusMessage = status ?? "";
             if (statusText != null)
-                statusText.text = status ?? "";
+                statusText.text = statusMessage;
         }
 
         public void SetBusy(bool busy)
@@ -91,60 +111,207 @@ namespace VellumRift
             canvasGO.AddComponent<GraphicRaycaster>();
 
             RectTransform canvasRect = canvasGO.GetComponent<RectTransform>();
-            canvasRect.sizeDelta = new Vector2(920f, 780f);
+            canvasRect.sizeDelta = new Vector2(840f, 520f);
             canvasGO.transform.localScale = Vector3.one * VrTheme.LobbyWorldScale;
 
             GameObject panelGO = CreateUIObject("Panel", canvasGO.transform);
+            panelTransform = panelGO.transform;
             var panelImg = panelGO.AddComponent<Image>();
             panelImg.color = VrTheme.GlassPanel;
             StretchFull(panelGO.GetComponent<RectTransform>());
 
-            // Cyan top edge — brand signifier
             GameObject rim = CreateUIObject("AccentRim", panelGO.transform);
             var rimImg = rim.AddComponent<Image>();
             rimImg.color = VrTheme.Accent;
             rimImg.raycastTarget = false;
             SetRect(rim.GetComponent<RectTransform>(), 0f, 0f, 0f, -4f);
 
+            RebuildContent();
+        }
+
+        private void RebuildContent()
+        {
+            if (panelTransform == null)
+                return;
+
+            for (int i = panelTransform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = panelTransform.GetChild(i);
+                if (child.name == "AccentRim")
+                    continue;
+                Destroy(child.gameObject);
+            }
+
+            statusText = null;
             float y = -28f;
-            Text brand = CreateText("Brand", panelGO.transform, "VELLUM RIFT", 34, TextAnchor.UpperCenter, VrTheme.Accent);
-            brand.fontStyle = FontStyle.Bold;
+
+            Text brand = CreateText("Brand", panelTransform, "VELLUM RIFT", 34, TextAnchor.UpperCenter, VrTheme.Accent);
             SetRect(brand.rectTransform, 40f, y, -40f, y - 44f);
             y -= 52f;
 
+            switch (screen)
+            {
+                case Screen.Path:
+                    y = BuildPathScreen(y);
+                    break;
+                case Screen.Guest:
+                    y = BuildGuestScreen(y);
+                    break;
+                case Screen.Bluekey:
+                    y = BuildBluekeyScreen(y);
+                    break;
+            }
+
+            statusText = CreateText("Status", panelTransform, statusMessage ?? "", 18, TextAnchor.UpperLeft, VrTheme.Primary);
+            statusText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            statusText.verticalOverflow = VerticalWrapMode.Overflow;
+            SetRect(statusText.rectTransform, 48f, y, -48f, y - 72f);
+
+            float used = Mathf.Abs(y) + 96f;
+            if (canvasGO != null)
+            {
+                var canvasRect = canvasGO.GetComponent<RectTransform>();
+                canvasRect.sizeDelta = new Vector2(840f, Mathf.Clamp(used, 420f, 640f));
+            }
+        }
+
+        private float BuildPathScreen(float y)
+        {
             Text lead = CreateText(
                 "Lead",
-                panelGO.transform,
-                "Sign in with Bluekey if you have an IIS account — or join a museum exhibit as a guest.",
+                panelTransform,
+                "How do you want to enter?",
+                22,
+                TextAnchor.UpperCenter,
+                VrTheme.OnSurface);
+            SetRect(lead.rectTransform, 48f, y, -48f, y - 36f);
+            y -= 52f;
+
+            CreateButton(
+                panelTransform,
+                "JoinExhibitBtn",
+                "Join exhibit",
+                VrTheme.Accent,
+                VrTheme.OnAccent,
+                48f,
+                y,
+                -48f,
+                y - VrTheme.MinHitHeightPx,
+                () =>
+                {
+                    screen = Screen.Guest;
+                    RebuildContent();
+                });
+            y -= VrTheme.MinHitHeightPx + 16f;
+
+            CreateButton(
+                panelTransform,
+                "BluekeyBtn",
+                "Sign in with Bluekey",
+                VrTheme.SurfaceHighest,
+                VrTheme.OnSurface,
+                48f,
+                y,
+                -48f,
+                y - VrTheme.MinHitHeightPx,
+                () =>
+                {
+                    screen = Screen.Bluekey;
+                    RebuildContent();
+                },
+                outline: true);
+            y -= VrTheme.MinHitHeightPx + 24f;
+            return y;
+        }
+
+        private float BuildGuestScreen(float y)
+        {
+            Text title = CreateText("Title", panelTransform, "Join exhibit", 26, TextAnchor.MiddleLeft, VrTheme.Primary);
+            SetRect(title.rectTransform, 48f, y, -48f, y - 36f);
+            y -= 48f;
+
+            string spaceId = MuseumKioskSpaceId;
+            if (!string.IsNullOrEmpty(spaceId))
+            {
+                Text hint = CreateText(
+                    "Hint",
+                    panelTransform,
+                    "One tap joins the museum exhibit. No account needed.",
+                    18,
+                    TextAnchor.UpperLeft,
+                    VrTheme.OnSurfaceVariant);
+                hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+                SetRect(hint.rectTransform, 48f, y, -48f, y - 48f);
+                y -= 60f;
+
+                CreateButton(
+                    panelTransform,
+                    "JoinBtn",
+                    "Join exhibit",
+                    VrTheme.Accent,
+                    VrTheme.OnAccent,
+                    48f,
+                    y,
+                    -48f,
+                    y - VrTheme.MinHitHeightPx,
+                    () => OnGuestJoinSpaceId?.Invoke(spaceId));
+                y -= VrTheme.MinHitHeightPx + 16f;
+            }
+            else
+            {
+                Text hint = CreateText(
+                    "Hint",
+                    panelTransform,
+                    "No exhibit configured on this build. Ask staff for the kiosk link or QR.",
+                    18,
+                    TextAnchor.UpperLeft,
+                    VrTheme.OnSurfaceVariant);
+                hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+                SetRect(hint.rectTransform, 48f, y, -48f, y - 64f);
+                y -= 76f;
+            }
+
+            CreateButton(
+                panelTransform,
+                "BackBtn",
+                "Back",
+                VrTheme.SurfaceHighest,
+                VrTheme.OnSurface,
+                48f,
+                y,
+                -48f,
+                y - VrTheme.MinHitHeightPx,
+                () =>
+                {
+                    screen = Screen.Path;
+                    RebuildContent();
+                },
+                outline: true);
+            y -= VrTheme.MinHitHeightPx + 24f;
+            return y;
+        }
+
+        private float BuildBluekeyScreen(float y)
+        {
+            Text title = CreateText("Title", panelTransform, "Sign in", 26, TextAnchor.MiddleLeft, VrTheme.Primary);
+            SetRect(title.rectTransform, 48f, y, -48f, y - 36f);
+            y -= 48f;
+
+            Text hint = CreateText(
+                "Hint",
+                panelTransform,
+                "Opens Bluekey in your browser. Return here when finished — no token paste.",
                 18,
                 TextAnchor.UpperLeft,
                 VrTheme.OnSurfaceVariant);
-            lead.horizontalOverflow = HorizontalWrapMode.Wrap;
-            lead.verticalOverflow = VerticalWrapMode.Overflow;
-            SetRect(lead.rectTransform, 48f, y, -48f, y - 64f);
-            y -= 78f;
-
-            // --- Bluekey ---
-            Text bkHead = CreateText("BluekeyHead", panelGO.transform, "Sign in", 22, TextAnchor.MiddleLeft, VrTheme.Primary);
-            bkHead.fontStyle = FontStyle.Bold;
-            SetRect(bkHead.rectTransform, 48f, y, -48f, y - 30f);
-            y -= 38f;
-
-            Text bkLead = CreateText(
-                "BluekeyLead",
-                panelGO.transform,
-                "Opens Bluekey in your browser. Paste the access token if the headset cannot finish SSO alone.",
-                16,
-                TextAnchor.UpperLeft,
-                VrTheme.OnSurfaceVariant);
-            bkLead.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(bkLead.rectTransform, 48f, y, -48f, y - 56f);
-            y -= 64f;
+            hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(hint.rectTransform, 48f, y, -48f, y - 56f);
+            y -= 68f;
 
             CreateButton(
-                panelGO.transform,
-                "SignInBtn",
-                "Sign in with Bluekey",
+                panelTransform,
+                "OpenBluekeyBtn",
+                "Open Bluekey",
                 VrTheme.Accent,
                 VrTheme.OnAccent,
                 48f,
@@ -152,67 +319,26 @@ namespace VellumRift
                 -48f,
                 y - VrTheme.MinHitHeightPx,
                 () => OnSignInWithBluekey?.Invoke());
-            y -= VrTheme.MinHitHeightPx + 14f;
-
-            tokenField = CreateInput(panelGO.transform, "TokenField", "Paste Bluekey access token", 48f, y, -48f, y - 48f);
-            y -= 60f;
+            y -= VrTheme.MinHitHeightPx + 16f;
 
             CreateButton(
-                panelGO.transform,
-                "ContinueBtn",
-                "Continue with token",
+                panelTransform,
+                "BackBtn",
+                "Back",
                 VrTheme.SurfaceHighest,
                 VrTheme.OnSurface,
                 48f,
                 y,
                 -48f,
                 y - VrTheme.MinHitHeightPx,
-                () => OnSubmitBluekeyToken?.Invoke(tokenField != null ? tokenField.text : ""),
+                () =>
+                {
+                    screen = Screen.Path;
+                    RebuildContent();
+                },
                 outline: true);
-            y -= VrTheme.MinHitHeightPx + 22f;
-
-            // --- Guest (distinct panel) ---
-            GameObject guestBox = CreateUIObject("GuestBox", panelGO.transform);
-            var guestBg = guestBox.AddComponent<Image>();
-            guestBg.color = VrTheme.GuestPanel;
-            SetRect(guestBox.GetComponent<RectTransform>(), 36f, y, -36f, y - 220f);
-
-            float gy = -16f;
-            Text guestHead = CreateText("GuestHead", guestBox.transform, "Museum / guest", 20, TextAnchor.MiddleLeft, VrTheme.Primary);
-            guestHead.fontStyle = FontStyle.Bold;
-            SetRect(guestHead.rectTransform, 20f, gy, -20f, gy - 28f);
-            gy -= 36f;
-
-            Text guestLead = CreateText(
-                "GuestLead",
-                guestBox.transform,
-                "No Bluekey needed. Enter the Space ID from the exhibit QR or staff.",
-                16,
-                TextAnchor.UpperLeft,
-                VrTheme.OnSurfaceVariant);
-            guestLead.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(guestLead.rectTransform, 20f, gy, -20f, gy - 48f);
-            gy -= 56f;
-
-            guestSpaceField = CreateInput(guestBox.transform, "GuestSpace", "Space ID", 20f, gy, -20f, gy - 48f);
-            gy -= 60f;
-
-            CreateButton(
-                guestBox.transform,
-                "GuestJoinBtn",
-                "Join as guest",
-                VrTheme.Accent,
-                VrTheme.OnAccent,
-                20f,
-                gy,
-                -20f,
-                gy - VrTheme.MinHitHeightPx,
-                () => OnGuestJoinSpaceId?.Invoke(guestSpaceField != null ? guestSpaceField.text : ""));
-
-            y -= 236f;
-            statusText = CreateText("Status", panelGO.transform, "", 16, TextAnchor.UpperLeft, VrTheme.Primary);
-            statusText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(statusText.rectTransform, 48f, y, -48f, y - 56f);
+            y -= VrTheme.MinHitHeightPx + 24f;
+            return y;
         }
 
         private static void StretchFull(RectTransform rt)
@@ -255,27 +381,6 @@ namespace VellumRift
             return text;
         }
 
-        private static InputField CreateInput(Transform parent, string name, string placeholder, float left, float top, float right, float bottom)
-        {
-            GameObject go = CreateUIObject(name, parent);
-            var img = go.AddComponent<Image>();
-            img.color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.95f);
-            SetRect(go.GetComponent<RectTransform>(), left, top, right, bottom);
-
-            Text text = CreateText("Text", go.transform, "", 18, TextAnchor.MiddleLeft, VrTheme.OnSurface);
-            SetRect(text.rectTransform, 14f, -6f, -14f, 6f);
-            text.supportRichText = false;
-
-            Text ph = CreateText("Placeholder", go.transform, placeholder, 18, TextAnchor.MiddleLeft, VrTheme.OnSurfaceVariant);
-            SetRect(ph.rectTransform, 14f, -6f, -14f, 6f);
-
-            var field = go.AddComponent<InputField>();
-            field.textComponent = text;
-            field.placeholder = ph;
-            field.lineType = InputField.LineType.SingleLine;
-            return field;
-        }
-
         private static void CreateButton(
             Transform parent,
             string name,
@@ -295,7 +400,6 @@ namespace VellumRift
             SetRect(go.GetComponent<RectTransform>(), left, top, right, bottom);
             if (outline)
             {
-                // Soft outline via slightly brighter border child
                 GameObject border = CreateUIObject("Border", go.transform);
                 var bImg = border.AddComponent<Image>();
                 bImg.color = VrTheme.OutlineVariant;
@@ -316,7 +420,6 @@ namespace VellumRift
             btn.colors = colors;
             btn.onClick.AddListener(() => onClick?.Invoke());
 
-            // Larger Regular is more reliable than Bold when OS fonts lack a bold face (#223).
             Text text = CreateText("Label", go.transform, label, 22, TextAnchor.MiddleCenter, fg);
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
