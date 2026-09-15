@@ -336,7 +336,7 @@ namespace VellumRift
                 if (s == null) continue;
                 string id = string.IsNullOrEmpty(s.sessionId) ? "?" : s.sessionId;
                 if (id.Length > 8) id = id.Substring(0, 8);
-                parts.Add($"{id}:{s.kind || "∅"}:{(s.isActive ? "on" : "off")}");
+                parts.Add($"{id}:{(string.IsNullOrEmpty(s.kind) ? "∅" : s.kind)}:{(s.isActive ? "on" : "off")}");
             }
             return string.Join(", ", parts);
         }
