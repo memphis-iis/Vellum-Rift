@@ -99,6 +99,16 @@ describe("Kiosk public join (#145)", () => {
               },
             }),
             sessionRow({
+              session_id: "public-event-no-kiosk",
+              label: "sample",
+              visibility: "public",
+              metadata: {
+                playlist: [MODEL_A],
+                activeModelId: MODEL_A,
+                kind: "event",
+              },
+            }),
+            sessionRow({
               session_id: "private-explore",
               label: "Private",
               visibility: "private",
@@ -136,17 +146,28 @@ describe("Kiosk public join (#145)", () => {
     BLUEKEY_CONFIG.required = false;
   });
 
-  it("lists joinable public events anonymously", async () => {
+  it("lists public events anonymously (kiosk flag included)", async () => {
     const res = await request(app).get("/api/kiosk/events");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThanOrEqual(1);
-    expect(res.body[0]).toMatchObject({
-      sessionId: "session-1",
-      visibility: "public",
-      kind: "event",
-      kioskEnabled: true,
-    });
+    expect(res.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "session-1",
+          visibility: "public",
+          kind: "event",
+          kioskEnabled: true,
+        }),
+        expect.objectContaining({
+          sessionId: "public-event-no-kiosk",
+          label: "sample",
+          visibility: "public",
+          kind: "event",
+          kioskEnabled: false,
+        }),
+      ]),
+    );
+    expect(res.body.find((e: { sessionId: string }) => e.sessionId === "private-explore")).toBeUndefined();
   });
 
   it("status returns 403 when kiosk is off", async () => {

@@ -52,6 +52,8 @@ namespace VellumRift
             public string kind;
             public string startsAt;
             public string endsAt;
+            /// <summary>From GET /api/kiosk/events — guest mint requires true.</summary>
+            public bool kioskEnabled;
         }
 
         [Serializable] private class AddPlayerBody { public string displayName; public bool isHost; }
@@ -181,7 +183,8 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// GET /api/kiosk/events — anonymous joinable public events (Join exhibit).
+        /// GET /api/kiosk/events — anonymous public events (Join exhibit).
+        /// Rows include <c>kioskEnabled</c>; mint still requires kiosk on.
         /// No Bearer required.
         /// </summary>
         public async Task<SessionListItem[]> ListPublicEvents(Action<string> error = null)
@@ -358,6 +361,7 @@ namespace VellumRift
                 kind = kind ?? "",
                 startsAt = CleanJsonScalar(GetMap(map, "startsAt")),
                 endsAt = CleanJsonScalar(GetMap(map, "endsAt")),
+                kioskEnabled = IsJsonTrue(GetMap(map, "kioskEnabled")),
             };
         }
 

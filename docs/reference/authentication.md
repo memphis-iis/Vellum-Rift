@@ -70,12 +70,14 @@ There are **no** intentional public discovery endpoints for jobs, assets, or LoD
 Museum guests join **without** Bluekey. Do **not** set `AUTH_REQUIRED=false` for this.
 
 1. Host toggles kiosk on the space: `PATCH /api/game-state/:sessionId/kiosk` `{ "enabled": true }` (host only). Flag is `metadata.kioskEnabled` / top-level `kioskEnabled`.
-2. Guest opens dashboard `?session=<id>&kiosk=1` (QR / share link).
-3. Dashboard calls `POST /api/kiosk/:sessionId/token` (no auth) → short-lived HS256 JWT (`KIOSK_JWT_SECRET`, default TTL 1h via `KIOSK_TOKEN_TTL_SEC`).
+2. Guest opens dashboard `?session=<id>&kiosk=1` (QR / share link), **or** picks the event in VR Join exhibit (`GET /api/kiosk/events` — active + public + kind `event` + not ended; response includes `kioskEnabled`).
+3. Dashboard / VR calls `POST /api/kiosk/:sessionId/token` (no auth) → short-lived HS256 JWT (`KIOSK_JWT_SECRET`, default TTL 1h via `KIOSK_TOKEN_TTL_SEC`). Mint fails with 403 when kiosk is off (events may still appear in the list).
 4. Guest uses that Bearer on `/api/game-state` and `/api/models` (middleware: `requireAuthOrKiosk`). Guests **cannot** mutate playlist, visibility, allowlist, moderation, or upload.
 5. Model downloads for kiosk tokens are limited to the session playlist. Token mint is rate-limited per IP+session (`KIOSK_RATE_LIMIT`, `KIOSK_RATE_WINDOW_MS`).
 
-Smoke path: host enables **Kiosk on** → **Copy kiosk link** → open link in a private window → nametag → Join → Enter 3D space (WebGL handoff uses the kiosk token).
+Smoke path: host enables **Kiosk on** → **Copy kiosk link** → open link in a private window → nametag → Join → Enter 3D space (WebGL handoff uses the kiosk token). For VR lobby: Public + Event + **Kiosk on**.
+
+Dashboard **Featured event** on Home only needs active + kind `event` (signed-in list) — it does **not** require Public or Kiosk. That is why a space can show on the dashboard while VR guest join is still closed.
 
 Non-kiosk sessions still require Bluekey as before.
 

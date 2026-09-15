@@ -32,8 +32,10 @@ function eventHasEnded(endsAt: string | null, nowMs: number): boolean {
 }
 
 /**
- * GET /api/kiosk/events — anonymous list of joinable public events for VR
- * Join exhibit / museum walk-up (active + public + kind event + kiosk on).
+ * GET /api/kiosk/events — anonymous list of public events for VR Join exhibit.
+ * Filters: active + public + kind event + not ended (same discovery bar as
+ * dashboard Featured for walk-up guests). Includes `kioskEnabled` so clients
+ * can show status; mint still requires kiosk on.
  * Must be registered before /:sessionId routes.
  */
 router.get("/events", async (_req: Request, res: Response) => {
@@ -44,7 +46,6 @@ router.get("/events", async (_req: Request, res: Response) => {
       .filter((s) => {
         if (!s.isActive) return false;
         if (s.visibility !== "public") return false;
-        if (!readKioskEnabled(s.metadata)) return false;
         const { kind, endsAt } = readSessionEvent(s.metadata);
         if (kind !== "event") return false;
         if (eventHasEnded(endsAt, nowMs)) return false;
@@ -66,7 +67,7 @@ router.get("/events", async (_req: Request, res: Response) => {
           startsAt,
           endsAt,
           updatedAt: s.updatedAt,
-          kioskEnabled: true,
+          kioskEnabled: readKioskEnabled(s.metadata),
         };
       });
     res.json(events);

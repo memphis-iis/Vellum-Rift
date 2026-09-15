@@ -95,9 +95,10 @@ namespace VellumRift.Tests
         [Test]
         public void ParseSessionList_ReadsTopLevelKind()
         {
-            string json = @"[{""sessionId"":""a"",""label"":""sample"",""isActive"":true,""kind"":""event"",""updatedAt"":""2026-09-15T12:00:00Z"",""visibility"":""public""}]";
+            string json = @"[{""sessionId"":""a"",""label"":""sample"",""isActive"":true,""kind"":""event"",""updatedAt"":""2026-09-15T12:00:00Z"",""visibility"":""public"",""kioskEnabled"":false}]";
             var items = GameStateApiClient.ParseSessionList(json);
             Assert.That(items[0].kind, Is.EqualTo("event"));
+            Assert.That(items[0].kioskEnabled, Is.False);
         }
     }
 }

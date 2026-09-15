@@ -296,15 +296,20 @@ namespace VellumRift
                     continue;
                 string label = string.IsNullOrWhiteSpace(space.label) ? "Untitled event" : space.label.Trim();
                 string window = SessionEventList.FormatWindow(space.startsAt, space.endsAt) ?? "Open now";
-                AddEventCard(label, window, space.sessionId);
-                Debug.Log($"[SpacesLobby] card '{label}' ({space.sessionId}) — {window}");
+                bool joinable = !guestPublicEvents || space.kioskEnabled;
+                if (!joinable)
+                    window = "Guest join off — host: Kiosk on";
+                AddEventCard(label, window, space.sessionId, joinable);
+                Debug.Log(
+                    $"[SpacesLobby] card '{label}' ({space.sessionId}) — {window} " +
+                    $"kiosk={space.kioskEnabled} joinable={joinable}");
             }
             Debug.Log(
                 $"[SpacesLobby] RebuildList done: childCount={listContent.childCount}, " +
                 $"canvasActive={(canvasGO != null && canvasGO.activeSelf)}");
         }
 
-        private void AddEventCard(string label, string subtitle, string sessionId)
+        private void AddEventCard(string label, string subtitle, string sessionId, bool joinable = true)
         {
             GameObject row = CreateUIObject("Event_" + sessionId, listContent);
             var le = row.AddComponent<LayoutElement>();
@@ -312,7 +317,9 @@ namespace VellumRift
             le.preferredHeight = 80f;
 
             var img = row.AddComponent<Image>();
-            img.color = VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.95f);
+            img.color = joinable
+                ? VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.95f)
+                : VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.55f);
 
             var btn = row.AddComponent<Button>();
             btn.targetGraphic = img;
@@ -321,7 +328,17 @@ namespace VellumRift
             colors.pressedColor = Color.Lerp(img.color, Color.black, 0.12f);
             btn.colors = colors;
             string id = sessionId;
-            btn.onClick.AddListener(() => _ = JoinAsync(id));
+            bool canJoin = joinable;
+            btn.onClick.AddListener(() =>
+            {
+                if (!canJoin)
+                {
+                    SetStatus(
+                        "This event is public but guest join is off. Ask the host to turn on Kiosk in Host tools.");
+                    return;
+                }
+                _ = JoinAsync(id);
+            });
 
             Text name = CreateText("Name", row.transform, label, 22, TextAnchor.MiddleLeft, VrTheme.OnSurface);
             var nr = name.rectTransform;
@@ -331,7 +348,8 @@ namespace VellumRift
             nr.offsetMax = new Vector2(-20f, -8f);
             name.raycastTarget = false;
 
-            Text sub = CreateText("Sub", row.transform, subtitle, 16, TextAnchor.MiddleLeft, VrTheme.Accent);
+            Color subColor = joinable ? VrTheme.Accent : VrTheme.OnSurfaceVariant;
+            Text sub = CreateText("Sub", row.transform, subtitle, 16, TextAnchor.MiddleLeft, subColor);
             var sr = sub.rectTransform;
             sr.anchorMin = new Vector2(0f, 0f);
             sr.anchorMax = new Vector2(1f, 0.5f);
@@ -412,7 +430,7 @@ namespace VellumRift
                     if (events.Length == 0 && list.Length > 0)
                     {
                         SetStatus(guestPublicEvents
-                            ? "No joinable public events right now. Ask staff to publish an event."
+                            ? "No public events right now. Ask staff to mark a space as a public Event."
                             : $"No current public events among {list.Length} space(s).");
                     }
                     else
