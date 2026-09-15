@@ -334,7 +334,9 @@ namespace VellumRift
                 PendingJoinSessionId = spaceId;
                 guestBusy = false;
                 SetToken(token, "");
-                Debug.Log($"[BluekeyAuth] Guest kiosk join for space {spaceId}");
+                Debug.Log(
+                    $"[BluekeyAuth] Join exhibit OK — guest token set, " +
+                    $"PendingJoinSessionId={spaceId} (Events list will be skipped)");
             }
         }
 

@@ -450,21 +450,30 @@ namespace VellumRift
                 if (!string.IsNullOrEmpty(pendingGuest))
                 {
                     sessionIdOverride = pendingGuest;
-                    Debug.Log($"[DemoSession] Using guest Space ID from Login lobby: {sessionIdOverride}");
+                    Debug.Log(
+                        $"[DemoSession] Join exhibit path — skipping Events list, " +
+                        $"joining guest Space {sessionIdOverride} directly");
                 }
             }
 
             if (!string.IsNullOrEmpty(sessionIdOverride))
             {
+                Debug.Log($"[DemoSession] Resolving session override '{sessionIdOverride}'…");
                 GameStateApiClient.GetSessionResult result = await apiClient.GetSession(sessionIdOverride);
                 if (result.State != null && result.State.isActive)
                 {
-                    Debug.Log($"[DemoSession] Joined existing session {sessionIdOverride}");
+                    Debug.Log(
+                        $"[DemoSession] Joined existing session {sessionIdOverride} " +
+                        $"(Events lobby NOT shown — override/exhibit path)");
                     return result.State;
                 }
 
                 Debug.LogWarning(
                     $"[DemoSession] Session '{sessionIdOverride}' missing or archived — opening Events lobby.");
+            }
+            else
+            {
+                Debug.Log("[DemoSession] No session override — opening Events lobby");
             }
 
             // No sticky session: pick a current site event (#226), same as SessionManager.

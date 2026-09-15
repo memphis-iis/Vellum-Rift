@@ -45,6 +45,10 @@ namespace VellumRift
             busy = false;
             visible = true;
             pending = new TaskCompletionSource<PickResult>();
+            Debug.Log(
+                $"[SpacesLobby] PickAsync OPEN — Events list will load. " +
+                $"hasApi={(client != null)} hasToken={!string.IsNullOrEmpty(ApiAuth.Token)} " +
+                $"banner='{banner}'");
             EnsureBuilt();
             ApplyBanner();
             SetStatus("Loading events…");
@@ -280,15 +284,21 @@ namespace VellumRift
         private async Task RefreshListAsync()
         {
             if (apiClient == null)
+            {
+                Debug.LogError("[SpacesLobby] RefreshListAsync aborted — apiClient is null");
                 return;
+            }
 
             busy = true;
             SetStatus("Loading events…");
+            Debug.Log("[SpacesLobby] RefreshListAsync START — calling ListSessions…");
             try
             {
                 // Login may complete after the lobby opened — pull latest Bearer.
                 if (!string.IsNullOrEmpty(ApiAuth.Token))
                     apiClient.SetAuthToken(ApiAuth.Token);
+                else
+                    Debug.LogWarning("[SpacesLobby] RefreshListAsync — ApiAuth.Token empty (expect 401 on IIS)");
 
                 string loadError = null;
                 var list = await apiClient.ListSessions(err => loadError = err);
