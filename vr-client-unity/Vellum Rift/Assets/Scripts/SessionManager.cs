@@ -15,7 +15,7 @@ namespace VellumRift
     ///
     /// Drop this on a GameObject. On Start it:
     ///   1. Resolves the backend URL
-    ///   2. Joins an existing session (dashboard ?session=) or creates one
+    ///   2. Joins ?session= when present, otherwise opens the Spaces lobby (#188)
     ///   3. Adds the local player
     ///   4. Initializes all feature components with session context
     ///   5. Loads / hot-swaps the manuscript from session activeModelId (#144)
@@ -23,7 +23,7 @@ namespace VellumRift
     public class SessionManager : MonoBehaviour
     {
         [Header("Session")]
-        [Tooltip("Fallback session id when no CLI/env/query override is present. Leave empty to create a new session.")]
+        [Tooltip("Fallback session id when no CLI/env/query override is present. Leave empty to open the Spaces lobby (#188).")]
         [SerializeField] private string sessionIdOverride = "";
 
         [Tooltip("Local player display name.")]
@@ -62,6 +62,9 @@ namespace VellumRift
 
         [Header("Logout")]
         [SerializeField] private LogoutButton logoutButton;
+
+        [Header("Spaces lobby (#188)")]
+        [SerializeField] private SpacesLobbyOverlay spacesLobbyOverlay;
 
         [Header("Desktop Input")]
         [SerializeField] private VellumRift.Control.PlayerController playerController;
@@ -121,6 +124,8 @@ namespace VellumRift
             {
                 if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
             }
+            if (spacesLobbyOverlay == null)
+                spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>() ?? gameObject.AddComponent<SpacesLobbyOverlay>();
             if (playerSpawner == null) playerSpawner = GetComponent<PlayerSpawner>() ?? gameObject.AddComponent<PlayerSpawner>();
             if (playerSpawner != null && gallery != null)
                 playerSpawner.SetSpawnPoints(gallery.GetSpawnPointTransforms());
@@ -179,9 +184,10 @@ namespace VellumRift
                 if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
                     apiClient.SetAuthToken(bluekeyAuth.AccessToken);
 
-                // Join an existing space when launched with a session id
-                // (dashboard Enter / invite link). Do not wipe the room.
-                GameState session;
+                // Join when launched with a session id (dashboard Enter / invite / kiosk).
+                // Otherwise open the Spaces lobby — never silently create (#188).
+                GameState session = null;
+                string lobbyBanner = "";
                 if (!string.IsNullOrEmpty(sessionIdOverride))
                 {
                     var result = await apiClient.GetSession(sessionIdOverride);
@@ -194,27 +200,30 @@ namespace VellumRift
                     else
                     {
                         Debug.LogWarning(
-                            $"[SessionManager] Session '{sessionIdOverride}' missing or archived — creating a new space.");
-                        session = await apiClient.CreateSession("Learning space");
-                        if (session == null)
-                        {
-                            Debug.LogError("[SessionManager] Failed to create session. Is the backend running?");
-                            return;
-                        }
-                        createdSession = true;
-                        Debug.Log($"[SessionManager] Created session {session.sessionId}");
+                            $"[SessionManager] Session '{sessionIdOverride}' missing or archived — opening Spaces lobby (no auto-create).");
+                        lobbyBanner = "That space is missing or archived. Pick another or create a new one.";
                     }
                 }
-                else
+
+                if (session == null)
                 {
-                    session = await apiClient.CreateSession("Learning space");
-                    if (session == null)
+                    if (spacesLobbyOverlay == null)
+                        spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>()
+                            ?? gameObject.AddComponent<SpacesLobbyOverlay>();
+
+                    var pick = await spacesLobbyOverlay.PickAsync(apiClient, lobbyBanner);
+                    if (pick.Session == null || string.IsNullOrEmpty(pick.Session.sessionId))
                     {
-                        Debug.LogError("[SessionManager] Failed to create session. Is the backend running?");
+                        Debug.LogError("[SessionManager] Spaces lobby returned no session.");
                         return;
                     }
-                    createdSession = true;
-                    Debug.Log($"[SessionManager] Created session {session.sessionId} — share this ID");
+
+                    session = pick.Session;
+                    createdSession = pick.Created;
+                    Debug.Log(
+                        createdSession
+                            ? $"[SessionManager] Created session {session.sessionId} via Spaces lobby"
+                            : $"[SessionManager] Joined session {session.sessionId} via Spaces lobby");
                 }
 
                 SessionId = session.sessionId;

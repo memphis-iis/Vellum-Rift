@@ -20,3 +20,12 @@ Related audit finding: U-02 in [museum-vr-usability-a11y-cicd-audit.md](museum-v
 - **Visitor (web Lobby):** enter-only — Leave space, Enter 3D, presence, chat. No allowlist, kiosk, playlist, or moderation controls.
 - **Host (web Lobby):** same enter chrome plus a labeled **Host tools** panel for ops.
 - **VR / Quest (product intent):** enter-only when a VR lobby ships; host ops stay on the web dashboard.
+
+## VR Spaces lobby (#188)
+
+Standalone / Quest / editor without `?session=` opens an IMGUI **Spaces** picker:
+
+- List: `GET /api/game-state`
+- Join selected space, then enter the gallery
+- Create only via explicit **New space** (`POST` with `visibility` + `kind`)
+- Never silently create on boot (missing/archived launch id opens the lobby with a banner)
