@@ -10,9 +10,9 @@ using VellumRift;
 /// Backend Connection Test (Issue #10 / User Story 9)
 ///
 /// Pings the backend health endpoint on startup and reports connectivity
-/// via console logs and a styled "SPACE STATUS" HUD panel (a uGUI glass
-/// card mirroring the HTML HUD_SPACE design: rounded glass panel,
-/// pulsing status pill, session ID and owner readouts).
+/// via console logs. On-screen SPACE STATUS / CONNECTED chrome was removed
+/// (#228) — share and session detail stay on the dashboard; keep this
+/// component for logging-only health polling.
 ///
 /// Endpoint configuration priority (highest wins):
 ///   1. Command-line flag:      -backendUrl=http://192.168.1.50:4000/api/health
@@ -152,21 +152,20 @@ public class BackendHealthChecker : MonoBehaviour
     }
 
     /// <summary>
-    /// Populates the SESSION ID and OWNER readouts once the session is known.
+    /// Records session identity for logs once the session is known.
+    /// On-screen SESSION ID / OWNER rows were removed (#228).
     /// Called by SessionManager after the session is created/joined.
     /// </summary>
     public void SetSessionInfo(string sessionId, string ownerName)
     {
-        if (sessionIdText != null && !string.IsNullOrEmpty(sessionId))
-            sessionIdText.text = sessionId;
-        if (ownerText != null && !string.IsNullOrEmpty(ownerName))
-            ownerText.text = ownerName;
+        if (!string.IsNullOrEmpty(sessionId))
+            Debug.Log($"[BackendHealthChecker] Session {sessionId}" +
+                      (string.IsNullOrEmpty(ownerName) ? "" : $" (player: {ownerName})"));
     }
 
     private void Awake()
     {
-        if (!WebGlShellMode.UsesExternalShell)
-            BuildStatusUI();
+        // Status HUD canvas intentionally not built (#228) — logging only.
     }
 
     private void Start()
@@ -201,9 +200,8 @@ public class BackendHealthChecker : MonoBehaviour
     private void OnDestroy() => isRunning = false;
 
     /// <summary>
-    /// Updates CurrentStatus, fires OnStatusChanged, and refreshes the HUD
-    /// state pill (only fires the event when the status actually changes, so
-    /// subscribers aren't spammed with redundant events on periodic rechecks).
+    /// Updates CurrentStatus and fires OnStatusChanged (only when the status
+    /// actually changes). HUD refresh is a no-op when no status canvas exists (#228).
     /// </summary>
     private void SetStatus(ConnectionStatus next)
     {
