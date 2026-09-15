@@ -89,7 +89,7 @@ public class BackendHealthChecker : MonoBehaviour
     private static readonly Color COLOR_GOLD           = VrTheme.Primary;
     private static readonly Color COLOR_ERROR          = VrTheme.Error;
     private static readonly Color COLOR_ON_SURFACE     = VrTheme.OnSurface;
-    private static readonly Color COLOR_ON_SURFACE_VAR = VrTheme.OnSurfaceVariant
+    private static readonly Color COLOR_ON_SURFACE_VAR = VrTheme.OnSurfaceVariant;
 
     // ---------------------------------------------------------------
     // HUD Layout (canvas reference pixels)
