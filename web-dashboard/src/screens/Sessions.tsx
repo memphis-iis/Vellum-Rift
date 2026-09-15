@@ -38,7 +38,7 @@ function statusLabel(kind: StatusKind): string {
 
 function formatActivity(iso: string): string {
   const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
+  if (!Number.isFinite(t)) return "-";
   const diff = Date.now() - t;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "Just now";
@@ -101,7 +101,7 @@ export default function Sessions({
   }, []);
 
   const onCreate = async () => {
-    const label = newLabel.trim() || `Learning space ${new Date().toLocaleString()}`;
+    const label = newLabel.trim() || `Space ${new Date().toLocaleString()}`;
     setCreating(true);
     setError(null);
     try {
@@ -143,10 +143,10 @@ export default function Sessions({
     <main className="vr-sessions">
       <header className="vr-sessions__header">
         <div className="vr-sessions__header-copy">
-          <h1 className="vr-sessions__title">Learning spaces</h1>
+          <h1 className="vr-sessions__title">Spaces</h1>
           <p className="vr-sessions__lead">
-            Open saved virtual learning spaces for web and VR. Each space keeps your spatial layout,
-            annotations, and who’s in the room.
+            Open saved spaces for web and VR. Each space keeps your spatial layout, annotations, and
+            who’s here.
           </p>
         </div>
         <button
@@ -168,7 +168,7 @@ export default function Sessions({
             className="vr-sessions__create-input"
             type="text"
             maxLength={120}
-            placeholder="e.g. Codex fragment — room A"
+            placeholder="e.g. Codex fragment — study group"
             value={newLabel}
             disabled={creating}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -279,7 +279,7 @@ export default function Sessions({
                       {manuscriptLine}
                     </span>
                     <span className="vr-sessions__id">
-                      ID: {shortId(session.sessionId)}
+                      Space ID: {shortId(session.sessionId)}
                       {" · "}
                       <span className="vr-sessions__visibility-tag">
                         {(session.visibility ?? "public") === "private" ? "Private" : "Public"}

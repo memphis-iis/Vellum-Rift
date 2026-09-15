@@ -28,21 +28,25 @@ This directory is the source of truth for product, architecture, delivery planni
 - [../CURRENT-STATUS.md](../CURRENT-STATUS.md)
 - [../ONBOARDING.md](../ONBOARDING.md)
 - [product-summary.md](product-summary.md)
-- [qa/multiplayer-demo-runbook.md](qa/multiplayer-demo-runbook.md) — Demo 1: two-client moving-cubes POC (issue #44)
+- [qa/multiplayer-demo-runbook.md](qa/multiplayer-demo-runbook.md) - Demo 1: two-client moving-cubes POC (issue #44)
+- [qa/museum-vr-usability-a11y-cicd-audit.md](qa/museum-vr-usability-a11y-cicd-audit.md) - Museum/VR usability, a11y, and CI/CD triage (issues #180–#215)
+- [qa/space-vocabulary.md](qa/space-vocabulary.md) - Dashboard IA: Space vs session (#181)
+- [qa/museum-guest-entry.md](qa/museum-guest-entry.md) - Museum guests via kiosk, not Bluekey (#180)
 - [architecture/agents.md](architecture/agents.md)
 - [architecture/001-webrtc-sfu.md](architecture/001-webrtc-sfu.md)
 - [architecture/002-persisted-state-sync.md](architecture/002-persisted-state-sync.md) (supersedes historical `002-hasura-sync.md`)
 - [architecture/003-shader-pipeline.md](architecture/003-shader-pipeline.md)
 - [architecture/005-data-ingestion-pipelines.md](architecture/005-data-ingestion-pipelines.md)
-- [architecture/006-electron-launcher-scope.md](architecture/006-electron-launcher-scope.md) — Electron deferred; CLI + WebGL postMessage handoff
+- [architecture/006-electron-launcher-scope.md](architecture/006-electron-launcher-scope.md) - Electron deferred; CLI + WebGL postMessage handoff
 - [architecture/adr-001-webrtc-data-channel-stroke-streaming.md](architecture/adr-001-webrtc-data-channel-stroke-streaming.md)
 - [agile/milestones.md](agile/milestones.md)
-- [agile/outstanding-issues.md](agile/outstanding-issues.md) — reconciled implementation backlog
+- [agile/outstanding-issues.md](agile/outstanding-issues.md) - reconciled implementation backlog
 - [agile/backlog-governance.md](agile/backlog-governance.md)
 - [agile/ideation-week-template.md](agile/ideation-week-template.md)
 - [agile/user-stories.md](agile/user-stories.md)
 - [security/zero-trust-telemetry.md](security/zero-trust-telemetry.md)
 - [operations/ci-cd-matrix-deploy.md](operations/ci-cd-matrix-deploy.md)
+- [operations/user-testing-watch.md](operations/user-testing-watch.md) — health probes + client error beacons for unattended testing
 - [qa/test-harness-crossplay.md](qa/test-harness-crossplay.md)
 - [compliance/accessibility-and-eula.md](compliance/accessibility-and-eula.md)
 - [governance/data-governance-and-provenance.md](governance/data-governance-and-provenance.md)
@@ -55,8 +59,8 @@ This directory is the source of truth for product, architecture, delivery planni
 - [dev-onboarding/unity-setup.md](dev-onboarding/unity-setup.md)
 - [reference/glossary.md](reference/glossary.md)
 - [reference/backend-integration-summary.md](reference/backend-integration-summary.md)
-- [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md) — historical GlyphWitch inventory (out of scope)
-- [reference/authentication.md](reference/authentication.md) — live Bluekey / route policy (backend + dashboard login #114)
+- [reference/GlyphWitchAPI.md](reference/GlyphWitchAPI.md) - historical GlyphWitch inventory (out of scope)
+- [reference/authentication.md](reference/authentication.md) - live Bluekey / route policy (backend + dashboard login #114)
 
 ## Local Development Files
 

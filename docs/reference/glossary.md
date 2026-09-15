@@ -4,7 +4,7 @@ This glossary defines the current shared vocabulary for Vellum Rift. These defin
 
 ## Artifact
 
-A durable object associated with a session or document-derived exploration space. In current planning, artifacts include items such as pins, save points, completed strokes, and exportable non-PII research outputs.
+A durable object associated with a Space (API: session) or document-derived exploration environment. In current planning, artifacts include items such as pins, save points, completed strokes, and exportable non-PII research outputs.
 
 ## Backend
 
@@ -12,7 +12,7 @@ The TypeScript application layer in `backend/` responsible for durable applicati
 
 ## Dashboard
 
-The hosted browser-facing web application in `web-dashboard/`. It is intended to handle uploads, preprocessing status, session access, team and permission flows, and other non-VR control-surface tasks.
+The hosted browser-facing web application in `web-dashboard/`. It is intended to handle uploads, preprocessing status, Space access (API sessions), team and permission flows, and other non-VR control-surface tasks.
 
 ## Deterministic Bot
 
@@ -66,9 +66,17 @@ A persistent coordinate-based marker placed in the spatial session. Pins are dur
 
 A distinct artifact type used for navigation recovery, regrouping, or fallback teleport behavior. Save points are not treated as ordinary pins in current planning.
 
-## Session
+## Lobby
 
-A live collaborative exploration instance tied to a manuscript or document-derived environment. Sessions may include participants, host authority, artifacts, chat, voice, and exportable research outputs.
+The dashboard screen (nav label **Lobby**) for a selected Space: presence, chat, host tools, and launch into 3D. Not a separate product concept from Space — it is the pre-3D view of a Space.
+
+## Session (API)
+
+**API / code term only.** The durable collaborative instance stored by the backend (`sessionId`, `/api/game-state/:id`, URL query `?session=`). User-facing chrome must say **Space**, not “session.” Engineers may still use `session` in types, routes, and docs that describe the wire format.
+
+## Space
+
+**User-facing term** for a collaborative exploration place (formerly mixed with “session,” “room,” and “learning space”). People pick a Space from **Spaces**, open its **Lobby**, then **Enter 3D**. Default names and empty states should prefer “Space” / “Untitled space.”
 
 ## SFU
 
