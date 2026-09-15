@@ -760,16 +760,7 @@ namespace VellumRift
         // Generic UI helpers
         // ---------------------------------------------------------------
 
-        private static Font uiFont;
-        private static Font UiFont
-        {
-            get
-            {
-                if (uiFont == null)
-                    uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                return uiFont;
-            }
-        }
+        private static Font UiFont => VrTheme.ResolveUiFont();
 
         /// <summary>Predicts the rendered width of text in the built-in font.</summary>
         private static float MeasureText(string s, int fontSize, FontStyle style)
@@ -793,7 +784,7 @@ namespace VellumRift
             GameObject go = CreateUIObject(name, parent);
             var text = go.AddComponent<Text>();
             text.text = content;
-            text.font = UiFont;
+            VrTheme.ApplyUiFont(text);
             text.fontSize = fontSize;
             text.alignment = anchor;
             text.color = Color.white;

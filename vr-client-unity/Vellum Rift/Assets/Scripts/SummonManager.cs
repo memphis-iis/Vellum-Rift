@@ -153,12 +153,12 @@ namespace VellumRift
             RectTransform pr = panel.GetComponent<RectTransform>(); pr.anchorMin = pr.anchorMax = new Vector2(0.5f, 0.5f); pr.sizeDelta = new Vector2(400, 250); pr.anchoredPosition = Vector2.zero;
 
             GameObject textObj = new GameObject("CountdownText"); textObj.transform.SetParent(panel.transform, false);
-            countdownText = textObj.AddComponent<Text>(); countdownText.text = "5"; countdownText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            countdownText = textObj.AddComponent<Text>(); countdownText.text = "5"; VrTheme.ApplyUiFont(countdownText);
             countdownText.fontSize = 80; countdownText.alignment = TextAnchor.MiddleCenter; countdownText.color = Color.white;
             RectTransform tr = textObj.GetComponent<RectTransform>(); tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.sizeDelta = Vector2.zero; tr.anchoredPosition = new Vector2(0, 20);
 
             GameObject subObj = new GameObject("SubtitleText"); subObj.transform.SetParent(panel.transform, false);
-            Text st = subObj.AddComponent<Text>(); st.text = "Host is summoning you..."; st.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Text st = subObj.AddComponent<Text>(); st.text = "Host is summoning you..."; VrTheme.ApplyUiFont(st);
             st.fontSize = 18; st.alignment = TextAnchor.MiddleCenter; st.color = new Color(1f, 0.27f, 0.27f);
             RectTransform sr = subObj.GetComponent<RectTransform>(); sr.anchorMin = new Vector2(0, 0); sr.anchorMax = new Vector2(1, 0); sr.sizeDelta = new Vector2(0, 40); sr.anchoredPosition = new Vector2(0, 30);
 

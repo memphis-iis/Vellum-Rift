@@ -200,7 +200,7 @@ namespace VellumRift
             GameObject go = CreateUIObject(name, parent);
             var text = go.AddComponent<UnityEngine.UI.Text>();
             text.text = content;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            VrTheme.ApplyUiFont(text);
             text.fontSize = fontSize;
             text.alignment = anchor;
             text.color = color;

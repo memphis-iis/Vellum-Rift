@@ -172,7 +172,7 @@ namespace VellumRift
         {
             var go = CreateUiObject(name, parent);
             var text = go.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            VrTheme.ApplyUiFont(text);
             text.fontSize = size;
             text.text = body;
             text.alignment = anchor;

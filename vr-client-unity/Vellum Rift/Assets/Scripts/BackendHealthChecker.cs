@@ -1045,23 +1045,12 @@ public class BackendHealthChecker : MonoBehaviour
     // Generic UI helpers
     // ---------------------------------------------------------------
 
-    private static Font uiFont;
-    private static Font UiFont
-    {
-        get
-        {
-            if (uiFont == null)
-                uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            return uiFont;
-        }
-    }
-
     private static Text CreateText(string name, Transform parent, string content, int fontSize, TextAnchor anchor, Color color, FontStyle style = FontStyle.Normal)
     {
         GameObject go = CreateUIObject(name, parent);
         var text = go.AddComponent<Text>();
         text.text = content;
-        text.font = UiFont;
+        VrTheme.ApplyUiFont(text);
         text.fontSize = fontSize;
         text.fontStyle = style;
         text.alignment = anchor;

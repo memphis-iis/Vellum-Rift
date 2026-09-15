@@ -64,7 +64,7 @@ namespace VellumRift
             var textGo = new GameObject("Text");
             textGo.transform.SetParent(canvasGo.transform, false);
             labelText = textGo.AddComponent<Text>();
-            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            VrTheme.ApplyUiFont(labelText);
             labelText.fontSize = 22;
             labelText.alignment = TextAnchor.MiddleCenter;
             labelText.color = new Color(1f, 0.86f, 0.35f, 1f);

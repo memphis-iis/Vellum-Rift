@@ -400,12 +400,13 @@ namespace VellumRift
             GameObject go = CreateUIObject(name, parent);
             var text = go.AddComponent<Text>();
             text.text = content;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
-                ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
+            VrTheme.ApplyUiFont(text);
             text.fontSize = fontSize;
             text.alignment = anchor;
             text.color = color;
             text.raycastTarget = false;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             return text;
         }
 
@@ -457,8 +458,7 @@ namespace VellumRift
             var btn = go.AddComponent<Button>();
             btn.targetGraphic = img;
             btn.onClick.AddListener(() => onClick?.Invoke());
-            Text t = CreateText("Label", go.transform, label, 18, TextAnchor.MiddleCenter, fg);
-            t.fontStyle = FontStyle.Bold;
+            Text t = CreateText("Label", go.transform, label, 20, TextAnchor.MiddleCenter, fg);
             StretchFull(t.rectTransform);
         }
 

@@ -49,6 +49,106 @@ namespace VellumRift
         public const float LobbyPanelDistance = 2.2f;
         public const float LobbyWorldScale = 0.0024f;
 
+        // --- UI font (#223) ---
+        // LegacyRuntime/Arial builtins are often null on Linux Editors; never leave Text.font null.
+        private static Font cachedUiFont;
+        private static bool loggedFontSource;
+
+        /// <summary>Cached UI font for uGUI <see cref="UnityEngine.UI.Text"/> (never null when OS fonts exist).</summary>
+        public static Font UiFont => ResolveUiFont();
+
+        /// <summary>
+        /// Resolve a readable UI font: optional <c>Resources/Fonts/VellumUI</c>, then Unity builtins,
+        /// then OS dynamic fonts (<c>DejaVu Sans</c>, <c>Segoe UI</c>, …).
+        /// </summary>
+        public static Font ResolveUiFont()
+        {
+            if (cachedUiFont != null)
+                return cachedUiFont;
+
+            Font fromResources = Resources.Load<Font>("Fonts/VellumUI");
+            if (fromResources != null)
+            {
+                cachedUiFont = fromResources;
+                LogFontSource("Resources/Fonts/VellumUI");
+                return cachedUiFont;
+            }
+
+            foreach (string builtin in new[] { "LegacyRuntime.ttf", "Arial.ttf" })
+            {
+                Font built = Resources.GetBuiltinResource<Font>(builtin);
+                if (built != null)
+                {
+                    cachedUiFont = built;
+                    LogFontSource("builtin " + builtin);
+                    return cachedUiFont;
+                }
+            }
+
+            string[] osCandidates =
+            {
+                "DejaVu Sans",
+                "Liberation Sans",
+                "FreeSans",
+                "Noto Sans",
+                "Segoe UI",
+                "Arial",
+                "Helvetica Neue",
+                "Helvetica",
+            };
+            try
+            {
+                cachedUiFont = Font.CreateDynamicFontFromOSFont(osCandidates, 16);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[VrTheme] CreateDynamicFontFromOSFont failed: " + ex.Message);
+            }
+
+            if (cachedUiFont == null)
+            {
+                string[] installed = Font.GetOSInstalledFontNames();
+                if (installed != null && installed.Length > 0)
+                {
+                    try
+                    {
+                        cachedUiFont = Font.CreateDynamicFontFromOSFont(installed[0], 16);
+                    }
+                    catch
+                    {
+                        // leave null; ApplyUiFont will still assign best-effort
+                    }
+                }
+            }
+
+            if (cachedUiFont != null)
+                LogFontSource("OS/dynamic " + cachedUiFont.name);
+            else
+                Debug.LogError("[VrTheme] ResolveUiFont: no font available — UI labels may be invisible.");
+
+            return cachedUiFont;
+        }
+
+        /// <summary>Assign <see cref="ResolveUiFont"/> to a uGUI Text.</summary>
+        public static void ApplyUiFont(UnityEngine.UI.Text text, bool bold = false)
+        {
+            if (text == null)
+                return;
+            Font font = ResolveUiFont();
+            if (font != null)
+                text.font = font;
+            if (bold)
+                text.fontStyle = FontStyle.Bold;
+        }
+
+        private static void LogFontSource(string source)
+        {
+            if (loggedFontSource)
+                return;
+            loggedFontSource = true;
+            Debug.Log("[VrTheme] UI font: " + source);
+        }
+
         public static Color WithAlpha(Color c, float a)
         {
             c.a = a;

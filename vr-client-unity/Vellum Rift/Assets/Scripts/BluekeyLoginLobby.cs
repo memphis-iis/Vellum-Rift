@@ -245,12 +245,12 @@ namespace VellumRift
             GameObject go = CreateUIObject(name, parent);
             var text = go.AddComponent<Text>();
             text.text = content;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
-                ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
+            VrTheme.ApplyUiFont(text);
             text.fontSize = fontSize;
             text.alignment = anchor;
             text.color = color;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             return text;
         }
@@ -316,9 +316,15 @@ namespace VellumRift
             btn.colors = colors;
             btn.onClick.AddListener(() => onClick?.Invoke());
 
-            Text text = CreateText("Label", go.transform, label, 20, TextAnchor.MiddleCenter, fg);
-            text.fontStyle = FontStyle.Bold;
-            SetRect(text.rectTransform, 10f, -6f, -10f, 6f);
+            // Larger Regular is more reliable than Bold when OS fonts lack a bold face (#223).
+            Text text = CreateText("Label", go.transform, label, 22, TextAnchor.MiddleCenter, fg);
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            var tr = text.rectTransform;
+            tr.anchorMin = Vector2.zero;
+            tr.anchorMax = Vector2.one;
+            tr.offsetMin = new Vector2(10f, 6f);
+            tr.offsetMax = new Vector2(-10f, -6f);
         }
 
         private static void EnsureEventSystem()
