@@ -31,7 +31,7 @@ function goToKioskJoin(spaceId: string) {
 
 /**
  * IIS Bluekey login shell (Undertaker template), reworded for Vellum Rift.
- * Staff: Bluekey. Museum guests: kiosk path — never Bluekey-only (#180).
+ * Bluekey for anyone with an IIS account; museum guests: kiosk path — never Bluekey-only (#180 / #187).
  */
 export default function Login() {
   const {
@@ -98,9 +98,9 @@ export default function Login() {
           </div>
 
           <p className="auth-lead">
-            Spaces for web and VR. <strong>Staff</strong> sign in with Bluekey to host and upload.{" "}
-            <strong>Museum guests</strong> do not need Bluekey — use the exhibit QR or guest join
-            below.
+            Spaces for web and VR. <strong>Sign in with Bluekey</strong> if you have an IIS
+            account (host, upload, or join). <strong>Museum guests</strong> do not need Bluekey —
+            use the exhibit QR or guest join below.
           </p>
 
           <div className="auth-paper-ref">
@@ -160,17 +160,17 @@ export default function Login() {
           </section>
 
           <div className="auth-separator" role="presentation">
-            <span>Staff</span>
+            <span>Bluekey</span>
           </div>
 
           <div className="auth-copy">
             <p className="eyebrow">Sign in</p>
             <p>
-              Hosts and researchers use{" "}
+              Have an IIS account? Use{" "}
               <a href={BLUEKEY_PORTAL_URL} target="_blank" rel="noreferrer">
                 IIS Bluekey
               </a>{" "}
-              to create Spaces, upload manuscripts, and enable kiosk for guests.
+              to create Spaces, upload manuscripts, join sessions, or enable kiosk for museum guests.
             </p>
           </div>
 
