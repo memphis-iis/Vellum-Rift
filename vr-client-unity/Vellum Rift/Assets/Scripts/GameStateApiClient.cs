@@ -33,7 +33,25 @@ namespace VellumRift
         // JsonUtility can only serialize concrete [Serializable] types, so each
         // request body shape gets a small wrapper rather than an anonymous type.
 
-        [Serializable] private class CreateSessionBody { public string label; }
+        [Serializable] private class CreateSessionBody
+        {
+            public string label;
+            public string visibility;
+            public string kind;
+        }
+
+        [Serializable]
+        public class SessionListItem
+        {
+            public string sessionId;
+            public string label;
+            public bool isActive;
+            public string updatedAt;
+            public string visibility;
+            public string kind;
+        }
+
+        [Serializable] private class SessionListWrapper { public SessionListItem[] items; }
         [Serializable] private class AddPlayerBody { public string displayName; public bool isHost; }
         [Serializable] private class PositionBody { public string playerId; public Vector3Data position; }
         [Serializable] private class RotationBody { public string playerId; public Vector3Data rotation; }
@@ -86,9 +104,17 @@ namespace VellumRift
         /// </summary>
         /// <param name="label">Optional label for the session</param>
         /// <returns>The created GameState, or null on failure</returns>
-        public async Task<GameState> CreateSession(string label = "")
+        public async Task<GameState> CreateSession(
+            string label = "",
+            string visibility = "private",
+            string kind = "exploration")
         {
-            string body = JsonUtility.ToJson(new CreateSessionBody { label = label ?? "" });
+            string body = JsonUtility.ToJson(new CreateSessionBody
+            {
+                label = label ?? "",
+                visibility = string.IsNullOrEmpty(visibility) ? "private" : visibility,
+                kind = string.IsNullOrEmpty(kind) ? "exploration" : kind,
+            });
             ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbPOST, BuildUrl(""), body);
 
             if (!res.IsSuccess)
@@ -98,6 +124,34 @@ namespace VellumRift
             }
 
             return JsonUtility.FromJson<GameState>(res.Body);
+        }
+
+        /// <summary>
+        /// GET /api/game-state — List spaces the caller can access (#188).
+        /// </summary>
+        public async Task<SessionListItem[]> ListSessions()
+        {
+            ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbGET, BuildUrl(""));
+            if (!res.IsSuccess)
+            {
+                LogFailure("ListSessions", res);
+                return null;
+            }
+
+            string raw = res.Body ?? "[]";
+            string trimmed = raw.TrimStart();
+            if (trimmed.StartsWith("["))
+                raw = $"{{\"items\": {raw}}}";
+            try
+            {
+                var wrapped = JsonUtility.FromJson<SessionListWrapper>(raw);
+                return wrapped?.items ?? Array.Empty<SessionListItem>();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[GameStateApiClient] ListSessions parse failed: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
