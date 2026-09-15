@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -53,7 +54,6 @@ namespace VellumRift
             public string endsAt;
         }
 
-        [Serializable] private class SessionListWrapper { public SessionListItem[] items; }
         [Serializable] private class AddPlayerBody { public string displayName; public bool isHost; }
         [Serializable] private class PositionBody { public string playerId; public Vector3Data position; }
         [Serializable] private class RotationBody { public string playerId; public Vector3Data rotation; }
@@ -130,6 +130,8 @@ namespace VellumRift
 
         /// <summary>
         /// GET /api/game-state — List spaces the caller can access (#188).
+        /// Parsed via <see cref="SimpleJson"/> so nested <c>players</c>/<c>metadata</c>
+        /// do not break field extraction the way <c>JsonUtility</c> can for list payloads (#226).
         /// </summary>
         public async Task<SessionListItem[]> ListSessions()
         {
@@ -140,20 +142,139 @@ namespace VellumRift
                 return null;
             }
 
-            string raw = res.Body ?? "[]";
-            string trimmed = raw.TrimStart();
-            if (trimmed.StartsWith("["))
-                raw = $"{{\"items\": {raw}}}";
             try
             {
-                var wrapped = JsonUtility.FromJson<SessionListWrapper>(raw);
-                return wrapped?.items ?? Array.Empty<SessionListItem>();
+                return ParseSessionList(res.Body);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[GameStateApiClient] ListSessions parse failed: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>Parse GET /api/game-state array into list DTOs (kind from top-level or metadata).</summary>
+        public static SessionListItem[] ParseSessionList(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return Array.Empty<SessionListItem>();
+
+            string trimmed = raw.Trim();
+            if (!trimmed.StartsWith("["))
+                return Array.Empty<SessionListItem>();
+
+            var items = new List<SessionListItem>();
+            foreach (string objJson in SplitTopLevelJsonObjects(trimmed))
+            {
+                SessionListItem item = ParseSessionListItem(objJson);
+                if (item != null && !string.IsNullOrEmpty(item.sessionId))
+                    items.Add(item);
+            }
+            return items.ToArray();
+        }
+
+        private static SessionListItem ParseSessionListItem(string objJson)
+        {
+            var map = SimpleJson.ParseObject(objJson);
+            if (map == null)
+                return null;
+
+            string kind = CleanJsonScalar(GetMap(map, "kind"));
+            if (string.IsNullOrEmpty(kind))
+            {
+                string metaRaw = GetMap(map, "metadata");
+                if (!string.IsNullOrEmpty(metaRaw) && metaRaw.TrimStart().StartsWith("{"))
+                {
+                    var meta = SimpleJson.ParseObject(metaRaw);
+                    if (meta != null)
+                        kind = CleanJsonScalar(GetMap(meta, "kind"));
+                }
+            }
+
+            return new SessionListItem
+            {
+                sessionId = CleanJsonScalar(GetMap(map, "sessionId")) ?? "",
+                label = CleanJsonScalar(GetMap(map, "label")) ?? "",
+                isActive = IsJsonTrue(GetMap(map, "isActive")),
+                updatedAt = CleanJsonScalar(GetMap(map, "updatedAt")) ?? "",
+                visibility = CleanJsonScalar(GetMap(map, "visibility")) ?? "",
+                kind = kind ?? "",
+                startsAt = CleanJsonScalar(GetMap(map, "startsAt")),
+                endsAt = CleanJsonScalar(GetMap(map, "endsAt")),
+            };
+        }
+
+        private static string GetMap(Dictionary<string, string> map, string key)
+        {
+            return map != null && map.TryGetValue(key, out string v) ? v : null;
+        }
+
+        private static bool IsJsonTrue(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+            string t = raw.Trim();
+            return t.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string CleanJsonScalar(string raw)
+        {
+            if (raw == null)
+                return null;
+            string t = raw.Trim();
+            if (t.Length == 0 || t == "null")
+                return null;
+            if (t.Length >= 2 && t[0] == '"' && t[t.Length - 1] == '"')
+                t = t.Substring(1, t.Length - 2);
+            return t;
+        }
+
+        /// <summary>Split a JSON array into top-level object substrings.</summary>
+        private static List<string> SplitTopLevelJsonObjects(string arrayJson)
+        {
+            var result = new List<string>();
+            int n = arrayJson.Length;
+            int i = 0;
+            while (i < n && char.IsWhiteSpace(arrayJson[i])) i++;
+            if (i >= n || arrayJson[i] != '[')
+                return result;
+            i++;
+            while (i < n)
+            {
+                while (i < n && (char.IsWhiteSpace(arrayJson[i]) || arrayJson[i] == ',')) i++;
+                if (i >= n || arrayJson[i] == ']')
+                    break;
+                if (arrayJson[i] != '{')
+                    break;
+                int start = i;
+                int depth = 0;
+                bool inStr = false;
+                bool esc = false;
+                for (; i < n; i++)
+                {
+                    char ch = arrayJson[i];
+                    if (inStr)
+                    {
+                        if (esc) esc = false;
+                        else if (ch == '\\') esc = true;
+                        else if (ch == '"') inStr = false;
+                        continue;
+                    }
+                    if (ch == '"') { inStr = true; continue; }
+                    if (ch == '{') depth++;
+                    else if (ch == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            i++;
+                            result.Add(arrayJson.Substring(start, i - start));
+                            break;
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         /// <summary>

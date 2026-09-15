@@ -290,10 +290,16 @@ namespace VellumRift
                 {
                     var events = SessionEventList.CurrentEvents(list);
                     RebuildList(events);
-                    SetStatus(events.Length == 0
-                        ? "No current events."
-                        : $"{events.Length} event{(events.Length == 1 ? "" : "s")}");
-                }
+                    if (events.Length == 0 && list.Length > 0)
+                    {
+                        SetStatus($"No current events among {list.Length} space(s). Mark a space as Event on the site.");
+                    }
+                    else
+                    {
+                        SetStatus(events.Length == 0
+                            ? "No current events."
+                            : $"{events.Length} event{(events.Length == 1 ? "" : "s")}");
+                    }
             }
             catch (Exception ex)
             {

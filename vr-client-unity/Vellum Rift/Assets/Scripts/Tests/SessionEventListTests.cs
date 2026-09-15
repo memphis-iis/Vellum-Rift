@@ -62,4 +62,39 @@ namespace VellumRift.Tests
             Assert.That(SessionEventList.FormatWindow(null, null), Is.Null);
         }
     }
+
+    public class GameStateApiClientSessionListParseTests
+    {
+        [Test]
+        public void ParseSessionList_ReadsKindFromMetadataWhenTopLevelMissing()
+        {
+            string json = @"[
+              {
+                ""sessionId"": ""1c2f58a3-sample"",
+                ""label"": ""sample"",
+                ""isActive"": true,
+                ""updatedAt"": ""2026-09-15T12:00:00.000Z"",
+                ""visibility"": ""public"",
+                ""metadata"": { ""kind"": ""event"" },
+                ""players"": [{ ""id"": ""p1"", ""displayName"": ""A"" }]
+              }
+            ]";
+
+            var items = GameStateApiClient.ParseSessionList(json);
+            Assert.That(items.Length, Is.EqualTo(1));
+            Assert.That(items[0].sessionId, Is.EqualTo("1c2f58a3-sample"));
+            Assert.That(items[0].label, Is.EqualTo("sample"));
+            Assert.That(items[0].isActive, Is.True);
+            Assert.That(items[0].kind, Is.EqualTo("event"));
+            Assert.That(SessionEventList.CurrentEvents(items).Length, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ParseSessionList_ReadsTopLevelKind()
+        {
+            string json = @"[{""sessionId"":""a"",""label"":""sample"",""isActive"":true,""kind"":""event"",""updatedAt"":""2026-09-15T12:00:00Z"",""visibility"":""public""}]";
+            var items = GameStateApiClient.ParseSessionList(json);
+            Assert.That(items[0].kind, Is.EqualTo("event"));
+        }
+    }
 }

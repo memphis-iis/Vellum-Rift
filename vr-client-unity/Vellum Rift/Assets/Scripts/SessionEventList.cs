@@ -28,7 +28,7 @@ namespace VellumRift
                     continue;
                 if (!s.isActive)
                     continue;
-                if (!string.Equals(s.kind, "event", StringComparison.OrdinalIgnoreCase))
+                if (!IsEventKind(s))
                     continue;
                 if (HasEnded(s.endsAt, now))
                     continue;
@@ -42,6 +42,14 @@ namespace VellumRift
                 return tb.CompareTo(ta);
             });
             return filtered.ToArray();
+        }
+
+        /// <summary>True when kind is event (mirrors dashboard sessionKind top-level).</summary>
+        public static bool IsEventKind(GameStateApiClient.SessionListItem s)
+        {
+            if (s == null)
+                return false;
+            return string.Equals((s.kind ?? "").Trim(), "event", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>Short schedule label for a card subtitle, or null if open-ended.</summary>
