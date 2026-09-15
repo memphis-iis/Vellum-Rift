@@ -290,6 +290,10 @@ namespace VellumRift
                 {
                     var events = SessionEventList.CurrentEvents(list);
                     RebuildList(events);
+                    Debug.Log(
+                        $"[SpacesLobby] ListSessions returned {list.Length} space(s); " +
+                        $"{events.Length} current event(s). " +
+                        SummarizeKinds(list));
                     if (events.Length == 0 && list.Length > 0)
                     {
                         SetStatus($"No current events among {list.Length} space(s). Mark a space as Event on the site.");
@@ -311,6 +315,23 @@ namespace VellumRift
             {
                 busy = false;
             }
+        }
+
+        private static string SummarizeKinds(GameStateApiClient.SessionListItem[] list)
+        {
+            if (list == null || list.Length == 0)
+                return "";
+            var parts = new System.Collections.Generic.List<string>();
+            int n = Mathf.Min(list.Length, 8);
+            for (int i = 0; i < n; i++)
+            {
+                var s = list[i];
+                if (s == null) continue;
+                string id = string.IsNullOrEmpty(s.sessionId) ? "?" : s.sessionId;
+                if (id.Length > 8) id = id.Substring(0, 8);
+                parts.Add($"{id}:{s.kind || "∅"}:{(s.isActive ? "on" : "off")}");
+            }
+            return string.Join(", ", parts);
         }
 
         private async Task JoinAsync(string sessionId)

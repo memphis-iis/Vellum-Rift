@@ -148,13 +148,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ddc7c16dd05246a481fd2f48b764622a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VellumRift::VellumRift.DemoSession
-  sessionIdOverride: ea0b2eec-c1ec-43c6-b7c1-d1bb7041c814
+  sessionIdOverride: 
   playerName: Player
   apiClient: {fileID: 0}
+  bluekeyAuth: {fileID: 0}
   poller: {fileID: 0}
   playerSpawner: {fileID: 0}
   multiplayerController: {fileID: 0}
   healthChecker: {fileID: 0}
+  spacesLobbyOverlay: {fileID: 0}
   defaultBackendUrl: https://iis.memphis.edu/apis/vellumrift
   pollingInterval: 0.1
   localPlayerObject: {fileID: 0}

@@ -40,6 +40,9 @@ namespace VellumRift
         /// </summary>
         private bool? launchIsHost;
 
+        /// <summary>True when the last JoinOrCreateSession created a new space.</summary>
+        private bool lastSessionCreated;
+
         /// <summary>Display name used when adding the local player (after launch + Bluekey resolution).</summary>
         public string PlayerDisplayName { get; private set; }
 
@@ -64,6 +67,9 @@ namespace VellumRift
 
         [Tooltip("Pings the backend /api/health and shows a green/red status label. Auto-added when unassigned.")]
         [SerializeField] private BackendHealthChecker healthChecker;
+
+        [Tooltip("Events / Spaces picker when no session override (#226). Auto-added when unassigned.")]
+        [SerializeField] private SpacesLobbyOverlay spacesLobbyOverlay;
 
         [Header("Backend")]
         [Tooltip("Fallback backend base URL when no env/CLI override is present.")]
@@ -280,7 +286,7 @@ namespace VellumRift
 
                 GameState session = await JoinOrCreateSession();
                 SessionId = session.sessionId;
-                createdSession = string.IsNullOrEmpty(sessionIdOverride);
+                createdSession = lastSessionCreated;
 
                 // Host/admin: explicit launch flag wins; else creator; else first
                 // joiner adopts host when the session has none yet.
@@ -443,32 +449,54 @@ namespace VellumRift
 
         private async Task<GameState> JoinOrCreateSession()
         {
+            lastSessionCreated = false;
+
+            // Guest Login path (#224): Space ID chosen before auth completes.
+            if (string.IsNullOrEmpty(sessionIdOverride))
+            {
+                string pendingGuest = BluekeyAuth.ConsumePendingJoinSessionId();
+                if (!string.IsNullOrEmpty(pendingGuest))
+                {
+                    sessionIdOverride = pendingGuest;
+                    Debug.Log($"[DemoSession] Using guest Space ID from Login lobby: {sessionIdOverride}");
+                }
+            }
+
             if (!string.IsNullOrEmpty(sessionIdOverride))
             {
                 GameStateApiClient.GetSessionResult result = await apiClient.GetSession(sessionIdOverride);
-                if (result.NotFound)
+                if (result.State != null && result.State.isActive)
                 {
-                    throw new InvalidOperationException(
-                        $"Session '{sessionIdOverride}' not found — is the backend running and is the id correct?");
-                }
-                if (result.State == null)
-                {
-                    throw new InvalidOperationException($"Failed to fetch session '{sessionIdOverride}'.");
+                    Debug.Log($"[DemoSession] Joined existing session {sessionIdOverride}");
+                    return result.State;
                 }
 
-                Debug.Log($"[DemoSession] Joined existing session {sessionIdOverride}");
-                return result.State;
+                Debug.LogWarning(
+                    $"[DemoSession] Session '{sessionIdOverride}' missing or archived — opening Events lobby.");
             }
 
-            GameState created = await apiClient.CreateSession("demo");
-            if (created == null)
+            // No sticky session: pick a current site event (#226), same as SessionManager.
+            if (spacesLobbyOverlay == null)
+                spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>()
+                    ?? gameObject.AddComponent<SpacesLobbyOverlay>();
+
+            var pick = await spacesLobbyOverlay.PickAsync(
+                apiClient,
+                string.IsNullOrEmpty(sessionIdOverride)
+                    ? ""
+                    : "That space is missing or archived. Pick an event or create a new space.");
+            if (pick.Session == null || string.IsNullOrEmpty(pick.Session.sessionId))
             {
-                throw new InvalidOperationException(
-                    "CreateSession returned null — is the backend running? (make infra-up, then npm run dev in backend/)");
+                throw new InvalidOperationException("Events lobby returned no session.");
             }
 
-            Debug.Log($"[DemoSession] Created session {created.sessionId} — paste this id into the other client's sessionIdOverride field");
-            return created;
+            lastSessionCreated = pick.Created;
+            sessionIdOverride = pick.Session.sessionId;
+            Debug.Log(
+                pick.Created
+                    ? $"[DemoSession] Created session {pick.Session.sessionId} via Events lobby"
+                    : $"[DemoSession] Joined session {pick.Session.sessionId} via Events lobby");
+            return pick.Session;
         }
 
         // ---------------------------------------------------------------
