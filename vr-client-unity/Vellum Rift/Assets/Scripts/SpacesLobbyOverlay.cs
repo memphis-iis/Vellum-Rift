@@ -544,6 +544,9 @@ namespace VellumRift
             visible = false;
             if (canvasGO != null)
                 canvasGO.SetActive(false);
+            var auth = FindObjectOfType<BluekeyAuth>();
+            if (auth != null)
+                auth.AuthSucceeded -= OnAuthSucceededRefresh;
             var tcs = pending;
             pending = null;
             tcs?.TrySetResult(result);
