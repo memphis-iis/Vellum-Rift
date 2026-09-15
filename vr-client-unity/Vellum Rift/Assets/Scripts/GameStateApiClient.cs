@@ -355,6 +355,28 @@ namespace VellumRift
             return JsonUtility.FromJson<GameState>(res.Body);
         }
 
+        /// <summary>GET raw JSON from an API path under baseUrl (e.g. /api/models).</summary>
+        public async Task<string> GetRawAsync(string path)
+        {
+            ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbGET, $"{baseUrl}{path}");
+            return res.IsSuccess ? res.Body : null;
+        }
+
+        /// <summary>PATCH game-state sub-resource with a raw JSON body; returns response JSON.</summary>
+        public async Task<string> PatchRawAsync(string sessionId, string resource, string jsonBody)
+        {
+            ApiResponse res = await SendRequest(
+                "PATCH",
+                BuildUrl($"/{Uri.EscapeDataString(sessionId)}/{resource}"),
+                jsonBody);
+            if (!res.IsSuccess)
+            {
+                LogFailure($"PatchRaw/{resource}", res);
+                return null;
+            }
+            return res.Body;
+        }
+
         // ---------------------------------------------------------------
         // HTTP Helpers (Internal)
         // ---------------------------------------------------------------

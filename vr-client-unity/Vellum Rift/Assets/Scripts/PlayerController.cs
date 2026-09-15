@@ -126,6 +126,12 @@ namespace VellumRift.Control
         /// </summary>
         public bool InputEnabled { get; set; } = true;
 
+        /// <summary>When false, translation intent is zeroed (placement edit / freeze).</summary>
+        public bool MovementEnabled { get; set; } = true;
+
+        /// <summary>When false, mouse-look and keyboard yaw are ignored.</summary>
+        public bool CameraLookEnabled { get; set; } = true;
+
         // Input configuration instances managed directly in code
         private InputAction moveAction;        // WASD keys
         private InputAction verticalAction;   // Space and Left Ctrl
@@ -261,15 +267,19 @@ namespace VellumRift.Control
             }
         }
 
-        private MovementIntent ReadIntent()
+        public MovementIntent ReadIntent()
         {
-            Vector2 planar = moveAction.ReadValue<Vector2>(); 
+            Vector2 planar = MovementEnabled ? moveAction.ReadValue<Vector2>() : Vector2.zero;
+            float vertical = MovementEnabled ? verticalAction.ReadValue<float>() : 0f;
+            bool lookActive = CameraLookEnabled && lookHoldAction.IsPressed();
+            Vector2 look = CameraLookEnabled ? lookAction.ReadValue<Vector2>() : Vector2.zero;
+            float yaw = CameraLookEnabled && !lookActive ? yawAction.ReadValue<float>() : 0f;
             return new MovementIntent
             {
-                Move       = new Vector3(planar.x, verticalAction.ReadValue<float>(), planar.y),
-                Yaw        = yawAction.ReadValue<float>(),
-                LookActive = lookHoldAction.IsPressed(),
-                Look       = lookAction.ReadValue<Vector2>()
+                Move       = new Vector3(planar.x, vertical, planar.y),
+                Yaw        = yaw,
+                LookActive = lookActive,
+                Look       = look
             };
         }
     }
