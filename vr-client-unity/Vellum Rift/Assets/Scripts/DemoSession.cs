@@ -368,27 +368,19 @@ namespace VellumRift
             if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
                 return;
 
-            Debug.Log("[DemoSession] Waiting for Bluekey authentication (handoff, popup, or paste-token)...");
-#if UNITY_EDITOR
-            // Editor: brief wait so VELLUM_ACCESS_TOKEN / quick paste can apply; then
-            // continue so local AUTH_REQUIRED=false Play Mode is not blocked.
-            const float timeoutSeconds = 5f;
-#else
+            // World-space Login (Open Bluekey / Join exhibit) — wait until done.
+            // Do not proceed to Events with an empty Bearer against AUTH_REQUIRED hosts (IIS).
+            bluekeyAuth.ShowLoginLobby("Sign in or join an exhibit to continue.");
+            Debug.Log("[DemoSession] Waiting for Bluekey / guest authentication…");
             const float timeoutSeconds = 300f;
-#endif
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
                 await Task.Yield();
 
             if (!bluekeyAuth.IsAuthenticated)
             {
-#if UNITY_EDITOR
-                Debug.LogWarning(
-                    "[DemoSession] No Bluekey token yet — continuing. Set VELLUM_ACCESS_TOKEN or paste a token if AUTH_REQUIRED=true.");
-#else
                 throw new InvalidOperationException(
-                    "Timed out waiting for Bluekey authentication. Complete the popup or paste a valid token.");
-#endif
+                    "Timed out waiting for sign-in. Use Open Bluekey or Join exhibit, then try again.");
             }
         }
 

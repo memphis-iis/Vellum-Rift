@@ -280,11 +280,18 @@ namespace VellumRift
             SetStatus("Loading events…");
             try
             {
-                var list = await apiClient.ListSessions();
+                // Login may complete after the lobby opened — pull latest Bearer.
+                if (!string.IsNullOrEmpty(ApiAuth.Token))
+                    apiClient.SetAuthToken(ApiAuth.Token);
+
+                string loadError = null;
+                var list = await apiClient.ListSessions(err => loadError = err);
                 if (list == null)
                 {
                     RebuildList(Array.Empty<GameStateApiClient.SessionListItem>());
-                    SetStatus("Could not load events. Check the backend and try Refresh.");
+                    SetStatus(string.IsNullOrEmpty(loadError)
+                        ? "Could not load events. Check the backend and try Refresh."
+                        : $"Could not load events ({loadError}). Try Refresh after sign-in.");
                 }
                 else
                 {

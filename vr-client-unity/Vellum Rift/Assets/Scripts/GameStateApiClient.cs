@@ -133,12 +133,23 @@ namespace VellumRift
         /// Parsed via <see cref="SimpleJson"/> so nested <c>players</c>/<c>metadata</c>
         /// do not break field extraction the way <c>JsonUtility</c> can for list payloads (#226).
         /// </summary>
-        public async Task<SessionListItem[]> ListSessions()
+        /// <param name="error">Set when the request fails (status + message).</param>
+        public async Task<SessionListItem[]> ListSessions(Action<string> error = null)
         {
+            // Keep Bearer in sync (login may finish after the client was created).
+            if (string.IsNullOrEmpty(authToken) && !string.IsNullOrEmpty(ApiAuth.Token))
+                authToken = ApiAuth.Token;
+
             ApiResponse res = await SendRequest(UnityWebRequest.kHttpVerbGET, BuildUrl(""));
             if (!res.IsSuccess)
             {
                 LogFailure("ListSessions", res);
+                string detail = res.StatusCode > 0
+                    ? $"HTTP {res.StatusCode}" + (string.IsNullOrEmpty(res.Error) ? "" : $" — {res.Error}")
+                    : (res.Error ?? "network error");
+                if (res.StatusCode == 401 || res.StatusCode == 403)
+                    detail += " (sign in again — missing or expired token)";
+                error?.Invoke(detail);
                 return null;
             }
 
@@ -149,6 +160,7 @@ namespace VellumRift
             catch (Exception ex)
             {
                 Debug.LogError($"[GameStateApiClient] ListSessions parse failed: {ex.Message}");
+                error?.Invoke("parse error: " + ex.Message);
                 return null;
             }
         }
