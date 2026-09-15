@@ -51,7 +51,7 @@ namespace VellumRift
         private static readonly Color COLOR_NEUTRAL_EDGE      = VrTheme.WithAlpha(VrTheme.Outline, 0.15f);
         private static readonly Color COLOR_SURFACE_VARIANT   = VrTheme.SurfaceHighest;
         private static readonly Color COLOR_BADGE_FILL        = VrTheme.WithAlpha(VrTheme.PrimaryContainer, 0.12f);
-        private static readonly Color COLOR_BADGE_BORDER      = VrTheme.WithAlpha(VrTheme.Primary, 0.25f)
+        private static readonly Color COLOR_BADGE_BORDER      = VrTheme.WithAlpha(VrTheme.Primary, 0.25f);
 
         // ---------------------------------------------------------------
         // Layout (canvas reference pixels)
