@@ -184,6 +184,17 @@ namespace VellumRift
                 if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
                     apiClient.SetAuthToken(bluekeyAuth.AccessToken);
 
+                // Guest lobby path (#187): Space ID chosen before auth completes.
+                if (string.IsNullOrEmpty(sessionIdOverride))
+                {
+                    string pendingGuest = BluekeyAuth.ConsumePendingJoinSessionId();
+                    if (!string.IsNullOrEmpty(pendingGuest))
+                    {
+                        sessionIdOverride = pendingGuest;
+                        Debug.Log($"[SessionManager] Using guest Space ID from Login lobby: {sessionIdOverride}");
+                    }
+                }
+
                 // Join when launched with a session id (dashboard Enter / invite / kiosk).
                 // Otherwise open the Spaces lobby — never silently create (#188).
                 GameState session = null;

@@ -121,7 +121,7 @@ namespace VellumRift
 
             // 3. Hide all uGUI canvases AND disable the EventSystem input module so
             //    the IMGUI login card can receive mouse events.
-            HideAllCanvases();
+            HideGameplayCanvases();
 
             // 4. Reload: kiosk guests return to the public join URL; others
             //    reload so the login overlay can reappear (WebGL only).
@@ -138,33 +138,33 @@ namespace VellumRift
                 ReloadPage();
             }
 #else
-            Debug.Log("[LogoutButton] Controls disabled — login card will appear.");
+            // World-space Login lobby (#187) needs EventSystem + its canvas.
+            if (auth != null)
+                auth.ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
+            Debug.Log("[LogoutButton] Controls disabled — Bluekey Login lobby will appear.");
 #endif
         }
 
         /// <summary>
-        /// Deactivate every Canvas in the scene and disable the EventSystem's uGUI
-        /// input module so IMGUI (BluekeyAuth login card) can receive mouse events.
-        /// Call RestoreCanvases() after re-login.
+        /// Hide gameplay canvases but keep EventSystem for the world-space Bluekey lobby (#187).
         /// </summary>
-        private static void HideAllCanvases()
+        private static void HideGameplayCanvases()
         {
-            // Disable all canvases first.
             foreach (var canvas in FindObjectsOfType<Canvas>())
+            {
+                if (canvas != null && canvas.gameObject.name == "BluekeyLoginLobbyCanvas")
+                    continue;
                 canvas.gameObject.SetActive(false);
+            }
 
-            // Disable the EventSystem's uGUI input module so it stops intercepting
-            // mouse/keyboard events.  IMGUI does NOT need an EventSystem — it uses
-            // its own event loop.  Leaving the InputSystemUIInputModule enabled
-            // will swallow all clicks before they reach GUI.Button / GUI.TextField.
             var es = UnityEngine.EventSystems.EventSystem.current;
             if (es != null)
             {
                 foreach (var module in es.GetComponents<UnityEngine.EventSystems.BaseInputModule>())
-                    module.enabled = false;
+                    module.enabled = true;
             }
 
-            Debug.Log("[LogoutButton] All canvases hidden and input module disabled for login overlay.");
+            Debug.Log("[LogoutButton] Gameplay canvases hidden; EventSystem kept for Login lobby.");
         }
 
 #if UNITY_WEBGL && !UNITY_EDITOR

@@ -29,3 +29,11 @@ Standalone / Quest / editor without `?session=` opens an IMGUI **Spaces** picker
 - Join selected space, then enter the gallery
 - Create only via explicit **New space** (`POST` with `visibility` + `kind`)
 - Never silently create on boot (missing/archived launch id opens the lobby with a banner)
+
+## VR Bluekey Login lobby (#187)
+
+Standalone / Quest-bound client shows a world-space **Login** panel (dashboard parity):
+
+- **Sign in with Bluekey** — available to anyone with an IIS Bluekey account (not staff-only); opens portal + paste-token fallback; token lands in `ApiAuth` like WebGL handoff
+- **Museum / guest** — Space ID → public kiosk mint (no Bluekey); then enter that Space
+- WebGL dashboard handoff and `?kiosk=1` guest path unchanged
