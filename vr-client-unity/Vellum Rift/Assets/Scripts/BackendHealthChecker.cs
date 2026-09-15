@@ -10,8 +10,8 @@ using VellumRift;
 /// Backend Connection Test (Issue #10 / User Story 9)
 ///
 /// Pings the backend health endpoint on startup and reports connectivity
-/// via console logs and a styled "SESSION STATUS" HUD panel (a uGUI glass
-/// card mirroring the HTML HUD_MODULE_04 design: rounded glass panel,
+/// via console logs and a styled "SPACE STATUS" HUD panel (a uGUI glass
+/// card mirroring the HTML HUD_SPACE design: rounded glass panel,
 /// pulsing status pill, session ID and owner readouts).
 ///
 /// Endpoint configuration priority (highest wins):
@@ -77,18 +77,19 @@ public class BackendHealthChecker : MonoBehaviour
     // ---------------------------------------------------------------
     // SESSION STATUS HUD — Material 3 palette (HTML design tokens)
     // ---------------------------------------------------------------
-    private static readonly Color COLOR_PANEL_BG       = new Color(27f/255f, 27f/255f, 35f/255f, 0.60f);  // surface-container-low @ 60%
-    private static readonly Color COLOR_BORDER         = new Color(71f/255f, 70f/255f, 74f/255f, 0.30f);  // outline-variant @ 30%
-    private static readonly Color COLOR_RIM            = new Color(228f/255f, 225f/255f, 237f/255f, 0.15f); // on-surface @ 15% light rim
-    private static readonly Color COLOR_ROW_BG         = new Color(31f/255f, 31f/255f, 39f/255f, 0.50f);  // surface-container @ 50%
-    private static readonly Color COLOR_ROW_BORDER     = new Color(71f/255f, 70f/255f, 74f/255f, 0.20f);  // outline-variant @ 20%
-    private static readonly Color COLOR_ROW_HOVER_BG   = new Color(41f/255f, 41f/255f, 50f/255f, 0.50f);  // surface-container-high @ 50%
-    private static readonly Color COLOR_ROW_HOVER_BRD  = new Color(0f, 219f/255f, 233f/255f, 0.30f);     // tertiary @ 30%
-    private static readonly Color COLOR_TERTIARY       = new Color(0f, 219f/255f, 233f/255f);            // #00DBE9
-    private static readonly Color COLOR_GOLD           = new Color(1f, 219f/255f, 157f/255f);            // #FFDB9D
-    private static readonly Color COLOR_ERROR          = new Color(1f, 180f/255f, 171f/255f);            // #FFB4AB
-    private static readonly Color COLOR_ON_SURFACE     = new Color(228f/255f, 225f/255f, 237f/255f);     // #E4E1ED
-    private static readonly Color COLOR_ON_SURFACE_VAR = new Color(200f/255f, 197f/255f, 202f/255f);     // #C8C5CA
+    // VrTheme (#189)
+    private static readonly Color COLOR_PANEL_BG       = VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.72f);
+    private static readonly Color COLOR_BORDER         = VrTheme.WithAlpha(VrTheme.OutlineVariant, 0.45f);
+    private static readonly Color COLOR_RIM            = VrTheme.WithAlpha(VrTheme.OnSurface, 0.15f);
+    private static readonly Color COLOR_ROW_BG         = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.65f);
+    private static readonly Color COLOR_ROW_BORDER     = VrTheme.WithAlpha(VrTheme.OutlineVariant, 0.30f);
+    private static readonly Color COLOR_ROW_HOVER_BG   = VrTheme.WithAlpha(VrTheme.SurfaceHighest, 0.55f);
+    private static readonly Color COLOR_ROW_HOVER_BRD  = VrTheme.WithAlpha(VrTheme.Accent, 0.35f);
+    private static readonly Color COLOR_TERTIARY       = VrTheme.Accent;
+    private static readonly Color COLOR_GOLD           = VrTheme.Primary;
+    private static readonly Color COLOR_ERROR          = VrTheme.Error;
+    private static readonly Color COLOR_ON_SURFACE     = VrTheme.OnSurface;
+    private static readonly Color COLOR_ON_SURFACE_VAR = VrTheme.OnSurfaceVariant
 
     // ---------------------------------------------------------------
     // HUD Layout (canvas reference pixels)
@@ -428,7 +429,7 @@ public class BackendHealthChecker : MonoBehaviour
 
             if (glowRingImg != null && glowRingImg.gameObject.activeSelf)
             {
-                glowRingImg.color = new Color(0f, 219f/255f, 233f/255f, 0.55f * (1f - k));
+                glowRingImg.color = new Color(VrTheme.Accent.r, VrTheme.Accent.g, VrTheme.Accent.b, 0.55f * (1f - k));
                 if (glowRingRect != null)
                     glowRingRect.localScale = Vector3.one * (0.8f + k * 1.2f);
             }
@@ -518,7 +519,7 @@ public class BackendHealthChecker : MonoBehaviour
         iconRect.anchoredPosition = new Vector2(PANEL_PAD + 10, 0);
 
         // Title — letter-spaced monospace.
-        Text title = CreateText("Title", header.transform, "S E S S I O N   S T A T U S", 13, TextAnchor.MiddleLeft, COLOR_TERTIARY, FontStyle.Bold);
+        Text title = CreateText("Title", header.transform, "S P A C E   S T A T U S", 13, TextAnchor.MiddleLeft, COLOR_TERTIARY, FontStyle.Bold);
         title.horizontalOverflow = HorizontalWrapMode.Overflow;
         RectTransform tRect = title.GetComponent<RectTransform>();
         tRect.anchorMin = new Vector2(0, 0);
@@ -527,7 +528,7 @@ public class BackendHealthChecker : MonoBehaviour
         tRect.offsetMax = new Vector2(-110, -2);
 
         // Module tag.
-        Text tag = CreateText("ModuleTag", header.transform, "HUD_MODULE_04", 10, TextAnchor.MiddleRight, COLOR_ON_SURFACE_VAR, FontStyle.Normal);
+        Text tag = CreateText("ModuleTag", header.transform, "HUD_SPACE", 10, TextAnchor.MiddleRight, COLOR_ON_SURFACE_VAR, FontStyle.Normal);
         tag.horizontalOverflow = HorizontalWrapMode.Overflow;
         RectTransform tagRect = tag.GetComponent<RectTransform>();
         tagRect.anchorMin = new Vector2(1, 0.5f);

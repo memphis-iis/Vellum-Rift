@@ -1,4 +1,5 @@
 using UnityEngine;
+using VellumRift;
 
 namespace VellumRift.Environment
 {
@@ -23,8 +24,8 @@ namespace VellumRift.Environment
         public float bobSpeed = 2f;
 
         [Header("Colors (match the Three.js palette)")]
-        public Color wireCyan = new Color(0f, 0.86f, 0.91f);
-        public Color wireGold = new Color(0.85f, 0.65f, 0.32f);
+        public Color wireCyan = VrTheme.Accent;
+        public Color wireGold = VrTheme.PrimaryContainer;
 
         private Transform bookGroup;
 

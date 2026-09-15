@@ -55,12 +55,12 @@ namespace VellumRift
             const float y = 80f;
             const float w = 440f;
 
-            GUI.Label(new Rect(x, y, w, 20f), $"Session: {session.SessionId}");
+            GUI.Label(new Rect(x, y, w, 20f), $"Space: {session.SessionId}");
 
             bool showCopied = copiedUntil > Time.time;
             string buttonLabel = showCopied
-                ? (copiedIsLink ? "Link copied!" : "Session id copied!")
-                : (session.ShareUrl != null ? "Copy link" : "Copy session id");
+                ? (copiedIsLink ? "Link copied!" : "Space id copied!")
+                : (session.ShareUrl != null ? "Copy link" : "Copy space id");
 
             if (GUI.Button(new Rect(x, y + 24f, 140f, 26f), buttonLabel))
             {

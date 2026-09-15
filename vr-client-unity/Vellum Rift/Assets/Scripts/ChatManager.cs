@@ -89,17 +89,18 @@ namespace VellumRift
         // ---------------------------------------------------------------
         // Material 3 palette — mirrors the HTML design tokens.
         // ---------------------------------------------------------------
-        private static readonly Color COLOR_SURFACE_LOWEST  = new Color(13f/255f, 13f/255f, 21f/255f, 0.80f); // #0D0D15 / 80 panel
-        private static readonly Color COLOR_SURFACE_LOW     = new Color(27f/255f, 27f/255f, 35f/255f, 0.50f); // #1B1B23 / 50 input bar
-        private static readonly Color COLOR_HEADER_BG       = new Color(52f/255f, 52f/255f, 61f/255f, 0.20f); // surface-variant / 20
-        private static readonly Color COLOR_CYAN            = new Color(0f, 219f/255f, 233f/255f);            // #00DBE9 tertiary
-        private static readonly Color COLOR_GOLD            = new Color(1f, 219f/255f, 157f/255f);            // #FFDB9D secondary
-        private static readonly Color COLOR_ERROR           = new Color(1f, 180f/255f, 171f/255f);            // #FFB4AB error
-        private static readonly Color COLOR_ON_SURFACE      = new Color(228f/255f, 225f/255f, 237f/255f);     // #E4E1ED
-        private static readonly Color COLOR_ON_SURFACE_VAR  = new Color(200f/255f, 197f/255f, 202f/255f);     // #C8C5CA
+        // VrTheme (#189)
+        private static readonly Color COLOR_SURFACE_LOWEST  = VrTheme.GlassBottom;
+        private static readonly Color COLOR_SURFACE_LOW     = VrTheme.GlassTop;
+        private static readonly Color COLOR_HEADER_BG       = VrTheme.WithAlpha(VrTheme.SurfaceHighest, 0.25f);
+        private static readonly Color COLOR_CYAN            = VrTheme.Accent;
+        private static readonly Color COLOR_GOLD            = VrTheme.Primary;
+        private static readonly Color COLOR_ERROR           = VrTheme.Error;
+        private static readonly Color COLOR_ON_SURFACE      = VrTheme.OnSurface;
+        private static readonly Color COLOR_ON_SURFACE_VAR  = VrTheme.OnSurfaceVariant;
         private static readonly Color COLOR_BORDER_WHITE10  = new Color(1f, 1f, 1f, 0.10f);
         private static readonly Color COLOR_BORDER_WHITE05  = new Color(1f, 1f, 1f, 0.05f);
-        private static readonly Color COLOR_MSG_DIVIDER     = new Color(52f/255f, 52f/255f, 61f/255f, 0.50f);
+        private static readonly Color COLOR_MSG_DIVIDER     = VrTheme.WithAlpha(VrTheme.SurfaceHighest, 0.50f);
 
         // ---------------------------------------------------------------
         // Layout (canvas reference pixels)
@@ -476,8 +477,8 @@ namespace VellumRift
             GameObject pill = CreateUIObject("Pill", parent);
             var pillImg = pill.AddComponent<Image>();
             pillImg.sprite = CreateRoundedRectSprite((int)pillW, (int)pillH, pillH * 0.5f,
-                new Color(1f, 219f/255f, 157f/255f, 0.20f),
-                1f, new Color(1f, 219f/255f, 157f/255f, 0.60f));
+                VrTheme.WithAlpha(VrTheme.Primary, 0.20f),
+                1f, VrTheme.WithAlpha(VrTheme.Primary, 0.60f));
             pillImg.raycastTarget = false;
             RectTransform pRect = pill.GetComponent<RectTransform>();
             pRect.anchorMin = new Vector2(0, 0);
