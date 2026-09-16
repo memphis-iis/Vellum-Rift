@@ -13,6 +13,11 @@ import {
   writePlaylist,
 } from "../lib/sessionPlaylist.js";
 import {
+  applyStagePatch,
+  guestsMaySwitch,
+  readStage,
+} from "../lib/sessionStage.js";
+import {
   canAccessSession,
   isSessionHost,
   normalizeEmail,
@@ -24,6 +29,11 @@ import {
   parseSessionKind,
   writeSessionEvent,
 } from "../lib/sessionEvent.js";
+import { checkRateLimit } from "../lib/kioskRateLimit.js";
+import {
+  pruneStalePlayers,
+  touchPlayerPresence,
+} from "../lib/sessionPresence.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -52,6 +62,9 @@ async function loadAccessibleSession(
     res.status(403).json({ error: "Forbidden" });
     return null;
   }
+  if (pruneStalePlayers(state)) {
+    await repo.save(state);
+  }
   return state;
 }
 
@@ -72,14 +85,78 @@ function rejectKioskGuest(req: Request, res: Response): boolean {
   return false;
 }
 
-/** Sanitize nametag for kiosk / public join. */
+/** Sanitize nametag for kiosk / public join (#255 — strip markup / XSS chars). */
 function sanitizeDisplayName(raw: string | undefined, kiosk: boolean): string {
+  const maxLen = kiosk ? 20 : 40;
   const cleaned = String(raw ?? "")
     .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[<>&"'`\\/]/g, "")
     .trim()
-    .slice(0, 40);
+    .slice(0, maxLen);
   if (cleaned) return cleaned;
   return kiosk ? "Guest" : "";
+}
+
+/** True when the caller owns the given player row (Bluekey or kiosk sub). */
+function ownsPlayer(
+  state: GameState,
+  user: Request["user"],
+  playerId: string,
+): boolean {
+  if (!user) return false;
+  const target = state.getPlayer(playerId);
+  if (!target) return false;
+  if (user.sub && target.bluekeySub && target.bluekeySub === user.sub) {
+    return true;
+  }
+  const email = normalizeEmail(user.email);
+  if (email && normalizeEmail(target.bluekeyEmail) === email) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Reject player-state mutations that target another participant (#259).
+ * Returns false after sending 404/403 when the body playerId is missing or foreign.
+ */
+function requireOwnPlayer(
+  req: Request,
+  res: Response,
+  state: GameState,
+  playerId: string,
+): boolean {
+  if (!state.getPlayer(playerId)) {
+    res.status(404).json({ error: "Player not found" });
+    return false;
+  }
+  if (ownsPlayer(state, req.user, playerId)) return true;
+  res.status(403).json({ error: "You can only update your own player" });
+  return false;
+}
+
+/**
+ * Session JSON for the caller. Kiosk guests never see host/creator PII (#251).
+ */
+function serializeSession(
+  state: GameState,
+  user: Request["user"],
+): Record<string, unknown> {
+  const json = state.toJSON();
+  if (!isKioskGuest(user)) return json;
+
+  json.createdByEmail = "";
+  json.createdBySub = "";
+  const metadata = { ...(json.metadata as Record<string, unknown>) };
+  delete metadata.hostEmail;
+  json.metadata = metadata;
+  json.players = state.players.map((p) => ({
+    ...p,
+    bluekeySub: null,
+    bluekeyEmail: null,
+  }));
+  return json;
 }
 
 /** Player row for the authenticated user in this session, if any. */
@@ -173,7 +250,7 @@ router.post("/", async (req: Request, res: Response) => {
   }
   state.metadata = metadata;
   await repo.save(state);
-  res.status(201).json(state.toJSON());
+  res.status(201).json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -185,10 +262,13 @@ router.get("/", async (req: Request, res: Response) => {
     const visible: GameState[] = [];
     for (const session of sessions) {
       if (await canAccessSession(req.user, session, allowlistRepo)) {
+        if (pruneStalePlayers(session)) {
+          await repo.save(session);
+        }
         visible.push(session);
       }
     }
-    res.json(visible.map((s) => s.toJSON()));
+    res.json(visible.map((s) => serializeSession(s, req.user)));
   } catch (err) {
     console.error("GET /api/game-state failed:", err);
     if (!res.headersSent) {
@@ -203,7 +283,7 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:sessionId", async (req: Request, res: Response) => {
   const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
   if (!state) return;
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -229,7 +309,7 @@ router.post("/:sessionId/resume", async (req: Request, res: Response) => {
 
   state.resume();
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -346,7 +426,7 @@ router.patch("/:sessionId/kiosk", async (req: Request, res: Response) => {
   state.metadata = writeKioskEnabled(state.metadata, enabled);
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -386,7 +466,7 @@ router.patch("/:sessionId/event", async (req: Request, res: Response) => {
   state.metadata = patched.metadata;
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -409,7 +489,7 @@ router.patch("/:sessionId/visibility", async (req: Request, res: Response) => {
   state.visibility = visibility;
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -456,7 +536,7 @@ router.patch("/:sessionId/playlist", async (req: Request, res: Response) => {
     state.updatedAt = new Date().toISOString();
     await repo.save(state);
     await modelRepo.syncSessionPlaylist(state.sessionId, patched.state.playlist);
-    res.json(state.toJSON());
+    res.json(serializeSession(state, req.user));
   } catch (err) {
     console.error("PATCH /api/game-state/:sessionId/playlist failed:", err);
     if (!res.headersSent) {
@@ -467,6 +547,7 @@ router.patch("/:sessionId/playlist", async (req: Request, res: Response) => {
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/active-model  —  Host sets active manuscript (#141)
+// Guests may switch when guestExperience is browse|open_stage (#243).
 // Body: { modelId: string | null }
 // ---------------------------------------------------------------
 router.patch("/:sessionId/active-model", async (req: Request, res: Response) => {
@@ -476,7 +557,15 @@ router.patch("/:sessionId/active-model", async (req: Request, res: Response) => 
       res.status(404).json({ error: "Session not found" });
       return;
     }
-    if (!requireHost(req, res, state)) return;
+
+    const isHost = isSessionHost(req.user, state);
+    if (!isHost) {
+      const { guestExperience } = readStage(state.metadata);
+      if (!guestsMaySwitch(guestExperience)) {
+        res.status(403).json({ error: "Only the session host can do that" });
+        return;
+      }
+    }
 
     const { modelId } = req.body as { modelId?: unknown };
     if (modelId === undefined) {
@@ -497,11 +586,48 @@ router.patch("/:sessionId/active-model", async (req: Request, res: Response) => 
     state.metadata = writePlaylist(state.metadata, patched.state);
     state.updatedAt = new Date().toISOString();
     await repo.save(state);
-    res.json(state.toJSON());
+    res.json(serializeSession(state, req.user));
   } catch (err) {
     console.error("PATCH /api/game-state/:sessionId/active-model failed:", err);
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to update active model" });
+    }
+  }
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/stage — host sets layout + guest experience (#243)
+// Body: { stageLayout?, guestExperience? }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/stage", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const body = req.body as { stageLayout?: unknown; guestExperience?: unknown };
+    if (body.stageLayout === undefined && body.guestExperience === undefined) {
+      res.status(400).json({ error: "Provide stageLayout and/or guestExperience" });
+      return;
+    }
+
+    const patched = applyStagePatch(state.metadata, body);
+    if (!patched.ok) {
+      res.status(patched.statusCode).json({ error: patched.error });
+      return;
+    }
+
+    state.metadata = patched.metadata;
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    res.json(serializeSession(state, req.user));
+  } catch (err) {
+    console.error("PATCH /api/game-state/:sessionId/stage failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to update stage" });
     }
   }
 });
@@ -637,11 +763,8 @@ router.get("/:sessionId/processing-status", async (req: Request, res: Response) 
 // PATCH /api/game-state/:sessionId/position  —  Update a player's position
 // ---------------------------------------------------------------
 router.patch("/:sessionId/position", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
 
   const { playerId, position } = req.body as {
     playerId?: string;
@@ -652,6 +775,7 @@ router.patch("/:sessionId/position", async (req: Request, res: Response) => {
     res.status(400).json({ error: "playerId and position are required" });
     return;
   }
+  if (!requireOwnPlayer(req, res, state, playerId)) return;
 
   const updated = state.updatePosition(playerId, position);
   if (!updated) {
@@ -660,18 +784,15 @@ router.patch("/:sessionId/position", async (req: Request, res: Response) => {
   }
 
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/rotation  —  Update a player's rotation
 // ---------------------------------------------------------------
 router.patch("/:sessionId/rotation", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
 
   const { playerId, rotation } = req.body as {
     playerId?: string;
@@ -682,6 +803,7 @@ router.patch("/:sessionId/rotation", async (req: Request, res: Response) => {
     res.status(400).json({ error: "playerId and rotation are required" });
     return;
   }
+  if (!requireOwnPlayer(req, res, state, playerId)) return;
 
   const updated = state.updateRotation(playerId, rotation);
   if (!updated) {
@@ -690,7 +812,7 @@ router.patch("/:sessionId/rotation", async (req: Request, res: Response) => {
   }
 
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -713,7 +835,7 @@ router.patch("/:sessionId/host", async (req: Request, res: Response) => {
     return;
   }
   if (target.id === state.hostId) {
-    res.json(state.toJSON());
+    res.json(serializeSession(state, req.user));
     return;
   }
 
@@ -734,7 +856,7 @@ router.patch("/:sessionId/host", async (req: Request, res: Response) => {
     targetEmail: target.bluekeyEmail,
   });
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -790,7 +912,7 @@ router.post("/:sessionId/players/:playerId/kick", async (req: Request, res: Resp
       detail: { reason: reason || null, banned: canBan },
     });
     await repo.save(state);
-    res.json({ kicked: true, banned: canBan, session: state.toJSON() });
+    res.json({ kicked: true, banned: canBan, session: serializeSession(state, req.user) });
   } catch (err) {
     const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
     if (statusCode >= 500) console.error("kick failed:", err);
@@ -863,11 +985,8 @@ router.post("/:sessionId/players/:playerId/unmute", async (req: Request, res: Re
 // PATCH /api/game-state/:sessionId/connection  —  Set player connection status
 // ---------------------------------------------------------------
 router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
-  const state = await repo.findById(param(req, "sessionId"));
-  if (!state) {
-    res.status(404).json({ error: "Session not found" });
-    return;
-  }
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
 
   const { playerId, connected } = req.body as {
     playerId?: string;
@@ -878,6 +997,7 @@ router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
     res.status(400).json({ error: "playerId and connected are required" });
     return;
   }
+  if (!requireOwnPlayer(req, res, state, playerId)) return;
 
   const updated = state.setConnected(playerId, connected);
   if (!updated) {
@@ -886,7 +1006,7 @@ router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
   }
 
   await repo.save(state);
-  res.json(state.toJSON());
+  res.json(serializeSession(state, req.user));
 });
 
 // ---------------------------------------------------------------
@@ -895,8 +1015,8 @@ router.patch("/:sessionId/connection", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.patch("/:sessionId/laser", async (req: Request, res: Response) => {
   try {
-    const state = await repo.findById(param(req, "sessionId"));
-    if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
 
     const { playerId, active, origin, direction } = req.body as {
       playerId?: string; active?: boolean;
@@ -908,6 +1028,7 @@ router.patch("/:sessionId/laser", async (req: Request, res: Response) => {
       res.status(400).json({ error: "playerId and active (boolean) are required" });
       return;
     }
+    if (!requireOwnPlayer(req, res, state, playerId)) return;
 
     const player = state.getPlayer(playerId);
     if (!player) { res.status(404).json({ error: "Player not found" }); return; }
@@ -917,6 +1038,7 @@ router.patch("/:sessionId/laser", async (req: Request, res: Response) => {
       player.laserOrigin = { x: origin.x, y: origin.y, z: origin.z };
       player.laserDirection = { dx: direction.dx, dy: direction.dy, dz: direction.dz };
     }
+    touchPlayerPresence(player);
 
     await repo.save(state);
     res.json({ ok: true });
@@ -949,6 +1071,81 @@ router.get("/:sessionId/lasers", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("GET lasers failed:", err);
     if (!res.headersSent) res.status(500).json({ error: "Failed to fetch lasers" });
+  }
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/flashlight — shared flashlight (#244)
+// Body: { playerId, on, origin?, direction? }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/flashlight", async (req: Request, res: Response) => {
+  try {
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
+
+    const { playerId, on, origin, direction } = req.body as {
+      playerId?: string;
+      on?: boolean;
+      origin?: { x: number; y: number; z: number };
+      direction?: { dx: number; dy: number; dz: number };
+    };
+
+    if (!playerId || typeof on !== "boolean") {
+      res.status(400).json({ error: "playerId and on (boolean) are required" });
+      return;
+    }
+    if (!requireOwnPlayer(req, res, state, playerId)) return;
+
+    const player = state.getPlayer(playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    player.flashlightOn = on;
+    if (on && origin && direction) {
+      player.flashlightOrigin = { x: origin.x, y: origin.y, z: origin.z };
+      player.flashlightDirection = {
+        dx: direction.dx,
+        dy: direction.dy,
+        dz: direction.dz,
+      };
+    }
+
+    touchPlayerPresence(player);
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("PATCH flashlight failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to update flashlight" });
+  }
+});
+
+// ---------------------------------------------------------------
+// GET /api/game-state/:sessionId/flashlights — all on flashlights (#244)
+// ---------------------------------------------------------------
+router.get("/:sessionId/flashlights", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    const lights = state.players
+      .filter((p) => p.flashlightOn && p.isConnected)
+      .map((p) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        origin: p.flashlightOrigin ?? { x: 0, y: 0, z: 0 },
+        direction: p.flashlightDirection ?? { dx: 0, dy: -0.2, dz: 1 },
+      }));
+
+    res.json(lights);
+  } catch (err) {
+    console.error("GET flashlights failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to fetch flashlights" });
   }
 });
 
@@ -1113,6 +1310,7 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
       res.status(400).json({ error: "text must be 2000 characters or fewer" });
       return;
     }
+    if (!requireOwnPlayer(req, res, state, playerId)) return;
 
     const player = state.getPlayer(playerId);
     if (!player) {
@@ -1121,6 +1319,17 @@ router.post("/:sessionId/chat", async (req: Request, res: Response) => {
     }
     if (player.chatMuted) {
       res.status(403).json({ error: "You are muted in this session" });
+      return;
+    }
+
+    // Per-player chat flood control (#262). Shared limiter with kiosk mint.
+    const chatLimit = Number(process.env.CHAT_RATE_LIMIT ?? 20);
+    const chatWindowMs = Number(process.env.CHAT_RATE_WINDOW_MS ?? 60_000);
+    const rateKey = `chat:${state.sessionId}:${playerId}`;
+    const rate = checkRateLimit(rateKey, chatLimit, chatWindowMs);
+    if (!rate.allowed) {
+      res.setHeader("Retry-After", String(rate.retryAfterSec));
+      res.status(429).json({ error: "Too many chat messages; slow down" });
       return;
     }
 

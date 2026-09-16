@@ -456,10 +456,11 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Truncate a display name to "First initial + last name, period" for
-        /// compact edge-indicator labels.  E.g. "Alice Johnson" → "A. Johnson",
-        /// single-word names pass through unchanged.
+        /// Compact nameplate / edge labels (#257). Multi-word → "F. Last"; always
+        /// ellipsize to a short max so single-word museum nametags cannot streak.
         /// </summary>
+        private const int MaxNameplateChars = 18;
+
         private static string TruncateName(string name)
         {
             if (string.IsNullOrEmpty(name)) return "";
@@ -469,12 +470,26 @@ namespace VellumRift
             if (paren >= 0) name = name.Substring(0, paren).Trim();
 
             string[] parts = name.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length <= 1) return name; // single word — keep as-is
+            string compact;
+            if (parts.Length <= 1)
+            {
+                compact = name;
+            }
+            else
+            {
+                // "First Middle Last" → "F. Last"
+                char firstInitial = char.ToUpper(parts[0][0]);
+                string lastName = parts[parts.Length - 1];
+                compact = $"{firstInitial}. {lastName}";
+            }
+            return Ellipsize(compact, MaxNameplateChars);
+        }
 
-            // "First Middle Last" → "F. Last"
-            char firstInitial = char.ToUpper(parts[0][0]);
-            string lastName = parts[parts.Length - 1];
-            return $"{firstInitial}. {lastName}";
+        private static string Ellipsize(string value, int maxChars)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length <= maxChars) return value;
+            if (maxChars <= 1) return "…";
+            return value.Substring(0, maxChars - 1) + "…";
         }
 
         // ---------------------------------------------------------------
@@ -827,11 +842,13 @@ namespace VellumRift
 
             var nameLabel = CreateText("Name", go.transform, TruncateName(displayName), 10, TextAnchor.MiddleLeft, new Color(0.89f, 0.88f, 0.93f, 1f)); // on-surface
             nameLabel.fontStyle = FontStyle.Bold;
+            nameLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+            nameLabel.verticalOverflow = VerticalWrapMode.Truncate;
             var nmRect = nameLabel.GetComponent<RectTransform>();
             nmRect.anchorMin = new Vector2(0.5f, 0.5f);
             nmRect.anchorMax = new Vector2(0.5f, 0.5f);
             nmRect.pivot = new Vector2(0, 0.75f); // top-left of name area
-            nmRect.sizeDelta = new Vector2(56, 10);
+            nmRect.sizeDelta = new Vector2(72, 12);
             nmRect.anchoredPosition = new Vector2(-6, 4);
             np.nameLabel = nameLabel;
 

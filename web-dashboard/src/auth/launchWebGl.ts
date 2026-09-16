@@ -44,7 +44,31 @@ export function readDashboardEmail(): string {
  *
  * Do not use `noopener` — we need the window reference (and the child needs
  * `window.opener` for the ready ping).
+ *
+ * Also mirrors the token into sessionStorage + BroadcastChannel so same-tab /
+ * opener-less WebGL loads can pick it up (#254).
  */
+export function broadcastWebGlAuth(accessToken: string | null, email = ""): void {
+  if (!accessToken) return;
+  try {
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+    if (email) sessionStorage.setItem(EMAIL_STORAGE_KEY, email);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const bc = new BroadcastChannel("vellum-rift-auth");
+    bc.postMessage({
+      type: AUTH_HANDOFF_MESSAGE,
+      accessToken,
+      email,
+    });
+    bc.close();
+  } catch {
+    /* BroadcastChannel unavailable */
+  }
+}
+
 export function launchWebGlWithAuthHandoff(options: {
   url: string;
   accessToken: string | null;
@@ -52,6 +76,8 @@ export function launchWebGlWithAuthHandoff(options: {
   webGlOrigin: string;
 }): Window | null {
   const { url, accessToken, email, webGlOrigin } = options;
+  broadcastWebGlAuth(accessToken, email);
+
   const win = window.open(url, "vellumRiftWebGL");
   if (!win) {
     console.warn("[VellumRift] WebGL launch blocked — allow popups for this site.");
@@ -65,4 +91,14 @@ export function launchWebGlWithAuthHandoff(options: {
     webGlOrigin,
   });
   return win;
+}
+
+/** Same-tab WebGL launch when popups are blocked (#254). */
+export function launchWebGlSameTab(options: {
+  url: string;
+  accessToken: string | null;
+  email?: string;
+}): void {
+  broadcastWebGlAuth(options.accessToken, options.email ?? "");
+  window.location.assign(options.url);
 }

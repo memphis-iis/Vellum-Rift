@@ -90,6 +90,15 @@
   background: transparent;
 }
 
+.vr-brand__fallback {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--vr-primary, #e8e1db);
+  white-space: nowrap;
+}
+
 .vr-header__brand-btn {
   display: inline-flex;
   align-items: center;
@@ -1237,7 +1246,7 @@
 
 .vr-docs__browser {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.2fr);
+  grid-template-columns: minmax(18rem, 1.45fr) minmax(16rem, 0.95fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
   min-height: min(55vh, 28rem);
@@ -1246,6 +1255,58 @@
 @media (max-width: 860px) {
   .vr-docs__browser {
     grid-template-columns: 1fr;
+  }
+}
+
+.vr-docs__columns {
+  display: flex;
+  align-items: stretch;
+  min-height: min(55vh, 28rem);
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 75%, transparent);
+  outline: none;
+  scroll-behavior: smooth;
+}
+
+.vr-docs__columns:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-primary) 45%, transparent);
+}
+
+.vr-docs__column {
+  flex: 1 1 0;
+  min-width: min(14rem, 42vw);
+  max-width: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.45rem;
+  border-right: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  animation: vr-docs-column-in 200ms ease-out;
+}
+
+.vr-docs__column:last-child {
+  border-right: none;
+}
+
+@keyframes vr-docs-column-in {
+  from {
+    opacity: 0.35;
+    transform: translateX(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .vr-docs__column {
+    min-width: 78%;
+    flex: 0 0 78%;
   }
 }
 
@@ -1286,21 +1347,38 @@
 
 .vr-docs__row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.35rem;
   width: 100%;
   text-align: left;
-  padding: 0.55rem 0.7rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.2rem;
   border-radius: 0.25rem;
   border: 1px solid transparent;
   background: transparent;
   color: var(--vr-on-background);
   font: inherit;
+}
+
+.vr-docs__row-main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  border-radius: 0.2rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
 
-.vr-docs__row:hover {
+.vr-docs__row:hover,
+.vr-docs__row-main:hover {
   background: color-mix(in srgb, var(--vr-primary) 8%, transparent);
 }
 
@@ -1308,6 +1386,46 @@
   background: color-mix(in srgb, var(--vr-primary) 14%, transparent);
   border-color: var(--vr-primary);
   box-shadow: 0 0 0 1px var(--vr-primary);
+}
+
+.vr-docs__row--open {
+  background: color-mix(in srgb, var(--vr-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--vr-accent) 40%, transparent);
+}
+
+.vr-docs__row-chevron {
+  justify-self: end;
+  opacity: 0.55;
+  font-size: 1.1rem;
+}
+
+.vr-docs__row--open .vr-docs__row-chevron {
+  opacity: 1;
+  color: var(--vr-accent-bright);
+}
+
+.vr-docs__row-actions {
+  display: inline-flex;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.vr-docs__row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-docs__row-action:hover {
+  color: var(--vr-on-background);
+  background: color-mix(in srgb, var(--vr-primary) 12%, transparent);
 }
 
 .vr-docs__row-name {
@@ -1322,6 +1440,19 @@
   font-size: 0.75rem;
   color: var(--vr-on-surface-variant);
   white-space: nowrap;
+}
+
+button.vr-docs__row--model {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+
+button.vr-docs__row--model:hover {
+  background: color-mix(in srgb, var(--vr-primary) 8%, transparent);
 }
 
 .vr-docs__preview {
@@ -1339,7 +1470,7 @@
   min-height: min(40vh, 22rem);
   border-radius: 0.5rem;
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
-  background: #000;
+  background: #1c1c22;
   overflow: hidden;
 }
 
@@ -1347,6 +1478,36 @@
   width: 100%;
   height: 100%;
   min-height: inherit;
+}
+
+.vr-model-viewer-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+
+.vr-model-viewer__status {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  pointer-events: none;
+  color: color-mix(in srgb, var(--vr-on-surface-variant) 90%, #fff);
+  font-size: 0.95rem;
+}
+
+.vr-model-viewer__status--error {
+  color: color-mix(in srgb, var(--vr-error, #ffb4ab) 90%, #fff);
+}
+
+.vr-model-viewer-wrap[data-status="ready"] .vr-model-viewer__status {
+  display: none;
 }
 
 .vr-manuscript-preview__empty {
@@ -1532,7 +1693,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  --poster-color: transparent;
+  min-height: inherit;
+  --poster-color: #2a2a32;
 }
 
 .vr-docs__empty {
@@ -1639,6 +1801,13 @@
   margin: 0 0 1rem;
   font-size: 0.9rem;
   line-height: 1.45;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-docs__dialog-hint {
+  margin: -0.25rem 0 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
   color: var(--vr-on-surface-variant);
 }
 
@@ -2178,12 +2347,20 @@
   color: var(--vr-ink-muted, #4f6280);
 }
 
+.vr-enter__visitor-cycle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.85rem;
+}
+
 .vr-enter__host-ops {
-  margin: 0 0 1.25rem;
+  margin: 1.25rem 0 0;
   padding: 0.75rem 1rem 1rem;
-  border: 1px solid rgba(101, 128, 178, 0.28);
-  border-radius: 12px;
-  background: rgba(243, 247, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container) 72%, transparent);
+  backdrop-filter: blur(16px);
 }
 
 .vr-enter__host-ops-summary {
@@ -2193,7 +2370,7 @@
   gap: 0.45rem 0.75rem;
   cursor: pointer;
   font-weight: 700;
-  color: #23427b;
+  color: var(--vr-on-background);
   list-style: none;
 }
 
@@ -2204,7 +2381,64 @@
 .vr-enter__host-ops-hint {
   font-weight: 500;
   font-size: 0.82rem;
-  color: #5a6f8c;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__stage-controls {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-enter__stage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.vr-enter__stage-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  font-weight: 600;
+}
+
+.vr-enter__stage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.vr-enter__stage-chip {
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  border-radius: var(--vr-radius);
+  background: color-mix(in srgb, var(--vr-surface-high) 80%, transparent);
+  color: var(--vr-on-background);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vr-enter__stage-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--vr-accent) 55%, transparent);
+}
+
+.vr-enter__stage-chip--active {
+  background: color-mix(in srgb, var(--vr-primary) 22%, transparent);
+  border-color: var(--vr-primary);
+  color: var(--vr-on-background);
+}
+
+.vr-enter__stage-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .vr-enter__host-ops-toolbar {
@@ -2214,7 +2448,7 @@
   gap: 0.45rem 0.65rem;
   margin-top: 0.85rem;
   padding-top: 0.85rem;
-  border-top: 1px solid rgba(101, 128, 178, 0.18);
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
 }
 
 .vr-enter__moderation {
@@ -2272,7 +2506,37 @@
 }
 
 .vr-enter__loadout {
-  margin: 0.75rem var(--vr-gutter) 0;
+  margin: 1.25rem 0 0;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container) 72%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.vr-enter__loadout-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--vr-on-background);
+  list-style: none;
+}
+
+.vr-enter__loadout-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-enter__loadout-hint {
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__loadout[open] .vr-enter__loadout-grid {
+  margin-top: 0.85rem;
 }
 
 .vr-enter__loadout-grid {
@@ -3298,6 +3562,38 @@
   gap: 0.35rem;
 }
 
+.vr-enter-3d__simple-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 7.25rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 2;
+}
+
+.vr-enter-3d__simple-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  background: color-mix(in srgb, #1e1b18 78%, transparent);
+  backdrop-filter: blur(20px);
+  color: var(--vr-on-surface);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vr-enter-3d__simple-btn:hover {
+  border-color: color-mix(in srgb, var(--vr-accent) 55%, transparent);
+}
+
 .vr-enter-3d__key {
   display: inline-flex;
   align-items: center;
@@ -3323,6 +3619,13 @@
 @media (max-width: 720px) {
   .vr-enter-3d__controls {
     display: none;
+  }
+
+  .vr-enter-3d__simple-actions {
+    bottom: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100% - 1.5rem);
   }
 
   .vr-enter-3d__session {

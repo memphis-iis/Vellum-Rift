@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
+import { readStage } from "../lib/sessionStage.js";
+import { readModelPlacements } from "../lib/sessionModelPlacements.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
@@ -22,10 +24,16 @@ export interface PlayerState {
   isHost: boolean;
   isConnected: boolean;
   joinedAt: string;
+  /** Last presence activity (position/laser/etc.) for disconnect TTL (#253). */
+  lastSeenAt?: string;
   /** Laser pointer state (FTR-009) */
   laserActive: boolean;
   laserOrigin: { x: number; y: number; z: number };
   laserDirection: { dx: number; dy: number; dz: number };
+  /** Shared flashlight (#244) — visible to all clients when on. */
+  flashlightOn?: boolean;
+  flashlightOrigin?: { x: number; y: number; z: number };
+  flashlightDirection?: { dx: number; dy: number; dz: number };
   /** Bluekey identity stamped at join (#136). */
   bluekeySub?: string | null;
   bluekeyEmail?: string | null;
@@ -143,9 +151,13 @@ export class GameState {
       isHost,
       isConnected: true,
       joinedAt: new Date().toISOString(),
+      lastSeenAt: new Date().toISOString(),
       laserActive: false,
       laserOrigin: { x: 0, y: 0, z: 0 },
       laserDirection: { dx: 0, dy: 0, dz: 0 },
+      flashlightOn: false,
+      flashlightOrigin: { x: 0, y: 0, z: 0 },
+      flashlightDirection: { dx: 0, dy: -0.2, dz: 1 },
       chatMuted: false,
     };
 
@@ -247,6 +259,8 @@ export class GameState {
     if (!player) return false;
 
     player.position = { ...position };
+    player.lastSeenAt = new Date().toISOString();
+    player.isConnected = true;
     this._touch();
     return true;
   }
@@ -260,6 +274,8 @@ export class GameState {
     if (!player) return false;
 
     player.rotation = { ...rotation };
+    player.lastSeenAt = new Date().toISOString();
+    player.isConnected = true;
     this._touch();
     return true;
   }
@@ -285,6 +301,9 @@ export class GameState {
     if (!player) return false;
 
     player.isConnected = connected;
+    if (connected) {
+      player.lastSeenAt = new Date().toISOString();
+    }
     this._touch();
     return true;
   }
@@ -310,6 +329,11 @@ export class GameState {
     const { playlist, activeModelId } = readPlaylist(this.metadata);
     const kioskEnabled = readKioskEnabled(this.metadata);
     const { kind, startsAt, endsAt } = readSessionEvent(this.metadata);
+    const { stageLayout, guestExperience } = readStage(this.metadata);
+    const { modelPlacements, selectedModelId } = readModelPlacements(
+      this.metadata,
+      playlist,
+    );
     return {
       sessionId: this.sessionId,
       label: this.label,
@@ -332,6 +356,11 @@ export class GameState {
       /** Optional event window (#146). */
       startsAt,
       endsAt,
+      /** Kiosk stage layout + guest browse mode (#243). */
+      stageLayout,
+      guestExperience,
+      modelPlacements,
+      selectedModelId,
       metadata: { ...this.metadata },
     };
   }

@@ -1,16 +1,17 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using VellumRift.Control;
 
 namespace VellumRift
 {
     /// <summary>
-    /// Exit / Leave space control (#227) — themed button in the bottom-left corner
-    /// of the viewport. On click it revokes Bluekey access, leaves the session,
-    /// and returns to the Login / Spaces flow.
+    /// Exit / Leave space control (#227, #245) — themed button in the bottom-left
+    /// corner of the viewport. On click or Escape it revokes Bluekey access,
+    /// leaves the session, and returns to the Login / Spaces flow.
     ///
-    /// Hidden when <see cref="WebGlShellMode.UsesExternalShell"/> (dashboard shell
-    /// owns Back to lobby / Leave space chrome).
+    /// In HTML shell mode the on-screen button is hidden (dashboard owns chrome)
+    /// but Escape still leaves (#260).
     ///
     /// Attach to any GameObject (or add via SessionManager). No scene setup required.
     /// </summary>
@@ -26,18 +27,38 @@ namespace VellumRift
         [Tooltip("Button height in pixels (at least VrTheme.MinHitHeightPx).")]
         [SerializeField] private float buttonHeight = VrTheme.MinHitHeightPx;
 
+        [Header("Keyboard (#245)")]
+        [Tooltip("Cooldown after Escape / click to prevent double-fire leave.")]
+        [SerializeField] private float escapeCooldown = 0.4f;
+
         private GameObject canvasGO;
         private Button button;
+        private float lastExitTime = -999f;
 
         private void Awake()
         {
-            if (WebGlShellMode.UsesExternalShell)
-            {
-                enabled = false;
-                return;
-            }
+            // Shell owns Leave chrome visually, but Escape must still leave (#260).
+            if (!WebGlShellMode.UsesExternalShell)
+                BuildExitUI();
+        }
 
-            BuildExitUI();
+        private void Update()
+        {
+            if (!enabled) return;
+
+            // Skip while chat / pin prompt gates gameplay input (Escape dismisses those first).
+            var pc = FindObjectOfType<PlayerController>();
+            if (pc != null && !pc.InputEnabled) return;
+
+            bool escape =
+                (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+#if ENABLE_LEGACY_INPUT_MANAGER
+                || Input.GetKeyDown(KeyCode.Escape)
+#endif
+                ;
+
+            if (escape)
+                OnExitClicked();
         }
 
         private void OnDestroy()
@@ -105,6 +126,9 @@ namespace VellumRift
 
         private void OnExitClicked()
         {
+            if (Time.unscaledTime - lastExitTime < escapeCooldown) return;
+            lastExitTime = Time.unscaledTime;
+
             Debug.Log("[LogoutButton] Leave space / Exit requested.");
 
             // 0. CRITICAL: Clear credentials SYNCHRONOUSLY FIRST.  This must happen

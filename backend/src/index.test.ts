@@ -93,4 +93,32 @@ describe("Winston Logger Middleware", () => {
       avgPlayersPerActiveSession: 0,
     });
   });
+
+  it("returns ready:true from /api/health/ready when DB is up (#246)", async () => {
+    const response = await request(app).get("/api/health/ready");
+    expect(response.status).toBe(200);
+    expect(response.body.ready).toBe(true);
+  });
+
+  it("sets baseline security headers and does not use CORS * (#265)", async () => {
+    const response = await request(app)
+      .get("/api/health")
+      .set("Origin", "https://evil.example");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["x-powered-by"]).toBeUndefined();
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("reflects allowlisted Origin on CORS (#265)", async () => {
+    const response = await request(app)
+      .get("/api/health")
+      .set("Origin", "https://iis.memphis.edu");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://iis.memphis.edu",
+    );
+  });
 });

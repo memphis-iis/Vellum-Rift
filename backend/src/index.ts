@@ -24,6 +24,10 @@ import realtimeRouter from "./routes/realtime.js";
 import notificationsRouter from "./routes/notifications.js";
 import kioskRouter from "./routes/kiosk.js";
 import libraryRouter from "./routes/library.js";
+import {
+  corsOriginOption,
+  securityHeaders,
+} from "./lib/securityHeaders.js";
 
 dotenv.config();
 
@@ -32,7 +36,16 @@ const port = Number(process.env.PORT ?? 4000);
 
 const gameStateRepo = new GameStateRepository();
 
-app.use(cors());
+app.disable("x-powered-by");
+app.use(securityHeaders());
+app.use(
+  cors({
+    origin: (origin, cb) => corsOriginOption(origin, cb),
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "Accept"],
+    maxAge: 600,
+  }),
+);
 // Models can carry large pixel arrays — bump the JSON body limit to 50 MB.
 app.use(express.json({ limit: "50mb" }));
 
@@ -56,7 +69,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint (soft liveness — stays 200 when DB is degraded)
 const healthHandler = async (
   _req: express.Request,
   res: express.Response,
@@ -72,15 +85,39 @@ const healthHandler = async (
   });
 };
 
+/** Strict readiness for ops monitors (#246) — 503 when Postgres is unreachable. */
+const readyHandler = async (
+  _req: express.Request,
+  res: express.Response,
+) => {
+  const dbOk = await checkConnection();
+  if (!dbOk) {
+    res.status(503).json({
+      ready: false,
+      service: "backend",
+      environment: process.env.NODE_ENV ?? "development",
+      error: "database unreachable",
+    });
+    return;
+  }
+  res.json({
+    ready: true,
+    service: "backend",
+    environment: process.env.NODE_ENV ?? "development",
+  });
+};
+
 // Public routes (no auth required)
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
+app.get("/ready", readyHandler);
+app.get("/api/health/ready", readyHandler);
 // Museum kiosk: status + short-lived join token (#145). Scoped per session.
 app.use("/api/kiosk", kioskRouter);
 
 // ---------------------------------------------------------------------------
 // Protected routes (require Bluekey auth when AUTH_REQUIRED=true)
-// Policy: only /health, /api/health, and /api/kiosk/* are anonymous.
+// Policy: only /health, /api/health, /api/health/ready, and /api/kiosk/* are anonymous.
 // Session/model/realtime also accept a session-scoped kiosk JWT (#145).
 // See docs/reference/authentication.md.
 // ---------------------------------------------------------------------------
@@ -142,6 +179,7 @@ initSchema()
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}/api`);
       console.log(`Health check endpoint: http://localhost:${port}/health`);
+      console.log(`Ready probe: http://localhost:${port}/api/health/ready`);
     });
   })
   .catch((err) => {

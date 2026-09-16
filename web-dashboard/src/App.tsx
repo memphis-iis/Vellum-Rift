@@ -39,7 +39,7 @@ function Dashboard() {
   const [section, setSection] = useState<AppSection>("home");
   const [documentModelId, setDocumentModelId] = useState<string | null>(null);
   const [libraryAddSessionId, setLibraryAddSessionId] = useState<string | null>(null);
-  const [enterSessionId, setEnterSessionId] = useState<string | null>(null);
+  const [enterSessionId, setEnterSessionId] = useState<string | null>(() => readSessionDeepLink());
 
   useEffect(() => {
     const sessionId = readSessionDeepLink();
@@ -71,6 +71,17 @@ function Dashboard() {
 
   const leaveSessionRoom = () => {
     setEnterSessionId(null);
+    // Drop deep-link so Lobby empty-state is honest after explicit leave (#264).
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("session");
+      url.searchParams.delete("kiosk");
+      url.searchParams.delete("playerName");
+      const cleaned = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, document.title, cleaned || url.pathname);
+    } catch {
+      /* ignore */
+    }
     setSection("sessions");
   };
 
@@ -85,7 +96,11 @@ function Dashboard() {
             setDocumentModelId(null);
             setLibraryAddSessionId(null);
           }
-          if (next !== "enter") setEnterSessionId(null);
+          // Keep enterSessionId when leaving Lobby so returning restores the space (#264).
+          // Re-apply ?session= if state was cleared (e.g. explicit leave then deep link still present).
+          if (next === "enter") {
+            setEnterSessionId((prev) => prev ?? readSessionDeepLink());
+          }
           setSection(next);
         }}
         onSignOut={logout}
@@ -131,8 +146,8 @@ export default function App() {
   const { user } = useAuth();
   const kioskSessionId = readKioskDeepLink();
 
-  // Museum QR path: skip Bluekey when ?session=&kiosk=1 (#145).
-  if (!user && kioskSessionId) {
+  // Museum QR path always uses guest join UI — even if a kiosk JWT is stored (#249).
+  if (kioskSessionId) {
     return <KioskJoin sessionId={kioskSessionId} />;
   }
 

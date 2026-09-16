@@ -17,6 +17,24 @@ export const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED === "true";
 export const TOKEN_STORAGE_KEY = "vellum_rift_access_token";
 export const EMAIL_STORAGE_KEY = "vellum_rift_user_email";
 
+/**
+ * True when a Bearer token is a museum kiosk-join JWT (#249).
+ * Decodes the payload without verifying signature (UI gating only).
+ */
+export function isKioskAccessToken(token: string | null | undefined): boolean {
+  if (!token || token === "local-dev") return false;
+  const parts = token.split(".");
+  if (parts.length < 2) return false;
+  try {
+    const json = atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { purpose?: unknown; sub?: unknown };
+    if (payload.purpose === "kiosk-join") return true;
+    return typeof payload.sub === "string" && payload.sub.startsWith("kiosk:");
+  } catch {
+    return false;
+  }
+}
+
 export const VELLUM_LOGO_URL = "https://iis.memphis.edu/static/bluekey/icons/vellumrift.png";
 export const MEMPHIS_PILLAR_URL =
   "https://www.memphis.edu/communications/brand/Images/pillar.png";

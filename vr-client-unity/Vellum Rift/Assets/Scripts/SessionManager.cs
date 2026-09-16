@@ -46,6 +46,8 @@ namespace VellumRift
         [SerializeField] private PositionSender positionSender;
         [SerializeField] private SpatialIndicatorSystem spatialIndicatorSystem;
         [SerializeField] private LaserPointer laserPointer;
+        [SerializeField] private FlashlightController flashlightController;
+        [SerializeField] private ActiveModelSwitcher activeModelSwitcher;
         [SerializeField] private SummonManager summonManager;
         [SerializeField] private ArtifactManager artifactManager;
         [SerializeField] private RemoteModelLoader modelLoader;
@@ -101,6 +103,8 @@ namespace VellumRift
             if (positionSender == null) positionSender = gameObject.AddComponent<PositionSender>();
             if (spatialIndicatorSystem == null) spatialIndicatorSystem = GetComponent<SpatialIndicatorSystem>() ?? gameObject.AddComponent<SpatialIndicatorSystem>();
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
+            if (flashlightController == null) flashlightController = GetComponent<FlashlightController>() ?? gameObject.AddComponent<FlashlightController>();
+            if (activeModelSwitcher == null) activeModelSwitcher = GetComponent<ActiveModelSwitcher>() ?? gameObject.AddComponent<ActiveModelSwitcher>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
             if (!WebGlShellMode.UsesExternalShell)
@@ -120,10 +124,8 @@ namespace VellumRift
             if (modelLoader != null)
                 modelLoader.loadOnStart = false;
             if (healthChecker == null) healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
-            if (!WebGlShellMode.UsesExternalShell)
-            {
-                if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
-            }
+            // Always attach LogoutButton so Escape leave works in HTML shell mode (#260).
+            if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
             if (spacesLobbyOverlay == null)
                 spacesLobbyOverlay = GetComponent<SpacesLobbyOverlay>() ?? gameObject.AddComponent<SpacesLobbyOverlay>();
             if (playerSpawner == null) playerSpawner = GetComponent<PlayerSpawner>() ?? gameObject.AddComponent<PlayerSpawner>();
@@ -136,6 +138,8 @@ namespace VellumRift
             pinNamePrompt.FocusChanged += HandlePinNameFocusChanged;
 #if UNITY_WEBGL && !UNITY_EDITOR
             ShellPinBridge.RegisterTarget(gameObject.name);
+            ShellPlayerBridge.RegisterTarget(gameObject.name);
+            ShellModelBridge.RegisterTarget(gameObject.name);
 #endif
 
             // Prefer launch handoff over inspector defaults (dashboard WebGL / desktop).
@@ -289,6 +293,13 @@ namespace VellumRift
 
 #if UNITY_WEBGL && !UNITY_EDITOR
                 if (createdSession) { UpdateUrlWithSession(SessionId); }
+                // Standalone HTML shell Pins/Chat stay on "Joining…" until notified (#258).
+                ShellChatBridge.NotifySessionReady(
+                    SessionId,
+                    LocalPlayerId,
+                    resolvedPlayerName,
+                    backendUrl.TrimEnd('/'),
+                    bluekeyAuth != null ? bluekeyAuth.AccessToken : "");
 #endif
                 Debug.Log($"[SessionManager] Ready — session {SessionId}, player {resolvedPlayerName} ({LocalPlayerId}), host={IsHost}, model={_loadedModelId}");
             }
@@ -361,6 +372,16 @@ namespace VellumRift
             {
                 laserPointer.SetBaseUrl(backendUrl);
                 laserPointer.Initialize(SessionId, LocalPlayerId, LocalPlayerId, IsHost);
+            }
+            if (flashlightController != null)
+            {
+                flashlightController.SetBaseUrl(backendUrl);
+                flashlightController.Initialize(SessionId, LocalPlayerId);
+                flashlightController.SetSimpleHudVisible(true);
+            }
+            if (activeModelSwitcher != null)
+            {
+                activeModelSwitcher.Initialize(SessionId, IsHost, apiClient, controlsGuide);
             }
             if (summonManager != null)
             {

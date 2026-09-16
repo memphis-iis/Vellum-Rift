@@ -10,7 +10,10 @@ import {
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { TOKEN_STORAGE_KEY, VELLUM_LOGO_URL } from "../auth/config";
 import {
+  broadcastWebGlAuth,
+  launchWebGlSameTab,
   launchWebGlWithAuthHandoff,
+  mountWebGlAuthHandoff,
   webGlOriginFromBaseUrl,
 } from "../auth/launchWebGl";
 import { MaterialIcon } from "../components/MaterialIcon";
@@ -137,6 +140,10 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     return Boolean(win);
   };
 
+  /**
+   * Enter 3D: reserve a popup under the click gesture BEFORE awaits (#261),
+   * then navigate + hand off auth. If reservation fails, same-tab fallback (#254).
+   */
   const onEnter3d = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || !accessToken) return;
@@ -144,33 +151,68 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setError(null);
     setFallbackUrl(null);
     const name = nametag.trim() || "Guest";
+
+    const url = buildWebGlLaunchUrl({
+      sessionId,
+      playerName: name,
+      isHost: false,
+      kiosk: true,
+    });
+    if (!url) {
+      setPhase("error");
+      setError("3D is not configured on this exhibit. Ask staff for help.");
+      setBusy(false);
+      return;
+    }
+
+    // Must run synchronously in the user-gesture stack — awaits break popup unlock.
+    let reserved: Window | null = null;
+    try {
+      reserved = window.open("about:blank", "vellumRiftWebGL");
+    } catch {
+      reserved = null;
+    }
+    const reservedOk = Boolean(reserved && !reserved.closed);
+
     try {
       await addPlayer(sessionId, name, false);
       await getSession(sessionId);
 
-      const url = buildWebGlLaunchUrl({
-        sessionId,
-        playerName: name,
-        isHost: false,
-        kiosk: true,
-      });
-      if (!url) {
-        setPhase("error");
-        setError("3D is not configured on this exhibit. Ask staff for help.");
+      broadcastWebGlAuth(accessToken, "");
+      const webGlOrigin = webGlOriginFromBaseUrl(
+        import.meta.env.VITE_WEBGL_BASE_URL ?? "",
+      );
+
+      if (reservedOk && reserved && !reserved.closed) {
+        try {
+          reserved.location.href = url;
+        } catch {
+          /* cross-origin assign may throw after navigate — ignore */
+        }
+        if (webGlOrigin) {
+          mountWebGlAuthHandoff({
+            target: reserved,
+            accessToken,
+            email: "",
+            webGlOrigin,
+          });
+        }
+        setPhase("launching");
         return;
       }
 
-      setPhase("launching");
-      const opened = openWebGl(url, accessToken);
-      if (!opened) {
-        setFallbackUrl(url);
-        setPhase("blocked");
-        setError("Your browser blocked the 3D window. Use Open 3D below (or allow popups and try again).");
-        return;
-      }
-      // Stay on launching — guest is in 3D; keep a quiet status if they return.
-      setPhase("launching");
+      // Popup unavailable — same-tab continue (do not claim "blocked" if we never opened).
+      setFallbackUrl(url);
+      setPhase("blocked");
+      setError(
+        "Could not open a separate 3D window. Continue in this tab, or allow popups and retry.",
+      );
     } catch (err) {
+      try {
+        reserved?.close();
+      } catch {
+        /* ignore */
+      }
       setPhase("ready");
       setError(err instanceof Error ? err.message : "Could not join. Try again.");
     } finally {
@@ -183,11 +225,16 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setError(null);
     const opened = openWebGl(fallbackUrl, accessToken);
     if (!opened) {
-      setError("Still blocked. Tap Open 3D in this tab, or allow popups for this site.");
+      setError("Still blocked. Use Open 3D in this tab below, or allow popups.");
       return;
     }
     setPhase("launching");
     setFallbackUrl(null);
+  };
+
+  const openSameTab = () => {
+    if (!fallbackUrl || !accessToken) return;
+    launchWebGlSameTab({ url: fallbackUrl, accessToken, email: "" });
   };
 
   return (
@@ -216,8 +263,17 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
           <div className="vr-kiosk__error-block" role="alert">
             <p className="vr-kiosk__error">{error}</p>
             <p className="vr-kiosk__hint">
-              Ask staff to turn <strong>Kiosk on</strong> for this Space and share the QR or kiosk
-              link. Guests do not use Bluekey.
+              {/space not found|check the id/i.test(error ?? "") ? (
+                <>
+                  Double-check the Space ID on the exhibit signage or QR code. Guests do not use
+                  Bluekey.
+                </>
+              ) : (
+                <>
+                  Ask staff to turn <strong>Kiosk on</strong> for this Space and share the QR or
+                  kiosk link. Guests do not use Bluekey.
+                </>
+              )}
             </p>
             <a className="vr-btn vr-btn--ghost" href={import.meta.env.BASE_URL || "/"}>
               Back to sign-in
@@ -280,7 +336,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
                     className="vr-kiosk__input"
                     value={nametag}
                     onChange={(e) => setNametag(e.target.value)}
-                    maxLength={40}
+                    maxLength={20}
                     placeholder="Guest"
                     autoComplete="nickname"
                   />
@@ -336,13 +392,16 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
                     {error}
                   </p>
                 ) : null}
-                <button type="button" className="vr-btn vr-btn--primary" onClick={retryOpen}>
+                <button type="button" className="vr-btn vr-btn--primary" onClick={openSameTab}>
                   <MaterialIcon name="view_in_ar" />
-                  Open 3D
+                  Open 3D in this tab
+                </button>
+                <button type="button" className="vr-btn vr-btn--ghost" onClick={retryOpen}>
+                  Try popup again
                 </button>
                 <p className="vr-kiosk__hint">
-                  This uses a browser popup. If nothing opens, allow popups for this site and tap
-                  Open 3D again.
+                  Prefer the same-tab button on locked-down exhibit browsers. Popup needs permission
+                  for this site.
                 </p>
               </div>
             ) : null}

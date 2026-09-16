@@ -17,6 +17,27 @@ const repo = new GameStateRepository();
 
 const param = (req: Request, name: string): string => String(req.params[name]);
 
+const SPACE_NOT_FOUND =
+  "Space not found. Check the ID on the signage.";
+
+/** Postgres UUID shape — malformed ids throw 22P02 instead of returning no rows (#250). */
+const SESSION_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isSessionId(sessionId: string): boolean {
+  return SESSION_ID_RE.test(sessionId.trim());
+}
+
+/** Postgres rejects non-UUID session_id with 22P02 — map to guest-safe 404 (#250). */
+function isInvalidUuidError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code?: unknown }).code ?? "")
+      : "";
+  return code === "22P02" || /invalid input syntax for type uuid/i.test(msg);
+}
+
 function clientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.trim()) {
@@ -80,10 +101,14 @@ router.get("/events", async (_req: Request, res: Response) => {
 // GET /api/kiosk/:sessionId/status — discover whether public join is open
 router.get("/:sessionId/status", async (req: Request, res: Response) => {
   try {
-    const sessionId = param(req, "sessionId");
+    const sessionId = param(req, "sessionId").trim();
+    if (!sessionId || !isSessionId(sessionId)) {
+      res.status(404).json({ error: SPACE_NOT_FOUND });
+      return;
+    }
     const state = await repo.findById(sessionId);
     if (!state) {
-      res.status(404).json({ error: "Session not found" });
+      res.status(404).json({ error: SPACE_NOT_FOUND });
       return;
     }
 
@@ -104,6 +129,10 @@ router.get("/:sessionId/status", async (req: Request, res: Response) => {
       kioskEnabled: true,
     });
   } catch (err) {
+    if (isInvalidUuidError(err)) {
+      res.status(404).json({ error: SPACE_NOT_FOUND });
+      return;
+    }
     console.error("GET /api/kiosk/:sessionId/status failed:", err);
     res.status(500).json({ error: "Failed to read kiosk status" });
   }
@@ -112,7 +141,11 @@ router.get("/:sessionId/status", async (req: Request, res: Response) => {
 // POST /api/kiosk/:sessionId/token — mint guest JWT (rate-limited)
 router.post("/:sessionId/token", async (req: Request, res: Response) => {
   try {
-    const sessionId = param(req, "sessionId");
+    const sessionId = param(req, "sessionId").trim();
+    if (!sessionId || !isSessionId(sessionId)) {
+      res.status(404).json({ error: SPACE_NOT_FOUND });
+      return;
+    }
     const limit = checkRateLimit(`kiosk-token:${clientIp(req)}:${sessionId}`);
     if (!limit.allowed) {
       res.setHeader("Retry-After", String(limit.retryAfterSec));
@@ -125,7 +158,7 @@ router.post("/:sessionId/token", async (req: Request, res: Response) => {
 
     const state = await repo.findById(sessionId);
     if (!state) {
-      res.status(404).json({ error: "Session not found" });
+      res.status(404).json({ error: SPACE_NOT_FOUND });
       return;
     }
     if (!state.isActive) {
@@ -147,6 +180,10 @@ router.post("/:sessionId/token", async (req: Request, res: Response) => {
       displayNameHint: "Guest",
     });
   } catch (err) {
+    if (isInvalidUuidError(err)) {
+      res.status(404).json({ error: SPACE_NOT_FOUND });
+      return;
+    }
     console.error("POST /api/kiosk/:sessionId/token failed:", err);
     res.status(500).json({ error: "Failed to mint kiosk token" });
   }

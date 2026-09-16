@@ -17,5 +17,24 @@ handle_path /apis/vellumrift/* {
 # https://iis.memphis.edu/vellumrift/
 handle_path /vellumrift/* {
 	root * /usr/share/caddy/static/vellumrift
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+		# Shell loads Unity wasm/data; keep CSP permissive enough for WebGL.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://iis.memphis.edu https://*.memphis.edu; frame-ancestors 'self' https://iis.memphis.edu; base-uri 'self'"
+	}
 	file_server
 }
+
+# --- Dashboard (static) — add beside other static handles when present ------
+# handle_path /static/vellum-dashboard/* {
+# 	root * /usr/share/caddy/static/vellum-dashboard
+# 	header {
+# 		X-Content-Type-Options nosniff
+# 		Referrer-Policy strict-origin-when-cross-origin
+# 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://iis.memphis.edu; frame-src https://iis.memphis.edu; frame-ancestors 'none'; base-uri 'self'"
+# 	}
+# 	file_server
+# }
+

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { getAuthHeaders } from "../api/authHeaders";
 import { API_BASE_URL } from "../api/config";
 import {
   addAllowlistEmail,
@@ -20,7 +21,7 @@ import {
   sessionPlaylist,
   shortModelLabel,
 } from "../api/playlistHelpers";
-import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
+import { patchSessionActiveModel, patchSessionEvent, patchSessionPlaylist } from "../api/sessions";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
@@ -34,10 +35,11 @@ import {
   readDashboardEmail,
   webGlOriginFromBaseUrl,
 } from "../auth/launchWebGl";
+import { isKioskAccessToken } from "../auth/config";
+import { tryOpenDesktopLaunchUrl } from "../auth/launchDesktop";
 import { useModelPreview } from "../hooks/useModelPreview";
 import { useSessionRoom } from "../hooks/useSessionRoom";
 import type { PlayerState } from "../api/gameState";
-import { patchSessionEvent } from "../api/sessions";
 import {
   buildPrimaryShareUrl,
   formatEventWindow,
@@ -45,6 +47,45 @@ import {
   sessionKind,
   sessionStartsAt,
 } from "../api/sessionEvent";
+
+type StageLayout = "spotlight" | "even_row" | "surround" | "custom";
+type GuestExperience = "host_led" | "browse" | "open_stage";
+
+const STAGE_LAYOUTS: { id: StageLayout; label: string }[] = [
+  { id: "spotlight", label: "Spotlight" },
+  { id: "even_row", label: "In a row" },
+  { id: "surround", label: "Around you" },
+  { id: "custom", label: "Custom" },
+];
+
+const GUEST_EXPERIENCES: { id: GuestExperience; label: string }[] = [
+  { id: "host_led", label: "Host-led" },
+  { id: "browse", label: "Browse" },
+  { id: "open_stage", label: "Open stage" },
+];
+
+function readSessionStage(session: GameSession | null): {
+  stageLayout: StageLayout;
+  guestExperience: GuestExperience;
+} {
+  const top = session as
+    | (GameSession & { stageLayout?: unknown; guestExperience?: unknown })
+    | null;
+  const meta = session?.metadata ?? {};
+  const layoutRaw = top?.stageLayout ?? meta.stageLayout;
+  const expRaw = top?.guestExperience ?? meta.guestExperience;
+  const stageLayout =
+    typeof layoutRaw === "string" &&
+    STAGE_LAYOUTS.some((o) => o.id === layoutRaw)
+      ? (layoutRaw as StageLayout)
+      : "surround";
+  const guestExperience =
+    typeof expRaw === "string" &&
+    GUEST_EXPERIENCES.some((o) => o.id === expRaw)
+      ? (expRaw as GuestExperience)
+      : "open_stage";
+  return { stageLayout, guestExperience };
+}
 
 type EnterProps = {
   sessionId: string | null;
@@ -71,17 +112,16 @@ function buildDesktopCommand(
   sessionId: string,
   playerName: string,
   isHost: boolean,
-  accessToken: string | null,
 ): string {
-  const parts = [
+  // Never embed live JWTs in Lobby HTML (#266). Desktop app signs in via Bluekey
+  // or the one-click protocol handoff (token not shown in the page).
+  return [
     "./VellumRift",
     `-backendUrl=${API_BASE_URL}`,
     `-session=${sessionId}`,
     `-playerName=${playerName}`,
     `-isHost=${isHost ? "true" : "false"}`,
-  ];
-  if (accessToken) parts.push(`-accessToken=${accessToken}`);
-  return parts.join(" ");
+  ].join(" ");
 }
 
 /** Place avatars on the schematic ring from player positions or a stable hash. */
@@ -185,6 +225,11 @@ export default function Enter({
   const activeTitle = activeModelId
     ? shortModelLabel(activeModelId, modelLabels[activeModelId])
     : null;
+  const { stageLayout, guestExperience } = readSessionStage(session as GameSession | null);
+  const canVisitorCycle =
+    !isHost &&
+    (guestExperience === "browse" || guestExperience === "open_stage") &&
+    playlist.length >= 2;
 
   useEffect(() => {
     setPreviewModelId(activeModelId);
@@ -231,6 +276,51 @@ export default function Enter({
     }
   };
 
+  const onCycleActiveModel = async (delta: -1 | 1) => {
+    if (!sessionId || playlistBusy || playlist.length < 2) return;
+    const currentIdx = activeModelId ? playlist.indexOf(activeModelId) : -1;
+    const base = currentIdx >= 0 ? currentIdx : 0;
+    const nextId = playlist[(base + delta + playlist.length) % playlist.length];
+    if (!nextId || nextId === activeModelId) return;
+    setPlaylistBusy(true);
+    setPlaylistError(null);
+    try {
+      const updated = await patchSessionActiveModel(sessionId, nextId);
+      applySession(updated as GameSession);
+    } catch (err) {
+      setPlaylistError(err instanceof Error ? err.message : "Failed to switch manuscript");
+    } finally {
+      setPlaylistBusy(false);
+    }
+  };
+
+  const onPatchStage = async (patch: {
+    stageLayout?: StageLayout;
+    guestExperience?: GuestExperience;
+  }) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/stage`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          body: JSON.stringify(patch),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || `Stage update failed (${res.status})`);
+      }
+      applySession(data);
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Stage update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
   const onRemoveFromPlaylist = async (modelId: string) => {
     if (!sessionId || !isHost || playlistBusy) return;
     setPlaylistBusy(true);
@@ -252,14 +342,18 @@ export default function Enter({
 
   const isLive = players.some((p) => p.isConnected);
 
+  const accessToken = readDashboardAccessToken();
+  const kioskGuest = isKioskAccessToken(accessToken);
+
   const webGlUrl = useMemo(() => {
     if (!sessionId || !me) return null;
     return buildWebGlLaunchUrl({
       sessionId,
       playerName: me.displayName,
       isHost: me.isHost,
+      kiosk: kioskGuest,
     });
-  }, [sessionId, me]);
+  }, [sessionId, me, kioskGuest]);
 
   const webGlEmbedUrl = useMemo(() => {
     if (!sessionId || !me) return null;
@@ -268,17 +362,13 @@ export default function Enter({
       playerName: me.displayName,
       isHost: me.isHost,
       embed: true,
+      kiosk: kioskGuest,
     });
-  }, [sessionId, me]);
+  }, [sessionId, me, kioskGuest]);
 
   const desktopCmd = useMemo(() => {
     if (!sessionId || !me) return "";
-    return buildDesktopCommand(
-      sessionId,
-      me.displayName,
-      me.isHost,
-      readDashboardAccessToken(),
-    );
+    return buildDesktopCommand(sessionId, me.displayName, me.isHost);
   }, [sessionId, me]);
 
   const inviteText = useMemo(() => {
@@ -494,17 +584,32 @@ export default function Enter({
   };
 
   const openWebGlNewTab = () => {
-    if (!webGlUrl) return;
+    if (!webGlUrl || !me) return;
+    const token = readDashboardAccessToken();
     const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
     if (!origin) {
       window.open(webGlUrl, "vellumRiftWebGL");
       return;
     }
+    // Sync open under click gesture; hand off kiosk or Bluekey token (#267).
     launchWebGlWithAuthHandoff({
       url: webGlUrl,
-      accessToken: readDashboardAccessToken(),
+      accessToken: token,
       email: readDashboardEmail() || user?.email || "",
       webGlOrigin: origin,
+    });
+  };
+
+  const openDesktopApp = () => {
+    if (!sessionId || !me) return;
+    const token = readDashboardAccessToken();
+    if (!token || isKioskAccessToken(token)) return;
+    tryOpenDesktopLaunchUrl({
+      sessionId,
+      playerName: me.displayName,
+      isHost: me.isHost,
+      accessToken: token,
+      backendUrl: API_BASE_URL,
     });
   };
 
@@ -611,138 +716,248 @@ export default function Enter({
         </p>
       ) : null}
 
-      {(status === "ready" || session) ? (
-        <section className="vr-enter__loadout" aria-label="Manuscript loadout">
-          <div className="vr-enter__loadout-grid">
-            <ManuscriptPreview
-              className="vr-enter__loadout-preview"
-              preview={loadoutPreview}
-              emptyMessage={
-                playlist.length
-                  ? "Select a manuscript in the list to preview its mesh."
-                  : "No manuscripts in this space yet — nothing to preview."
-              }
-              alt={
-                previewModelId
-                  ? shortModelLabel(previewModelId, modelLabels[previewModelId])
-                  : undefined
-              }
-            />
-            <div className="vr-enter__playlist vr-enter__playlist--loadout">
-              <div className="vr-enter__playlist-head">
-                <h2 className="vr-enter__playlist-title">
-                  <MaterialIcon name="menu_book" />
-                  Manuscripts
-                </h2>
-                {isHost && sessionId && onAddFromLibrary ? (
-                  <button
-                    type="button"
-                    className="vr-enter__text-btn"
-                    onClick={() => onAddFromLibrary(sessionId)}
-                    disabled={playlistBusy}
-                  >
-                    <MaterialIcon name="library_add" />
-                    Add from library
-                  </button>
-                ) : null}
-              </div>
-              {playlistError ? (
-                <p className="vr-enter__error" role="alert">
-                  {playlistError}
-                </p>
-              ) : null}
-              {!playlist.length ? (
-                <p className="vr-enter__playlist-empty">
-                  {isHost
-                    ? "No documents in this space yet."
-                    : "No manuscripts in this exhibit yet."}
-                  {isHost && onAddFromLibrary && sessionId ? (
-                    <>
-                      {" "}
-                      <button
-                        type="button"
-                        className="vr-enter__retry"
-                        onClick={() => onAddFromLibrary(sessionId)}
-                      >
-                        Add from library
-                      </button>
-                    </>
-                  ) : null}
-                </p>
-              ) : (
-                <ul className="vr-enter__playlist-list">
-                  {playlist.map((modelId) => {
-                    const isActive = modelId === activeModelId;
-                    const isPreviewing = modelId === previewModelId;
-                    const title = shortModelLabel(modelId, modelLabels[modelId]);
-                    return (
-                      <li
-                        key={modelId}
-                        className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}${
-                          isPreviewing ? " vr-enter__playlist-row--previewing" : ""
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          className="vr-enter__playlist-select"
-                          title={modelId}
-                          aria-pressed={isPreviewing}
-                          onClick={() => setPreviewModelId(modelId)}
-                        >
-                          {isActive ? (
-                            <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
-                          ) : (
-                            <MaterialIcon name="radio_button_unchecked" />
-                          )}
-                          <span className="vr-enter__playlist-name">{title}</span>
-                          {isActive ? (
-                            <span className="vr-enter__playlist-badge">Active</span>
-                          ) : null}
-                        </button>
-                        {isHost ? (
-                          <span className="vr-enter__playlist-actions">
-                            {!isActive ? (
-                              <button
-                                type="button"
-                                className="vr-enter__text-btn"
-                                disabled={playlistBusy}
-                                onClick={() => void onSetActiveModel(modelId)}
-                              >
-                                Set active
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="vr-enter__text-btn"
-                              disabled={playlistBusy}
-                              onClick={() => void onRemoveFromPlaylist(modelId)}
-                            >
-                              Remove
-                            </button>
-                          </span>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {!isHost && playlist.length ? (
-                <p className="vr-enter__playlist-hint">
-                  Tap a manuscript to preview. Enter 3D uses the active one.
-                </p>
+      {canVisitorCycle ? (
+        <div className="vr-enter__visitor-cycle" role="group" aria-label="Browse manuscripts">
+          <button
+            type="button"
+            className="vr-btn vr-btn--outline"
+            disabled={playlistBusy}
+            onClick={() => void onCycleActiveModel(-1)}
+          >
+            <MaterialIcon name="chevron_left" />
+            Previous
+          </button>
+          <button
+            type="button"
+            className="vr-btn vr-btn--outline"
+            disabled={playlistBusy}
+            onClick={() => void onCycleActiveModel(1)}
+          >
+            Next
+            <MaterialIcon name="chevron_right" />
+          </button>
+        </div>
+      ) : null}
+
+      {playlistError && !isHost ? (
+        <p className="vr-enter__error" role="alert">
+          {playlistError}
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="vr-enter__error" role="alert">
+          {error}{" "}
+          <button type="button" className="vr-enter__retry" onClick={() => void retry()}>
+            Retry
+          </button>
+        </p>
+      ) : null}
+
+      {status === "connecting" ? (
+        <p className="vr-enter__status">Joining space as {displayName}…</p>
+      ) : null}
+
+      <div className="vr-enter__body">
+        <section className="vr-enter__map glass-panel" aria-label="Spatial presence">
+          <div className="vr-enter__map-head">
+            <h2 className="vr-enter__map-title">Spatial Presence</h2>
+            <div className="vr-enter__badges">
+              <span className={`vr-enter__badge ${isLive ? "vr-enter__badge--live" : ""}`}>
+                {isLive ? <span className="vr-enter__pulse" /> : null}
+                {isLive ? "Live" : status === "ready" ? "Ready" : "…"}
+              </span>
+              <span className="vr-enter__badge">
+                {connectedCount} Active User{connectedCount === 1 ? "" : "s"}
+              </span>
+              {me?.isHost ? (
+                <span className="vr-enter__badge vr-enter__badge--host">Host</span>
               ) : null}
             </div>
           </div>
+
+          <div className="vr-enter__map-stage">
+            <div className="vr-enter__map-dots" aria-hidden="true" />
+            <div className="vr-enter__ring vr-enter__ring--outer">
+              <div className="vr-enter__ring vr-enter__ring--mid">
+                <div className="vr-enter__ring vr-enter__ring--inner">
+                  <div className="vr-enter__core">
+                    <MaterialIcon name="menu_book" />
+                    <span>{activeTitle ?? "Learning space"}</span>
+                  </div>
+                </div>
+              </div>
+              {players.map((player, index) => (
+                <div
+                  key={player.id}
+                  className={`vr-enter__avatar${player.isHost ? " vr-enter__avatar--host" : ""}${
+                    player.id === me?.playerId ? " vr-enter__avatar--me" : ""
+                  }`}
+                  style={avatarStyle(player, index, players.length)}
+                  title={player.displayName}
+                >
+                  <span className="vr-enter__avatar-dot" />
+                  <span className="vr-enter__avatar-name">
+                    {player.id === me?.playerId ? "You" : player.displayName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="vr-enter__controls-hint" aria-label="Controls">
+            <span>
+              <kbd>WASD</kbd> Move
+            </span>
+            <span>
+              <kbd>Mouse</kbd> Look
+            </span>
+            <span>
+              <kbd>LMB</kbd> Laser
+            </span>
+            <span>
+              <kbd>L</kbd> Light
+            </span>
+            <span>
+              <kbd>[</kbd>
+              <kbd>]</kbd> Manuscript
+            </span>
+            <span>
+              <kbd>Esc</kbd> Leave
+            </span>
+          </div>
+
+          <div className="vr-enter__launch-row">
+            <button
+              type="button"
+              className="vr-btn vr-btn--primary"
+              onClick={launchWebGl}
+              disabled={status !== "ready" || !me}
+            >
+              <MaterialIcon name="view_in_ar" />
+              {webGlEmbedUrl ? "Enter 3D" : "Launch options"}
+            </button>
+            {webGlUrl ? (
+              <button
+                type="button"
+                className="vr-btn vr-btn--outline"
+                onClick={openWebGlNewTab}
+                disabled={status !== "ready" || !me}
+              >
+                <MaterialIcon name="open_in_new" />
+                New tab
+              </button>
+            ) : null}
+            {!kioskGuest ? (
+              <button
+                type="button"
+                className="vr-btn vr-btn--outline"
+                onClick={() => setShowDesktop((v) => !v)}
+                disabled={status !== "ready" || !me}
+              >
+                <MaterialIcon name="desktop_windows" />
+                Desktop
+              </button>
+            ) : null}
+          </div>
+
+          {showDesktop && me && !kioskGuest ? (
+            <div className="vr-enter__desktop">
+              <p>
+                Open the desktop client with a one-click handoff, or copy the CLI without embedding
+                your sign-in token in this page (#266).
+              </p>
+              <button
+                type="button"
+                className="vr-btn vr-btn--primary"
+                onClick={openDesktopApp}
+                disabled={!readDashboardAccessToken()}
+              >
+                <MaterialIcon name="desktop_windows" />
+                Open desktop app
+              </button>
+              <pre className="vr-enter__code">{desktopCmd}</pre>
+              <button
+                type="button"
+                className="vr-btn vr-btn--ghost"
+                onClick={() => void copy("desktop", desktopCmd)}
+              >
+                <MaterialIcon name="content_copy" />
+                {copied === "desktop" ? "Copied" : "Copy CLI (no token)"}
+              </button>
+              <p className="vr-enter__hint">
+                The CLI omits <code>-accessToken</code>. Sign in with Bluekey inside the desktop
+                app, or use Open desktop app for protocol handoff.
+              </p>
+              {!webGlUrl ? (
+                <p className="vr-enter__hint">
+                  Set <code>VITE_WEBGL_BASE_URL</code> to enable one-click WebGL launch.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
-      ) : null}
+
+        <SpaceChatPanel
+          messages={messages}
+          me={me}
+          status={status}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSubmit={onSend}
+        />
+      </div>
 
       {isHost ? (
-        <details className="vr-enter__host-ops" open>
+        <details className="vr-enter__host-ops">
           <summary className="vr-enter__host-ops-summary">
             <MaterialIcon name="admin_panel_settings" />
             Host tools
-            <span className="vr-enter__host-ops-hint">Visibility, kiosk, invites, participants</span>
+            <span className="vr-enter__host-ops-hint">
+              Stage, visibility, kiosk, invites, participants
+            </span>
           </summary>
+
+          <section className="vr-enter__stage-controls" aria-label="Stage controls">
+            <div className="vr-enter__stage-row">
+              <span className="vr-enter__stage-label">Stage layout</span>
+              <div className="vr-enter__stage-chips" role="group" aria-label="Stage layout">
+                {STAGE_LAYOUTS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`vr-enter__stage-chip${
+                      stageLayout === opt.id ? " vr-enter__stage-chip--active" : ""
+                    }`}
+                    aria-pressed={stageLayout === opt.id}
+                    disabled={hostBusy}
+                    onClick={() => void onPatchStage({ stageLayout: opt.id })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="vr-enter__stage-row">
+              <span className="vr-enter__stage-label">Guest experience</span>
+              <div className="vr-enter__stage-chips" role="group" aria-label="Guest experience">
+                {GUEST_EXPERIENCES.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`vr-enter__stage-chip${
+                      guestExperience === opt.id ? " vr-enter__stage-chip--active" : ""
+                    }`}
+                    aria-pressed={guestExperience === opt.id}
+                    disabled={hostBusy}
+                    onClick={() => void onPatchStage({ guestExperience: opt.id })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
           <div className="vr-enter__host-ops-toolbar">
             <button
@@ -930,143 +1145,137 @@ export default function Enter({
         </details>
       ) : null}
 
-      {error ? (
-        <p className="vr-enter__error" role="alert">
-          {error}{" "}
-          <button type="button" className="vr-enter__retry" onClick={() => void retry()}>
-            Retry
-          </button>
-        </p>
-      ) : null}
-
-      {status === "connecting" ? (
-        <p className="vr-enter__status">Joining space as {displayName}…</p>
-      ) : null}
-
-      <div className="vr-enter__body">
-        <section className="vr-enter__map glass-panel" aria-label="Spatial presence">
-          <div className="vr-enter__map-head">
-            <h2 className="vr-enter__map-title">Spatial Presence</h2>
-            <div className="vr-enter__badges">
-              <span className={`vr-enter__badge ${isLive ? "vr-enter__badge--live" : ""}`}>
-                {isLive ? <span className="vr-enter__pulse" /> : null}
-                {isLive ? "Live" : status === "ready" ? "Ready" : "…"}
-              </span>
-              <span className="vr-enter__badge">
-                {connectedCount} Active User{connectedCount === 1 ? "" : "s"}
-              </span>
-              {me?.isHost ? (
-                <span className="vr-enter__badge vr-enter__badge--host">Host</span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="vr-enter__map-stage">
-            <div className="vr-enter__map-dots" aria-hidden="true" />
-            <div className="vr-enter__ring vr-enter__ring--outer">
-              <div className="vr-enter__ring vr-enter__ring--mid">
-                <div className="vr-enter__ring vr-enter__ring--inner">
-                  <div className="vr-enter__core">
-                    <MaterialIcon name="menu_book" />
-                    <span>{activeTitle ?? "Learning space"}</span>
-                  </div>
-                </div>
-              </div>
-              {players.map((player, index) => (
-                <div
-                  key={player.id}
-                  className={`vr-enter__avatar${player.isHost ? " vr-enter__avatar--host" : ""}${
-                    player.id === me?.playerId ? " vr-enter__avatar--me" : ""
-                  }`}
-                  style={avatarStyle(player, index, players.length)}
-                  title={player.displayName}
-                >
-                  <span className="vr-enter__avatar-dot" />
-                  <span className="vr-enter__avatar-name">
-                    {player.id === me?.playerId ? "You" : player.displayName}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="vr-enter__controls-hint" aria-label="Controls">
-            <span>
-              <kbd>WASD</kbd> Move
-            </span>
-            <span>
-              <kbd>Mouse</kbd> Look
-            </span>
-            <span>
-              <kbd>SPACE</kbd> Interact
-            </span>
-          </div>
-
-          <div className="vr-enter__launch-row">
-            <button
-              type="button"
-              className="vr-btn vr-btn--primary"
-              onClick={launchWebGl}
-              disabled={status !== "ready" || !me}
-            >
-              <MaterialIcon name="view_in_ar" />
-              {webGlEmbedUrl ? "Enter 3D" : "Launch options"}
-            </button>
-            {webGlUrl ? (
-              <button
-                type="button"
-                className="vr-btn vr-btn--outline"
-                onClick={openWebGlNewTab}
-                disabled={status !== "ready" || !me}
-              >
-                <MaterialIcon name="open_in_new" />
-                New tab
-              </button>
+      {status === "ready" || session ? (
+        <details className="vr-enter__loadout">
+          <summary className="vr-enter__loadout-summary">
+            <MaterialIcon name="menu_book" />
+            Manuscripts
+            {activeTitle ? (
+              <span className="vr-enter__loadout-hint">Active: {activeTitle}</span>
             ) : null}
-            <button
-              type="button"
-              className="vr-btn vr-btn--outline"
-              onClick={() => setShowDesktop((v) => !v)}
-              disabled={status !== "ready" || !me}
-            >
-              <MaterialIcon name="desktop_windows" />
-              Desktop
-            </button>
-          </div>
-
-          {showDesktop && me ? (
-            <div className="vr-enter__desktop">
-              <p>
-                Desktop join uses CLI handoff (#128 / #129). Copy and run against your standalone
-                build (token included when you are signed in — treat it like a password):
-              </p>
-              <pre className="vr-enter__code">{desktopCmd}</pre>
-              <button
-                type="button"
-                className="vr-btn vr-btn--ghost"
-                onClick={() => void copy("desktop", desktopCmd)}
-              >
-                <MaterialIcon name="content_copy" />
-                {copied === "desktop" ? "Copied" : "Copy command"}
-              </button>
-              {!webGlUrl ? (
-                <p className="vr-enter__hint">
-                  Set <code>VITE_WEBGL_BASE_URL</code> to enable one-click WebGL launch.
+          </summary>
+          <div className="vr-enter__loadout-grid">
+            <ManuscriptPreview
+              className="vr-enter__loadout-preview"
+              preview={loadoutPreview}
+              emptyMessage={
+                playlist.length
+                  ? "Select a manuscript in the list to preview its mesh."
+                  : "No manuscripts in this space yet — nothing to preview."
+              }
+              alt={
+                previewModelId
+                  ? shortModelLabel(previewModelId, modelLabels[previewModelId])
+                  : undefined
+              }
+            />
+            <div className="vr-enter__playlist vr-enter__playlist--loadout">
+              <div className="vr-enter__playlist-head">
+                <h2 className="vr-enter__playlist-title">
+                  <MaterialIcon name="menu_book" />
+                  Loadout
+                </h2>
+                {isHost && sessionId && onAddFromLibrary ? (
+                  <button
+                    type="button"
+                    className="vr-enter__text-btn"
+                    onClick={() => onAddFromLibrary(sessionId)}
+                    disabled={playlistBusy}
+                  >
+                    <MaterialIcon name="library_add" />
+                    Add from library
+                  </button>
+                ) : null}
+              </div>
+              {playlistError && isHost ? (
+                <p className="vr-enter__error" role="alert">
+                  {playlistError}
+                </p>
+              ) : null}
+              {!playlist.length ? (
+                <p className="vr-enter__playlist-empty">
+                  {isHost
+                    ? "No documents in this space yet."
+                    : "No manuscripts in this exhibit yet."}
+                  {isHost && onAddFromLibrary && sessionId ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="vr-enter__retry"
+                        onClick={() => onAddFromLibrary(sessionId)}
+                      >
+                        Add from library
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              ) : (
+                <ul className="vr-enter__playlist-list">
+                  {playlist.map((modelId) => {
+                    const isActive = modelId === activeModelId;
+                    const isPreviewing = modelId === previewModelId;
+                    const title = shortModelLabel(modelId, modelLabels[modelId]);
+                    return (
+                      <li
+                        key={modelId}
+                        className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}${
+                          isPreviewing ? " vr-enter__playlist-row--previewing" : ""
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          className="vr-enter__playlist-select"
+                          title={modelId}
+                          aria-pressed={isPreviewing}
+                          onClick={() => setPreviewModelId(modelId)}
+                        >
+                          {isActive ? (
+                            <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
+                          ) : (
+                            <MaterialIcon name="radio_button_unchecked" />
+                          )}
+                          <span className="vr-enter__playlist-name">{title}</span>
+                          {isActive ? (
+                            <span className="vr-enter__playlist-badge">Active</span>
+                          ) : null}
+                        </button>
+                        {isHost ? (
+                          <span className="vr-enter__playlist-actions">
+                            {!isActive ? (
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={playlistBusy}
+                                onClick={() => void onSetActiveModel(modelId)}
+                              >
+                                Set active
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="vr-enter__text-btn"
+                              disabled={playlistBusy}
+                              onClick={() => void onRemoveFromPlaylist(modelId)}
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {!isHost && playlist.length ? (
+                <p className="vr-enter__playlist-hint">
+                  Tap a manuscript to preview. Enter 3D uses the active one.
                 </p>
               ) : null}
             </div>
-          ) : null}
-        </section>
-
-        <SpaceChatPanel
-          messages={messages}
-          me={me}
-          status={status}
-          draft={draft}
-          onDraftChange={setDraft}
-          onSubmit={onSend}
-        />
-      </div>
+          </div>
+        </details>
+      ) : null}
     </main>
   );
 }

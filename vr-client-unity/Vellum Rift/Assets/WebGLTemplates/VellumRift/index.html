@@ -89,6 +89,12 @@
       <span><span class="vellum-kbd">LMB</span> Laser</span>
       <span class="vellum-controls-sep" aria-hidden="true"></span>
       <span><span class="vellum-kbd">F</span> Pin</span>
+      <span class="vellum-controls-sep" aria-hidden="true"></span>
+      <span><span class="vellum-kbd">L</span> Light</span>
+      <span class="vellum-controls-sep" aria-hidden="true"></span>
+      <span><span class="vellum-kbd">[</span><span class="vellum-kbd">]</span> Manuscript</span>
+      <span class="vellum-controls-sep" aria-hidden="true"></span>
+      <span><span class="vellum-kbd">Esc</span> Leave</span>
     </div>
   </div>
 
@@ -115,6 +121,123 @@
   <script src="TemplateData/shell-chrome.js"></script>
   <script src="TemplateData/shell-chat.js"></script>
   <script src="TemplateData/shell-pins.js"></script>
+  <script>
+    // Early auth-handoff queue (#247): accept dashboard tokens before Unity
+    // finishes loading, then flush once unityInstance + GameObject exist.
+    (function () {
+      window._vellumPendingAuth = window._vellumPendingAuth || null;
+      window._vellumAuthDelivered = !!window._vellumAuthDelivered;
+
+      function trustedOrigin(origin) {
+        if (!origin) return false;
+        if (origin === window.location.origin) return true;
+        try {
+          var o = new URL(origin);
+          var here = new URL(window.location.href);
+          if (o.hostname === here.hostname) return true;
+          if (o.hostname.endsWith(".memphis.edu") && here.hostname.endsWith(".memphis.edu"))
+            return true;
+        } catch (e) { /* ignore */ }
+        var allow = window.VELLUM_AUTH_HANDOFF_ORIGINS || "";
+        if (typeof allow === "string" && allow.length) {
+          return allow.split(",").some(function (p) { return p.trim() === origin; });
+        }
+        return false;
+      }
+
+      function ack() {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: "vellum-rift-auth-handoff-ack" }, "*");
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function tryDeliver() {
+        if (window._vellumAuthDelivered || !window._vellumPendingAuth) return false;
+        var target = window._vellumAuthGameObject;
+        if (!target) return false;
+        var json = JSON.stringify(window._vellumPendingAuth);
+        var sent = false;
+        try {
+          if (window.unityInstance && window.unityInstance.SendMessage) {
+            window.unityInstance.SendMessage(target, "OnBluekeyTokenReceived", json);
+            sent = true;
+          }
+        } catch (e) { /* ignore */ }
+        if (!sent) return false;
+        window._vellumAuthDelivered = true;
+        window._vellumPendingAuth = null;
+        ack();
+        console.log("[VellumRift] Early-queued auth token delivered to Unity");
+        return true;
+      }
+
+      window.addEventListener("message", function (event) {
+        var data = event.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type !== "vellum-rift-auth-handoff") return;
+        if (window._vellumAuthDelivered) return;
+        if (!trustedOrigin(event.origin)) {
+          console.warn("[VellumRift] Ignoring early auth handoff from " + event.origin);
+          return;
+        }
+        if (!data.accessToken) return;
+        window._vellumPendingAuth = {
+          accessToken: data.accessToken,
+          email: data.email || "",
+        };
+        if (!tryDeliver()) {
+          console.log("[VellumRift] Auth handoff queued (Unity not ready yet)");
+        }
+      });
+
+      // Ask the opener to (re)send as soon as this page can listen.
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: "vellum-rift-webgl-ready" }, "*");
+        }
+      } catch (e) { /* ignore */ }
+
+      // Same-tab / opener-less fallback: token already in sessionStorage (#254).
+      (function trySessionStorageAuth() {
+        if (window._vellumAuthDelivered || window._vellumPendingAuth) return;
+        try {
+          var token = sessionStorage.getItem("vellum_rift_access_token");
+          if (!token || token === "local-dev") return;
+          window._vellumPendingAuth = {
+            accessToken: token,
+            email: sessionStorage.getItem("vellum_rift_user_email") || "",
+          };
+          console.log("[VellumRift] Auth queued from sessionStorage (same-tab / no opener)");
+        } catch (e) { /* ignore */ }
+      })();
+
+      // Cross-window same-origin handoff when opener is missing (#254).
+      try {
+        var bc = new BroadcastChannel("vellum-rift-auth");
+        bc.onmessage = function (ev) {
+          var data = ev && ev.data;
+          if (!data || typeof data !== "object") return;
+          if (data.type !== "vellum-rift-auth-handoff") return;
+          if (window._vellumAuthDelivered) return;
+          if (!data.accessToken) return;
+          window._vellumPendingAuth = {
+            accessToken: data.accessToken,
+            email: data.email || "",
+          };
+          tryDeliver();
+        };
+      } catch (e) { /* BroadcastChannel unavailable */ }
+
+      var flushTimer = window.setInterval(function () {
+        if (tryDeliver() || window._vellumAuthDelivered) {
+          window.clearInterval(flushTimer);
+        }
+      }, 300);
+      window.setTimeout(function () { window.clearInterval(flushTimer); }, 90000);
+    })();
+  </script>
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
@@ -207,6 +330,11 @@
           window.unityInstance = instance;
           document.querySelector("#unity-loading-bar").style.display = "none";
           layoutCanvas();
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({ type: "vellum-rift-webgl-ready" }, "*");
+            }
+          } catch (e) { /* ignore */ }
         }).catch(function (message) {
           unityShowBanner(message, "error");
         });

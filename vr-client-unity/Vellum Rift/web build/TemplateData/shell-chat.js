@@ -65,7 +65,7 @@
         var m = messages[i];
         var isMine = m.playerId === mine;
         var meta = formatTime(m.sentAt);
-        if (!isMine && !m.system && m.displayName) meta += " · " + m.displayName;
+        if (!isMine && !m.system && m.displayName) meta += " · " + escapeHtml(m.displayName);
         var bubbleClass = "vellum-chat-bubble";
         if (isMine) bubbleClass += " vellum-chat-bubble--mine";
         if (m.system) bubbleClass += " vellum-chat-bubble--system";

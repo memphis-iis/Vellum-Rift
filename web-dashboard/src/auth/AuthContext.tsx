@@ -15,6 +15,7 @@ import {
   BLUEKEY_SOFTWARE_ID,
   EMAIL_STORAGE_KEY,
   TOKEN_STORAGE_KEY,
+  isKioskAccessToken,
 } from "./config";
 
 export type AuthUser = {
@@ -47,14 +48,72 @@ const ACCEPTED_MESSAGE_TYPES = new Set([
   "auth-success",
 ]);
 
+function clearStoredAuth(): void {
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(EMAIL_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Bluekey catalog / redirect SSO appends ?access_token= (and sometimes email).
+ * Popup SSO uses postMessage instead; both must land in sessionStorage.
+ */
+function consumeUrlAccessToken(): { token: string; email: string } | null {
+  try {
+    const url = new URL(window.location.href);
+    const token =
+      url.searchParams.get("access_token")?.trim() ||
+      url.searchParams.get("accessToken")?.trim() ||
+      "";
+    if (!token || token === "local-dev") return null;
+    const email =
+      url.searchParams.get("email")?.trim() ||
+      sessionStorage.getItem(EMAIL_STORAGE_KEY) ||
+      "";
+    url.searchParams.delete("access_token");
+    url.searchParams.delete("accessToken");
+    url.searchParams.delete("email");
+    const cleaned = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, document.title, cleaned || url.pathname);
+    return { token, email };
+  } catch {
+    return null;
+  }
+}
+
 function readStoredUser(): AuthUser | null {
   try {
+    const fromUrl = consumeUrlAccessToken();
+    if (fromUrl) {
+      // Kiosk JWTs must stay available for API/WebGL but never unlock the host shell (#249).
+      if (isKioskAccessToken(fromUrl.token)) {
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, fromUrl.token);
+        return null;
+      }
+      sessionStorage.setItem(TOKEN_STORAGE_KEY, fromUrl.token);
+      if (fromUrl.email) sessionStorage.setItem(EMAIL_STORAGE_KEY, fromUrl.email);
+      return {
+        email: fromUrl.email || "signed-in@memphis.edu",
+        accessToken: fromUrl.token,
+        isLocalDev: false,
+      };
+    }
+
     const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
     const email = sessionStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
+    // Production AUTH_REQUIRED: never treat local-dev as signed in (no Bearer → 401).
     if (token === "local-dev") {
+      if (AUTH_REQUIRED) {
+        clearStoredAuth();
+        return null;
+      }
       return { email: email || "dev@memphis.edu", accessToken: null, isLocalDev: true };
     }
     if (token) {
+      if (isKioskAccessToken(token)) return null;
       return { email, accessToken: token, isLocalDev: false };
     }
   } catch {
@@ -123,6 +182,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handledRef = useRef(false);
 
   const completeLogin = useCallback((accessToken: string, email: string) => {
+    if (isKioskAccessToken(accessToken)) {
+      // Keep guest token for API calls; do not treat as Bluekey session (#249).
+      try {
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+      } catch {
+        /* ignore */
+      }
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     const next: AuthUser = {
       email: email || "signed-in@memphis.edu",
       accessToken,
@@ -168,6 +238,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const continueAsLocalDev = useCallback(() => {
+    if (AUTH_REQUIRED) {
+      setError("Local developer skip is disabled on this deployment. Sign in with Bluekey.");
+      return;
+    }
     const next: AuthUser = {
       email: "dev@memphis.edu",
       accessToken: null,

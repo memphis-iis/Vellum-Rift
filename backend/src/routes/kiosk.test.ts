@@ -36,7 +36,7 @@ const MODEL_A = "11111111-1111-1111-1111-111111111111";
 
 function sessionRow(overrides: Record<string, unknown> = {}) {
   return {
-    session_id: "session-1",
+    session_id: "1c2f58a3-6b29-40ff-b38d-141bd95e6e31",
     label: "Museum room",
     host_id: "player-host",
     players: [
@@ -153,7 +153,7 @@ describe("Kiosk public join (#145)", () => {
     expect(res.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          sessionId: "session-1",
+          sessionId: "1c2f58a3-6b29-40ff-b38d-141bd95e6e31",
           visibility: "public",
           kind: "event",
           kioskEnabled: true,
@@ -170,24 +170,34 @@ describe("Kiosk public join (#145)", () => {
     expect(res.body.find((e: { sessionId: string }) => e.sessionId === "private-explore")).toBeUndefined();
   });
 
+  it("returns 404 for malformed Space IDs instead of 500 (#250)", async () => {
+    const status = await request(app).get("/api/kiosk/not-a-uuid/status");
+    expect(status.status).toBe(404);
+    expect(status.body.error).toMatch(/Space not found/i);
+
+    const token = await request(app).post("/api/kiosk/not-a-uuid/token");
+    expect(token.status).toBe(404);
+    expect(token.body.error).toMatch(/Space not found/i);
+  });
+
   it("status returns 403 when kiosk is off", async () => {
     savedMetadata = { playlist: [MODEL_A] };
-    const res = await request(app).get("/api/kiosk/session-1/status");
+    const res = await request(app).get("/api/kiosk/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/status");
     expect(res.status).toBe(403);
     expect(res.body.kioskEnabled).toBe(false);
   });
 
   it("mints a token when kiosk is enabled", async () => {
-    const res = await request(app).post("/api/kiosk/session-1/token");
+    const res = await request(app).post("/api/kiosk/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/token");
     expect(res.status).toBe(201);
     expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.sessionId).toBe("session-1");
-    expect(verifyKioskToken(res.body.accessToken)?.sessionId).toBe("session-1");
+    expect(res.body.sessionId).toBe("1c2f58a3-6b29-40ff-b38d-141bd95e6e31");
+    expect(verifyKioskToken(res.body.accessToken)?.sessionId).toBe("1c2f58a3-6b29-40ff-b38d-141bd95e6e31");
   });
 
   it("host can toggle kioskEnabled", async () => {
     const res = await request(app)
-      .patch("/api/game-state/session-1/kiosk")
+      .patch("/api/game-state/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/kiosk")
       .send({ enabled: false });
     expect(res.status).toBe(200);
     expect(res.body.kioskEnabled).toBe(false);
@@ -195,7 +205,7 @@ describe("Kiosk public join (#145)", () => {
   });
 
   it("guest with kiosk token can read private kiosk session and join as Guest", async () => {
-    const tokenRes = await request(app).post("/api/kiosk/session-1/token");
+    const tokenRes = await request(app).post("/api/kiosk/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/token");
     const token = tokenRes.body.accessToken as string;
 
     const kioskApp = express();
@@ -204,13 +214,13 @@ describe("Kiosk public join (#145)", () => {
     kioskApp.use("/api/game-state", requireAuthOrKiosk, gameStateRouter);
 
     const getRes = await request(kioskApp)
-      .get("/api/game-state/session-1")
+      .get("/api/game-state/1c2f58a3-6b29-40ff-b38d-141bd95e6e31")
       .set("Authorization", `Bearer ${token}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body.kioskEnabled).toBe(true);
 
     const joinRes = await request(kioskApp)
-      .post("/api/game-state/session-1/players")
+      .post("/api/game-state/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/players")
       .set("Authorization", `Bearer ${token}`)
       .send({ displayName: "Visitor", isHost: true });
     expect(joinRes.status).toBe(201);
@@ -220,7 +230,7 @@ describe("Kiosk public join (#145)", () => {
   });
 
   it("kiosk guest cannot patch playlist", async () => {
-    const tokenRes = await request(app).post("/api/kiosk/session-1/token");
+    const tokenRes = await request(app).post("/api/kiosk/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/token");
     const token = tokenRes.body.accessToken as string;
 
     const kioskApp = express();
@@ -228,7 +238,7 @@ describe("Kiosk public join (#145)", () => {
     kioskApp.use("/api/game-state", requireAuthOrKiosk, gameStateRouter);
 
     const res = await request(kioskApp)
-      .patch("/api/game-state/session-1/playlist")
+      .patch("/api/game-state/1c2f58a3-6b29-40ff-b38d-141bd95e6e31/playlist")
       .set("Authorization", `Bearer ${token}`)
       .send({ append: MODEL_A });
     expect(res.status).toBe(403);
@@ -240,7 +250,7 @@ describe("Kiosk public join (#145)", () => {
     kioskApp.use(express.json());
     kioskApp.use("/api/game-state", requireAuthOrKiosk, gameStateRouter);
 
-    const res = await request(kioskApp).get("/api/game-state/session-1");
+    const res = await request(kioskApp).get("/api/game-state/1c2f58a3-6b29-40ff-b38d-141bd95e6e31");
     expect(res.status).toBe(401);
   });
 });
