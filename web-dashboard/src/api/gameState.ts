@@ -101,7 +101,13 @@ export async function fetchChat(sessionId: string): Promise<ChatMessage[]> {
   const data = await request<{ messages: ChatMessage[] }>(
     `/api/game-state/${encodeURIComponent(sessionId)}/chat`,
   );
-  return data.messages ?? [];
+  const messages = data.messages ?? [];
+  return messages.slice().sort((a, b) => {
+    const ta = Date.parse(a.sentAt) || 0;
+    const tb = Date.parse(b.sentAt) || 0;
+    if (ta !== tb) return ta - tb;
+    return 0;
+  });
 }
 
 export async function postChat(

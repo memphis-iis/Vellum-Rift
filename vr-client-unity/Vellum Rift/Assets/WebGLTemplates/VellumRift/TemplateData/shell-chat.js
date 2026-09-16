@@ -52,10 +52,21 @@
     if (send) send.disabled = !ready;
   }
 
+  function sortMessages(messages) {
+    if (!messages || !messages.length) return [];
+    return messages.slice().sort(function (a, b) {
+      var ta = Date.parse(a && a.sentAt) || 0;
+      var tb = Date.parse(b && b.sentAt) || 0;
+      if (ta !== tb) return ta - tb;
+      return 0;
+    });
+  }
+
   function renderMessages(messages) {
     var log = $("vellum-chat-log");
     if (!log || !state) return;
 
+    messages = sortMessages(messages);
     var mine = state.playerId;
     var html = "";
     if (!messages || !messages.length) {

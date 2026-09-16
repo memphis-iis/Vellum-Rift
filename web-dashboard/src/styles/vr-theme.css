@@ -2003,7 +2003,7 @@ button.vr-docs__row--model:hover {
 
 .vr-sessions__panel {
   border-radius: 0.5rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 25%, transparent);
   background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
   backdrop-filter: blur(24px);
@@ -2149,12 +2149,17 @@ button.vr-docs__row--model:hover {
 .vr-sessions__actions {
   display: flex;
   justify-content: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
   .vr-sessions__actions {
     justify-content: flex-end;
+    width: auto;
   }
 }
 
@@ -2177,19 +2182,38 @@ button.vr-docs__row--model:hover {
 
 .vr-sessions__menu {
   position: relative;
+  z-index: 30;
 }
 
 .vr-sessions__menu-pop {
   position: absolute;
   right: 0;
   top: calc(100% + 0.25rem);
-  z-index: 20;
-  min-width: 9rem;
+  z-index: 80;
+  min-width: 11rem;
   padding: 0.35rem;
   border-radius: 0.25rem;
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
   background: #0a0a0a;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 767px) {
+  .vr-sessions__actions {
+    margin-top: 0.15rem;
+  }
+
+  .vr-sessions__launch {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+
+  .vr-sessions__menu-pop {
+    left: 0;
+    right: auto;
+    min-width: min(16rem, calc(100vw - 2rem));
+  }
 }
 
 .vr-sessions__menu-pop button {

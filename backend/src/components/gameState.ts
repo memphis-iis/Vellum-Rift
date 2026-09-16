@@ -215,11 +215,19 @@ export class GameState {
     return message;
   }
 
-  /** Return chat messages for this session, oldest first. */
+  /** Return chat messages for this session, oldest first (#252). */
   getChatMessages(): ChatMessageState[] {
     const raw = this.metadata[CHAT_MESSAGES_KEY];
     if (!Array.isArray(raw)) return [];
-    return raw as ChatMessageState[];
+    const messages = [...(raw as ChatMessageState[])];
+    messages.sort((a, b) => {
+      const ta = Date.parse(String(a?.sentAt ?? "")) || 0;
+      const tb = Date.parse(String(b?.sentAt ?? "")) || 0;
+      if (ta !== tb) return ta - tb;
+      // Equal timestamps: keep array order (stable sort) so join→chat stays sequential.
+      return 0;
+    });
+    return messages;
   }
 
   /**

@@ -9,6 +9,16 @@ function formatTime(iso: string): string {
   return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+/** Stable chronological order for poll/render (#252). */
+function sortChatMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.slice().sort((a, b) => {
+    const ta = Date.parse(a.sentAt) || 0;
+    const tb = Date.parse(b.sentAt) || 0;
+    if (ta !== tb) return ta - tb;
+    return 0;
+  });
+}
+
 type SpaceChatPanelProps = {
   messages: ChatMessage[];
   me: LocalIdentity | null;
@@ -43,6 +53,7 @@ export function SpaceChatPanel({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const seenCountRef = useRef(messages.length);
   const [unread, setUnread] = useState(0);
+  const ordered = sortChatMessages(messages);
 
   useEffect(() => {
     if (!collapsible) return;
@@ -114,10 +125,10 @@ export function SpaceChatPanel({
         ) : null}
       </div>
       <div className="vr-enter__chat-log">
-        {messages.length === 0 ? (
+        {ordered.length === 0 ? (
           <p className="vr-enter__chat-empty">No messages yet. Say hello to the room.</p>
         ) : (
-          messages.map((m) => {
+          ordered.map((m) => {
             const mine = m.playerId === me?.playerId;
             return (
               <div

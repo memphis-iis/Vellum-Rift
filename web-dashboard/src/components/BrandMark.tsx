@@ -1,7 +1,14 @@
+/** Public assets under Vite `base` (IIS: `/static/vellum-dashboard/`). */
+function publicAsset(file: string): string {
+  const base = import.meta.env.BASE_URL || "/";
+  const joined = `${base.endsWith("/") ? base : `${base}/`}${file.replace(/^\//, "")}`;
+  return joined.replace(/([^:]\/)\/+/g, "$1");
+}
+
 /** Local transparent assets (Black plate removed from Bluekey catalog PNG). */
-export const VELLUM_LOGO_URL = "/vellumrift-logo.png";
+export const VELLUM_LOGO_URL = publicAsset("vellumrift-logo.png");
 /** Emblem only (no baked wordmark) — header / compact lockups */
-export const VELLUM_MARK_URL = "/vellumrift-mark.png";
+export const VELLUM_MARK_URL = publicAsset("vellumrift-mark.png");
 
 type BrandMarkProps = {
   /** Full stacked logo vs emblem-only */
@@ -28,6 +35,17 @@ export function BrandMark({ variant = "mark", className = "", size = "md" }: Bra
         alt="Vellum Rift"
         height={h}
         decoding="async"
+        onError={(e) => {
+          const img = e.currentTarget;
+          img.style.display = "none";
+          const parent = img.parentElement;
+          if (parent && !parent.querySelector(".vr-brand__fallback")) {
+            const fallback = document.createElement("span");
+            fallback.className = "vr-brand__fallback";
+            fallback.textContent = "Vellum Rift";
+            parent.appendChild(fallback);
+          }
+        }}
       />
     </div>
   );
