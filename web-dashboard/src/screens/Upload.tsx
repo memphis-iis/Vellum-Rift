@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { fetchJob, uploadManuscript, type JobStatus } from "../api/upload";
+import { fetchLibrary, listFolderOptions } from "../api/library";
 
 type LocalJob = {
   id: string;
@@ -77,6 +78,39 @@ export default function Upload({ onViewModel }: UploadProps) {
   const [uploading, setUploading] = useState(false);
   const [page, setPage] = useState(1);
   const [title, setTitle] = useState("");
+  const [folderId, setFolderId] = useState("");
+  const [folderOptions, setFolderOptions] = useState<
+    Array<{ folderId: string; label: string }>
+  >([]);
+  const [foldersLoading, setFoldersLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setFoldersLoading(true);
+      try {
+        const library = await fetchLibrary();
+        const options = await listFolderOptions(library.rootFolderId);
+        if (cancelled) return;
+        setFolderOptions(options);
+        setFolderId((prev) =>
+          prev && options.some((o) => o.folderId === prev)
+            ? prev
+            : library.uploadsFolderId,
+        );
+      } catch {
+        if (!cancelled) {
+          setFolderOptions([]);
+          setFolderId("");
+        }
+      } finally {
+        if (!cancelled) setFoldersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const upsertJob = useCallback((job: LocalJob) => {
     setJobs((prev) => {
@@ -123,6 +157,7 @@ export default function Upload({ onViewModel }: UploadProps) {
         const opts = {
           label,
           ...(isPdf(file) ? { page: pageToProcess } : {}),
+          ...(folderId.trim() ? { folderId: folderId.trim() } : {}),
         };
         const res = await uploadManuscript(file, opts);
         const jobId = res.jobId;
@@ -228,6 +263,35 @@ export default function Upload({ onViewModel }: UploadProps) {
         </label>
         <p className="vr-upload__page-hint">
           For multi-page PDFs, choose which page to extract. Raster images ignore this setting.
+        </p>
+
+        <label className="vr-upload__title-field" htmlFor="vr-upload-folder">
+          <span className="vr-upload__page-label">
+            <MaterialIcon name="folder" />
+            Where should this land?
+          </span>
+          <select
+            id="vr-upload-folder"
+            className="vr-upload__title-input"
+            value={folderId}
+            disabled={uploading || foldersLoading || !folderOptions.length}
+            onChange={(e) => setFolderId(e.target.value)}
+          >
+            {foldersLoading ? (
+              <option value="">Loading folders…</option>
+            ) : folderOptions.length ? (
+              folderOptions.map((opt) => (
+                <option key={opt.folderId} value={opt.folderId}>
+                  {opt.label}
+                </option>
+              ))
+            ) : (
+              <option value="">Uploads (default)</option>
+            )}
+          </select>
+        </label>
+        <p className="vr-upload__page-hint">
+          Defaults to your Uploads folder. You can move manuscripts later from the library.
         </p>
       </section>
 

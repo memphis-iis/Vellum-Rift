@@ -103,6 +103,28 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       return;
     }
 
+    let folderId: string | null =
+      typeof req.body.folderId === "string" && req.body.folderId.trim()
+        ? req.body.folderId.trim()
+        : null;
+    const ownerSub = req.user?.sub?.trim() || null;
+    if (ownerSub) {
+      const { LibraryRepository } = await import("../lib/libraryRepository.js");
+      const { resolveFolderAccess, canEdit } = await import("../lib/libraryAccess.js");
+      const libRepo = new LibraryRepository();
+      const library = await libRepo.getOrCreateLibrary(ownerSub, req.user?.email ?? "");
+      if (!folderId) {
+        folderId = library.uploadsFolderId;
+      } else {
+        const access = await resolveFolderAccess(folderId, req.user);
+        if (!access.folder || !canEdit(access.level)) {
+          await storage.remove(uploadKey);
+          res.status(403).json({ error: "Cannot upload into that folder" });
+          return;
+        }
+      }
+    }
+
     const jobId = await jobQueue.enqueueUpload({
       uploadKey,
       fileType,
@@ -111,6 +133,8 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       page,
       sessionId: req.body.sessionId ?? null,
       label: req.body.label ?? file.originalname,
+      ownerSub,
+      folderId,
     });
 
     // -- Respond immediately -------------------------------------------------

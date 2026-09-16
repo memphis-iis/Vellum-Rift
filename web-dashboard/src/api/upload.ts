@@ -31,6 +31,8 @@ export type UploadOptions = {
   page?: number;
   /** Human-readable document title stored on the job/model. */
   label?: string;
+  /** Destination library folder; defaults to Uploads on the server. */
+  folderId?: string;
 };
 
 export async function uploadManuscript(
@@ -44,6 +46,9 @@ export async function uploadManuscript(
   }
   if (options.label != null && options.label.trim()) {
     body.append("label", options.label.trim());
+  }
+  if (options.folderId != null && options.folderId.trim()) {
+    body.append("folderId", options.folderId.trim());
   }
 
   const res = await fetch(`${API_BASE_URL}/api/upload`, {

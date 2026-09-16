@@ -7,6 +7,9 @@ import { detectFileType, MAX_UPLOAD_BYTES } from "./uploadValidation.js";
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   enqueueUpload: vi.fn(),
+  getOrCreateLibrary: vi.fn(),
+  resolveFolderAccess: vi.fn(),
+  canEdit: vi.fn(),
 }));
 
 vi.mock("../lib/storage.js", () => ({
@@ -20,15 +23,41 @@ vi.mock("../lib/jobQueue.js", () => ({
   JobQueue: class {},
 }));
 
+vi.mock("../lib/libraryRepository.js", () => ({
+  LibraryRepository: class {
+    getOrCreateLibrary = mocks.getOrCreateLibrary;
+  },
+}));
+
+vi.mock("../lib/libraryAccess.js", () => ({
+  resolveFolderAccess: (...args: unknown[]) => mocks.resolveFolderAccess(...args),
+  canEdit: (...args: unknown[]) => mocks.canEdit(...args),
+}));
+
 // Real magic bytes (content-based validation ignores the Content-Type header)
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const PDF_BYTES = Buffer.from("%PDF-1.7\n% fake minimal pdf\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
 
 import uploadRouter, { setJobQueue } from "./upload.js";
 
-const app = express();
-app.use(express.json());
-app.use("/api/upload", uploadRouter);
+const OWNER = { sub: "acct:owner", email: "owner@memphis.edu", exp: 9999999999 };
+const UPLOADS_ID = "33333333-3333-3333-3333-333333333333";
+const FOLDER_ID = "44444444-4444-4444-4444-444444444444";
+
+function buildApp(user?: typeof OWNER) {
+  const app = express();
+  app.use(express.json());
+  if (user) {
+    app.use((req, _res, next) => {
+      req.user = user;
+      next();
+    });
+  }
+  app.use("/api/upload", uploadRouter);
+  return app;
+}
+
+const app = buildApp();
 
 // Register a mock job queue so POST /upload doesn't 503
 setJobQueue({ enqueueUpload: mocks.enqueueUpload } as any);
@@ -37,6 +66,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.upload.mockResolvedValue(undefined);
   mocks.enqueueUpload.mockResolvedValue("test-job-id-0000-0000-0000-000000000001");
+  mocks.getOrCreateLibrary.mockResolvedValue({
+    libraryId: "lib-1",
+    uploadsFolderId: UPLOADS_ID,
+    rootFolderId: "root-1",
+  });
+  mocks.resolveFolderAccess.mockResolvedValue({
+    level: "edit",
+    folder: { folderId: FOLDER_ID },
+  });
+  mocks.canEdit.mockReturnValue(true);
 });
 
 // ---------------------------------------------------------------
@@ -196,6 +235,55 @@ describe("POST /api/upload", () => {
         label: "my-custom-label",
       }),
     );
+  });
+
+  it("defaults authenticated uploads to Uploads folder", async () => {
+    const authed = buildApp(OWNER);
+    const res = await request(authed)
+      .post("/api/upload")
+      .attach("file", PNG_BYTES, { filename: "page.png", contentType: "image/png" });
+
+    expect(res.status).toBe(202);
+    expect(mocks.getOrCreateLibrary).toHaveBeenCalledWith(OWNER.sub, OWNER.email);
+    expect(mocks.enqueueUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerSub: OWNER.sub,
+        folderId: UPLOADS_ID,
+      }),
+    );
+  });
+
+  it("passes folderId when caller may edit the destination", async () => {
+    const authed = buildApp(OWNER);
+    const res = await request(authed)
+      .post("/api/upload")
+      .field("folderId", FOLDER_ID)
+      .attach("file", PNG_BYTES, { filename: "page.png", contentType: "image/png" });
+
+    expect(res.status).toBe(202);
+    expect(mocks.resolveFolderAccess).toHaveBeenCalled();
+    expect(mocks.enqueueUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerSub: OWNER.sub,
+        folderId: FOLDER_ID,
+      }),
+    );
+  });
+
+  it("rejects folderId when ACL denies edit", async () => {
+    mocks.canEdit.mockReturnValue(false);
+    mocks.resolveFolderAccess.mockResolvedValue({
+      level: "view",
+      folder: { folderId: FOLDER_ID },
+    });
+    const authed = buildApp(OWNER);
+    const res = await request(authed)
+      .post("/api/upload")
+      .field("folderId", FOLDER_ID)
+      .attach("file", PNG_BYTES, { filename: "page.png", contentType: "image/png" });
+
+    expect(res.status).toBe(403);
+    expect(mocks.enqueueUpload).not.toHaveBeenCalled();
   });
 
   it("returns 503 when job queue is not initialized", async () => {

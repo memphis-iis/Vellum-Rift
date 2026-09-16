@@ -54,6 +54,8 @@ const sampleRecord: GlTFModelRecord = {
   vertexCount: sampleRow.vertex_count,
   fileSize: sampleRow.file_size,
   createdAt: sampleRow.created_at,
+  ownerSub: null,
+  folderId: null,
 };
 
 // ---------------------------------------------------------------------------

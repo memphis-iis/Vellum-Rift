@@ -38,6 +38,8 @@ export interface UploadJobPayload {
   page?: number;
   sessionId?: string | null;
   label?: string;
+  ownerSub?: string | null;
+  folderId?: string | null;
 }
 
 export type JobPayload =
@@ -362,6 +364,8 @@ export class JobQueue {
         height,
         vertexCount: mesh.vertices.length,
         fileSize: glbBuffer.length,
+        ownerSub: payload.ownerSub ?? null,
+        folderId: payload.folderId ?? null,
       });
 
       // Step 7: Link model to job (100%)
