@@ -37,6 +37,9 @@ namespace VellumRift
         private ScrollRect scrollRect;
         private GameObject staffCreateRoot;
 
+        /// <summary>1×1 white sprite so runtime Images paint (null sprite = no fill).</summary>
+        private static Sprite uiWhiteSprite;
+
         public Task<PickResult> PickAsync(
             GameStateApiClient client,
             string bannerMessage = "",
@@ -86,6 +89,7 @@ namespace VellumRift
         {
             if (!visible)
                 return;
+            ResumeUi();
             Debug.Log("[SpacesLobby] Auth succeeded — refreshing event list (signed-in)");
             guestPublicEvents = false;
             if (staffCreateRoot != null)
@@ -93,6 +97,22 @@ namespace VellumRift
             if (apiClient != null && !string.IsNullOrEmpty(ApiAuth.Token))
                 apiClient.SetAuthToken(ApiAuth.Token);
             _ = RefreshListAsync();
+        }
+
+        /// <summary>Hide Events canvas without canceling the pick (Bluekey staff path).</summary>
+        public void SuspendUi()
+        {
+            if (canvasGO != null)
+                canvasGO.SetActive(false);
+        }
+
+        /// <summary>Show Events canvas again after Bluekey dismiss / auth.</summary>
+        public void ResumeUi()
+        {
+            if (!visible || canvasGO == null)
+                return;
+            canvasGO.SetActive(true);
+            PlaceInFrontOfCamera();
         }
 
         private void LateUpdate()
@@ -130,11 +150,15 @@ namespace VellumRift
             canvasGO.transform.localScale = Vector3.one * VrTheme.LobbyWorldScale;
 
             GameObject panel = CreateUIObject("Panel", canvasGO.transform);
-            panel.AddComponent<Image>().color = VrTheme.GlassPanel;
+            var panelImg = panel.AddComponent<Image>();
+            panelImg.sprite = UiWhiteSprite();
+            panelImg.color = VrTheme.GlassPanel;
             StretchFull(panel.GetComponent<RectTransform>());
 
             GameObject rim = CreateUIObject("AccentRim", panel.transform);
-            rim.AddComponent<Image>().color = VrTheme.Accent;
+            var rimImg = rim.AddComponent<Image>();
+            rimImg.sprite = UiWhiteSprite();
+            rimImg.color = VrTheme.Accent;
             SetRect(rim.GetComponent<RectTransform>(), 0f, 0f, 0f, -4f);
 
             float y = -28f;
@@ -197,15 +221,17 @@ namespace VellumRift
             GameObject scrollGO = CreateUIObject("Scroll", panel.transform);
             SetRect(scrollGO.GetComponent<RectTransform>(), 48f, y, -48f, y - 360f);
             var scrollImg = scrollGO.AddComponent<Image>();
+            scrollImg.sprite = UiWhiteSprite();
             scrollImg.color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.9f);
             scrollRect = scrollGO.AddComponent<ScrollRect>();
             scrollRect.horizontal = false;
             scrollRect.vertical = true;
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
 
+            // RectMask2D — stencil Mask needs a real sprite; null-sprite Image clips
+            // all children while Buttons still receive raycasts (invisible but clickable).
             GameObject viewport = CreateUIObject("Viewport", scrollGO.transform);
-            viewport.AddComponent<Image>().color = Color.clear;
-            viewport.AddComponent<Mask>().showMaskGraphic = false;
+            viewport.AddComponent<RectMask2D>();
             StretchFull(viewport.GetComponent<RectTransform>());
 
             GameObject content = CreateUIObject("Content", viewport.transform);
@@ -317,6 +343,7 @@ namespace VellumRift
             le.preferredHeight = 80f;
 
             var img = row.AddComponent<Image>();
+            img.sprite = UiWhiteSprite();
             img.color = joinable
                 ? VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.95f)
                 : VrTheme.WithAlpha(VrTheme.SurfaceHigh, 0.55f);
@@ -579,6 +606,17 @@ namespace VellumRift
             tcs?.TrySetResult(result);
         }
 
+        private static Sprite UiWhiteSprite()
+        {
+            if (uiWhiteSprite != null)
+                return uiWhiteSprite;
+            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            tex.SetPixel(0, 0, Color.white);
+            tex.Apply(false, true);
+            uiWhiteSprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 100f);
+            return uiWhiteSprite;
+        }
+
         private static void StretchFull(RectTransform rt)
         {
             rt.anchorMin = Vector2.zero;
@@ -622,7 +660,9 @@ namespace VellumRift
         private static InputField CreateInput(Transform parent, string name, string placeholder, float left, float top, float right, float bottom)
         {
             GameObject go = CreateUIObject(name, parent);
-            go.AddComponent<Image>().color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.95f);
+            var bg = go.AddComponent<Image>();
+            bg.sprite = UiWhiteSprite();
+            bg.color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.95f);
             SetRect(go.GetComponent<RectTransform>(), left, top, right, bottom);
             Text text = CreateText("Text", go.transform, "", 18, TextAnchor.MiddleLeft, VrTheme.OnSurface);
             SetRect(text.rectTransform, 14f, -6f, -14f, 6f);
@@ -650,6 +690,7 @@ namespace VellumRift
         {
             GameObject go = CreateUIObject(name, parent);
             var img = go.AddComponent<Image>();
+            img.sprite = UiWhiteSprite();
             img.color = bg;
             if (absoluteRight)
             {
@@ -669,6 +710,7 @@ namespace VellumRift
             {
                 GameObject border = CreateUIObject("Border", go.transform);
                 var bImg = border.AddComponent<Image>();
+                bImg.sprite = UiWhiteSprite();
                 bImg.color = VrTheme.OutlineVariant;
                 bImg.raycastTarget = false;
                 var br = border.GetComponent<RectTransform>();

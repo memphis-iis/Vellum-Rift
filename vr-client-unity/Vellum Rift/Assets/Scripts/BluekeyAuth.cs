@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.XR;
 
 namespace VellumRift
 {
@@ -16,13 +18,16 @@ namespace VellumRift
     ///   3. Bluekey portal popup fallback
     ///
     /// Editor/standalone: museum-first — skip path picker, open public Events.
-    /// Staff Sign in from Events shows Bluekey-only UI. No token paste.
-    /// Tokens always land in <see cref="ApiAuth"/> via <see cref="SetToken"/>.
+    /// Staff Sign in from Events:
+    ///   - VR headset → email/password via Bluekey <c>POST /public/sso/login</c>
+    ///   - Flat desktop → open Bluekey portal in browser (dashboard parity)
+    /// Tokens land in <see cref="ApiAuth"/> via <see cref="SetToken"/>.
     /// </summary>
     public class BluekeyAuth : MonoBehaviour
     {
         public const string SoftwareId = "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
         public const string PortalUrl = "https://iis.memphis.edu/static/bluekey/";
+        public const string ApiBaseUrl = "https://iis.memphis.edu/apis/bluekey";
         public const string MuseumSpaceCliFlag = "-museumSpaceId";
         public const string MuseumSpaceEnvVar = "VELLUM_MUSEUM_KIOSK_SPACE_ID";
 
@@ -57,7 +62,10 @@ namespace VellumRift
         private bool showLobbyUi;
         private bool handoffWaitStarted;
         private bool guestBusy;
+        private bool passwordBusy;
         private BluekeyLoginLobby loginLobby;
+        private string imguiEmail = "";
+        private string imguiPassword = "";
 
         private const string JsonTokenField = "accessToken";
         private const string JsonEmailField = "email";
@@ -126,7 +134,10 @@ namespace VellumRift
             PendingGuestEventsLobby = false;
             showLobbyUi = false;
             statusText = "";
+            imguiEmail = "";
+            imguiPassword = "";
             guestBusy = false;
+            passwordBusy = false;
             HideLoginLobby();
 
             foreach (var client in FindObjectsByType<GameStateApiClient>(FindObjectsSortMode.None))
@@ -180,10 +191,12 @@ namespace VellumRift
             OpenBluekeyPopup(portalQuery, gameObject.name);
 #else
             showLobbyUi = true;
-            OpenBluekeyInBrowser();
-            statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
+            bool vr = IsVrActive();
+            statusText = vr
+                ? "Sign in with your Bluekey email and password."
+                : "Open Bluekey in your browser to sign in (same as the dashboard).";
             EnsureLobby();
-            loginLobby?.ShowBluekeyOnly(statusText);
+            loginLobby?.ShowBluekeyOnly(statusText, passwordForm: vr);
 #endif
         }
 
@@ -232,11 +245,15 @@ namespace VellumRift
 
             loginLobby.MuseumKioskSpaceId = ResolveMuseumKioskSpaceId();
             loginLobby.OnSignInWithBluekey -= HandleSignInWithBluekey;
+            loginLobby.OnSubmitCredentials -= HandleSubmitCredentials;
             loginLobby.OnGuestJoinSpaceId -= HandleGuestJoin;
             loginLobby.OnJoinExhibit -= HandleJoinExhibit;
+            loginLobby.OnBackToEvents -= HandleBackToEvents;
             loginLobby.OnSignInWithBluekey += HandleSignInWithBluekey;
+            loginLobby.OnSubmitCredentials += HandleSubmitCredentials;
             loginLobby.OnGuestJoinSpaceId += HandleGuestJoin;
             loginLobby.OnJoinExhibit += HandleJoinExhibit;
+            loginLobby.OnBackToEvents += HandleBackToEvents;
         }
 
         private void HideLoginLobby()
@@ -245,23 +262,190 @@ namespace VellumRift
                 loginLobby.Hide();
         }
 
-        /// <summary>Open Bluekey from Events lobby (staff path) without path picker.</summary>
+        /// <summary>Open Bluekey from Events lobby (staff path).</summary>
         public void BeginBluekeyFromEventsLobby()
         {
             PendingGuestEventsLobby = false;
             EnsureLobby();
-            OpenBluekeyInBrowser();
-            statusText = "Complete Bluekey in the browser. Events will refresh when sign-in finishes.";
-            loginLobby?.ShowBluekeyOnly(statusText);
+            // Events sorts above Login at the same world distance — hide it so
+            // the sign-in panel is not buried under the Events card.
+            FindObjectOfType<SpacesLobbyOverlay>()?.SuspendUi();
+            bool vr = IsVrActive();
+            statusText = vr
+                ? "Sign in with your Bluekey email and password."
+                : "Open Bluekey in your browser to sign in (same as the dashboard).";
+            loginLobby?.ShowBluekeyOnly(statusText, allowBackToEvents: true, passwordForm: vr);
             showLobbyUi = true;
-            Debug.Log("[BluekeyAuth] Bluekey from Events lobby");
+            Debug.Log($"[BluekeyAuth] Bluekey from Events lobby — vr={vr}");
+        }
+
+        private void HandleBackToEvents()
+        {
+            HideLoginLobby();
+            showLobbyUi = false;
+            FindObjectOfType<SpacesLobbyOverlay>()?.ResumeUi();
+            Debug.Log("[BluekeyAuth] Back to Events from Bluekey");
         }
 
         private void HandleSignInWithBluekey()
         {
             OpenBluekeyInBrowser();
-            statusText = "Complete Bluekey in the browser. This lobby continues when sign-in finishes.";
+            statusText = "Complete Bluekey in the browser. Return here when finished.";
             loginLobby?.SetStatus(statusText);
+        }
+
+        private void HandleSubmitCredentials(string email, string password)
+        {
+            if (passwordBusy)
+                return;
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                statusText = "Enter your Bluekey email and password.";
+                loginLobby?.SetStatus(statusText);
+                return;
+            }
+
+            StartCoroutine(PasswordLoginCoroutine(email.Trim(), password));
+        }
+
+        /// <summary>True when an XR display is running (headset), else flat desktop.</summary>
+        public static bool IsVrActive()
+        {
+            var displays = new List<XRDisplaySubsystem>();
+            SubsystemManager.GetSubsystems(displays);
+            for (int i = 0; i < displays.Count; i++)
+            {
+                if (displays[i] != null && displays[i].running)
+                    return true;
+            }
+#pragma warning disable CS0618
+            return XRSettings.isDeviceActive;
+#pragma warning restore CS0618
+        }
+
+        private IEnumerator PasswordLoginCoroutine(string email, string password)
+        {
+            passwordBusy = true;
+            statusText = "Signing in…";
+            loginLobby?.SetBusy(true);
+
+            string url = ApiBaseUrl.TrimEnd('/') + "/public/sso/login";
+            string body =
+                "{\"email\":\"" + EscapeJson(email) +
+                "\",\"password\":\"" + EscapeJson(password) +
+                "\",\"appUuid\":\"" + EscapeJson(SoftwareId) + "\"}";
+
+            using (var req = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST))
+            {
+                byte[] raw = Encoding.UTF8.GetBytes(body);
+                req.uploadHandler = new UploadHandlerRaw(raw);
+                req.downloadHandler = new DownloadHandlerBuffer();
+                req.SetRequestHeader("Accept", "application/json");
+                req.SetRequestHeader("Content-Type", "application/json");
+                yield return req.SendWebRequest();
+
+                passwordBusy = false;
+                string response = req.downloadHandler != null ? req.downloadHandler.text : "";
+                var payload = SimpleJson.ParseObject(response);
+
+                if (req.responseCode == 401 || req.responseCode == 400)
+                {
+                    string err = payload != null && payload.TryGetValue("error", out var e) ? e : "";
+                    statusText = MapBluekeyLoginError(err, "Email or password is incorrect.");
+                    loginLobby?.SetStatus(statusText);
+                    yield break;
+                }
+
+                if (req.responseCode == 403)
+                {
+                    string reason = payload != null && payload.TryGetValue("reason", out var r) ? r : "";
+                    if (reason == "no_active_key")
+                    {
+                        statusText =
+                            "Bluekey signed in but this account has no active key for Vellum Rift. Contact IIS admin.";
+                    }
+                    else
+                    {
+                        statusText = MapBluekeyLoginError(
+                            payload != null && payload.TryGetValue("error", out var e403) ? e403 : reason,
+                            "Not authorized for Vellum Rift.");
+                    }
+                    loginLobby?.SetStatus(statusText);
+                    yield break;
+                }
+
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    statusText = $"Sign-in failed ({req.responseCode}). Check network / Bluekey API.";
+                    loginLobby?.SetStatus(statusText);
+                    Debug.LogError($"[BluekeyAuth] SSO login failed: {req.error} body={response}");
+                    yield break;
+                }
+
+                string token = "";
+                string tokenEmail = email;
+                if (payload != null)
+                {
+                    if (payload.TryGetValue(JsonTokenField, out var t))
+                        token = t ?? "";
+                    if (payload.TryGetValue(JsonEmailField, out var em) && !string.IsNullOrEmpty(em))
+                        tokenEmail = em;
+                    if (payload.TryGetValue("authorized", out var auth) &&
+                        string.Equals(auth, "false", StringComparison.OrdinalIgnoreCase))
+                    {
+                        statusText =
+                            "Bluekey signed in but this account is not authorized for Vellum Rift (no active key).";
+                        loginLobby?.SetStatus(statusText);
+                        yield break;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    statusText = "Sign-in succeeded but no access token was returned.";
+                    loginLobby?.SetStatus(statusText);
+                    yield break;
+                }
+
+                SetToken(token, tokenEmail);
+                FindObjectOfType<SpacesLobbyOverlay>()?.ResumeUi();
+            }
+        }
+
+        private static string MapBluekeyLoginError(string code, string fallback)
+        {
+            if (string.IsNullOrEmpty(code))
+                return fallback;
+            switch (code)
+            {
+                case "invalid_credentials":
+                    return "Email or password is incorrect.";
+                case "totp_required":
+                    return "This account requires an authenticator code. Use Sign in with Bluekey in a browser, or disable TOTP for headset login.";
+                case "invalid_totp":
+                    return "Authenticator code is incorrect.";
+                case "account_inactive":
+                    return "This Bluekey account is inactive.";
+                case "email and password are required when no session exists":
+                case "email and password are required":
+                    return "Enter your Bluekey email and password.";
+                case "campus_ip_required":
+                    return "This app requires a campus network connection.";
+                default:
+                    return string.IsNullOrEmpty(code) ? fallback : code.Replace('_', ' ');
+            }
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return "";
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
         }
 
         private void HandleJoinExhibit()
@@ -536,8 +720,9 @@ namespace VellumRift
             if (loginLobby != null && loginLobby.IsVisible)
                 return;
 
-            float w = 420f;
-            float h = 220f;
+            bool vr = IsVrActive();
+            float w = 460f;
+            float h = vr ? 300f : 240f;
             float x = (Screen.width - w) * 0.5f;
             float y = (Screen.height - h) * 0.5f;
             GUI.Box(new Rect(x, y, w, h), "Vellum Rift");
@@ -546,8 +731,20 @@ namespace VellumRift
             if (!string.IsNullOrEmpty(statusText))
                 GUILayout.Label(statusText);
             GUILayout.Space(8);
-            if (GUILayout.Button("Open Bluekey", GUILayout.Height(32)))
+            if (vr)
+            {
+                GUILayout.Label("Email");
+                imguiEmail = GUILayout.TextField(imguiEmail ?? "", GUILayout.Height(24));
+                GUILayout.Label("Password");
+                imguiPassword = GUILayout.PasswordField(imguiPassword ?? "", '*', GUILayout.Height(24));
+                GUILayout.Space(8);
+                if (GUILayout.Button("Sign in", GUILayout.Height(32)))
+                    HandleSubmitCredentials(imguiEmail, imguiPassword);
+            }
+            else if (GUILayout.Button("Sign in with Bluekey", GUILayout.Height(32)))
+            {
                 HandleSignInWithBluekey();
+            }
             GUILayout.EndArea();
         }
 #endif

@@ -9,8 +9,10 @@ using UnityEngine.InputSystem.UI;
 namespace VellumRift
 {
     /// <summary>
-    /// World-space Login lobby (#224): Bluekey-only when staff signs in from
-    /// Events. Path picker is dead — museum guests go straight to public Events.
+    /// World-space Login lobby (#187 / #224): Bluekey-only when staff signs in
+    /// from Events. VR uses email/password (Bluekey SSO password grant); flat
+    /// desktop asks to open the Bluekey browser portal (dashboard parity).
+    /// Museum guests go straight to public Events.
     /// </summary>
     public class BluekeyLoginLobby : MonoBehaviour
     {
@@ -23,10 +25,14 @@ namespace VellumRift
         }
 
         public event Action OnSignInWithBluekey;
+        /// <summary>VR: email + password for Bluekey <c>POST /public/sso/login</c>.</summary>
+        public event Action<string, string> OnSubmitCredentials;
         /// <summary>Join exhibit → browse public events (no baked Space ID).</summary>
         public event Action OnJoinExhibit;
         /// <summary>Legacy: guest mint for a specific Space ID (optional Advanced).</summary>
         public event Action<string> OnGuestJoinSpaceId;
+        /// <summary>Staff Bluekey from Events — return without completing sign-in.</summary>
+        public event Action OnBackToEvents;
 
         /// <summary>Optional baked exhibit Space ID (Advanced one-tap).</summary>
         [SerializeField] private string museumKioskSpaceId = "";
@@ -34,9 +40,13 @@ namespace VellumRift
         private GameObject canvasGO;
         private Transform panelTransform;
         private Text statusText;
+        private InputField emailField;
+        private InputField passwordField;
         private bool visible;
         private Screen screen = Screen.Bluekey;
         private string statusMessage = "";
+        private bool allowBackToEvents;
+        private bool passwordForm;
 
         public bool IsVisible => visible;
 
@@ -59,11 +69,20 @@ namespace VellumRift
             visible = true;
             PlaceInFrontOfCamera();
             EnsureEventSystem();
+            FocusPrimaryField();
         }
 
-        /// <summary>Staff sign-in only — no path picker / Join exhibit screens.</summary>
-        public void ShowBluekeyOnly(string status = "")
+        /// <summary>
+        /// Staff sign-in. <paramref name="passwordForm"/> true → VR email/password;
+        /// false → ask to open Bluekey in the browser (dashboard parity).
+        /// </summary>
+        public void ShowBluekeyOnly(
+            string status = "",
+            bool allowBackToEvents = false,
+            bool passwordForm = false)
         {
+            this.allowBackToEvents = allowBackToEvents;
+            this.passwordForm = passwordForm;
             Show(status);
         }
 
@@ -72,6 +91,9 @@ namespace VellumRift
             if (canvasGO != null)
                 canvasGO.SetActive(false);
             visible = false;
+            allowBackToEvents = false;
+            emailField = null;
+            passwordField = null;
         }
 
         public void SetStatus(string status)
@@ -86,6 +108,29 @@ namespace VellumRift
         {
             if (busy)
                 SetStatus("Working…");
+        }
+
+        private void FocusPrimaryField()
+        {
+            InputField field = emailField ?? passwordField;
+            if (field == null)
+                return;
+            field.Select();
+            field.ActivateInputField();
+#if !UNITY_EDITOR && (UNITY_ANDROID || UNITY_IOS || UNITY_WSA || UNITY_GAMECORE || UNITY_PS4 || UNITY_PS5 || UNITY_SWITCH || UNITY_XBOXONE)
+            if (TouchScreenKeyboard.isSupported && !TouchScreenKeyboard.visible)
+            {
+                field.shouldHideMobileInput = false;
+                TouchScreenKeyboard.Open(
+                    field.text ?? "",
+                    field.contentType == InputField.ContentType.EmailAddress
+                        ? TouchScreenKeyboardType.EmailAddress
+                        : TouchScreenKeyboardType.Default,
+                    false,
+                    false,
+                    field.contentType == InputField.ContentType.Password);
+            }
+#endif
         }
 
         private void LateUpdate()
@@ -115,7 +160,8 @@ namespace VellumRift
             canvasGO.transform.SetParent(transform, false);
             var canvas = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
-            canvas.sortingOrder = 100;
+            // Above SpacesLobbyOverlay (110) if both ever show at once.
+            canvas.sortingOrder = 120;
             canvasGO.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = 10f;
             canvasGO.AddComponent<GraphicRaycaster>();
 
@@ -152,6 +198,8 @@ namespace VellumRift
             }
 
             statusText = null;
+            emailField = null;
+            passwordField = null;
             float y = -28f;
 
             Text brand = CreateText("Brand", panelTransform, "VELLUM RIFT", 34, TextAnchor.UpperCenter, VrTheme.Accent);
@@ -181,7 +229,7 @@ namespace VellumRift
             if (canvasGO != null)
             {
                 var canvasRect = canvasGO.GetComponent<RectTransform>();
-                canvasRect.sizeDelta = new Vector2(840f, Mathf.Clamp(used, 420f, 640f));
+                canvasRect.sizeDelta = new Vector2(840f, Mathf.Clamp(used, 480f, 720f));
             }
         }
 
@@ -247,21 +295,50 @@ namespace VellumRift
             SetRect(title.rectTransform, 48f, y, -48f, y - 36f);
             y -= 48f;
 
+            if (passwordForm)
+                y = BuildVrPasswordForm(y);
+            else
+                y = BuildDesktopBrowserAsk(y);
+
+            if (allowBackToEvents)
+            {
+                CreateButton(
+                    panelTransform,
+                    "BackEventsBtn",
+                    "Back to events",
+                    VrTheme.SurfaceHighest,
+                    VrTheme.OnSurface,
+                    48f,
+                    y,
+                    -48f,
+                    y - VrTheme.MinHitHeightPx,
+                    () => OnBackToEvents?.Invoke(),
+                    outline: true);
+                y -= VrTheme.MinHitHeightPx + 16f;
+            }
+
+            y -= 8f;
+            return y;
+        }
+
+        /// <summary>Desktop / non-VR: same path as dashboard — open Bluekey portal in a browser.</summary>
+        private float BuildDesktopBrowserAsk(float y)
+        {
             Text hint = CreateText(
                 "Hint",
                 panelTransform,
-                "Opens Bluekey in the browser. Return here when finished — no token paste.",
+                "Have an IIS Bluekey account? Open Bluekey in your browser to sign in — same as the Vellum Rift dashboard.",
                 18,
                 TextAnchor.UpperLeft,
                 VrTheme.OnSurfaceVariant);
             hint.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(hint.rectTransform, 48f, y, -48f, y - 56f);
-            y -= 68f;
+            SetRect(hint.rectTransform, 48f, y, -48f, y - 72f);
+            y -= 84f;
 
             CreateButton(
                 panelTransform,
                 "OpenBluekeyBtn",
-                "Open Bluekey",
+                "Sign in with Bluekey",
                 VrTheme.Accent,
                 VrTheme.OnAccent,
                 48f,
@@ -269,8 +346,103 @@ namespace VellumRift
                 -48f,
                 y - VrTheme.MinHitHeightPx,
                 () => OnSignInWithBluekey?.Invoke());
-            y -= VrTheme.MinHitHeightPx + 24f;
+            y -= VrTheme.MinHitHeightPx + 16f;
             return y;
+        }
+
+        /// <summary>VR: email + password → Bluekey SSO password grant (no browser).</summary>
+        private float BuildVrPasswordForm(float y)
+        {
+            Text hint = CreateText(
+                "Hint",
+                panelTransform,
+                "Sign in with your Bluekey email and password.",
+                18,
+                TextAnchor.UpperLeft,
+                VrTheme.OnSurfaceVariant);
+            hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(hint.rectTransform, 48f, y, -48f, y - 44f);
+            y -= 52f;
+
+            emailField = CreateInput(
+                panelTransform,
+                "EmailField",
+                "Email",
+                48f,
+                y,
+                -48f,
+                y - 48f);
+            emailField.contentType = InputField.ContentType.EmailAddress;
+            y -= 56f;
+
+            passwordField = CreateInput(
+                panelTransform,
+                "PasswordField",
+                "Password",
+                48f,
+                y,
+                -48f,
+                y - 48f);
+            passwordField.contentType = InputField.ContentType.Password;
+            passwordField.onSubmit.AddListener(_ => SubmitCredentials());
+            y -= 60f;
+
+            CreateButton(
+                panelTransform,
+                "SignInBtn",
+                "Sign in",
+                VrTheme.Accent,
+                VrTheme.OnAccent,
+                48f,
+                y,
+                -48f,
+                y - VrTheme.MinHitHeightPx,
+                SubmitCredentials);
+            y -= VrTheme.MinHitHeightPx + 16f;
+            return y;
+        }
+
+        private void SubmitCredentials()
+        {
+            string email = emailField != null ? emailField.text : "";
+            string password = passwordField != null ? passwordField.text : "";
+            OnSubmitCredentials?.Invoke(email, password);
+        }
+
+        private static InputField CreateInput(
+            Transform parent,
+            string name,
+            string placeholder,
+            float left,
+            float top,
+            float right,
+            float bottom)
+        {
+            GameObject go = CreateUIObject(name, parent);
+            var bg = go.AddComponent<Image>();
+            bg.color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.95f);
+            SetRect(go.GetComponent<RectTransform>(), left, top, right, bottom);
+
+            Text text = CreateText("Text", go.transform, "", 18, TextAnchor.MiddleLeft, VrTheme.OnSurface);
+            SetRect(text.rectTransform, 14f, -6f, -14f, 6f);
+            text.supportRichText = false;
+            text.raycastTarget = false;
+
+            Text ph = CreateText(
+                "Placeholder",
+                go.transform,
+                placeholder,
+                18,
+                TextAnchor.MiddleLeft,
+                VrTheme.OnSurfaceVariant);
+            SetRect(ph.rectTransform, 14f, -6f, -14f, 6f);
+
+            var field = go.AddComponent<InputField>();
+            field.textComponent = text;
+            field.placeholder = ph;
+            field.lineType = InputField.LineType.SingleLine;
+            field.shouldHideMobileInput = false;
+            return field;
         }
 
         private static void StretchFull(RectTransform rt)
