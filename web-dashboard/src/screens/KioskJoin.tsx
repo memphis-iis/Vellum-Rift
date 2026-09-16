@@ -43,6 +43,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [previewModelId, setPreviewModelId] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+  const [stageRules, setStageRules] = useState<string | null>(null);
 
   const loadoutPreview = useModelPreview(previewModelId);
 
@@ -77,13 +78,31 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
         setAccessToken(minted.accessToken);
 
         try {
-          const session = (await getSession(sessionId)) as GameSession;
+          const session = (await getSession(sessionId)) as GameSession & {
+            stageLayout?: string;
+            guestExperience?: string;
+          };
           if (cancelled) return;
           const nextPlaylist = sessionPlaylist(session);
           const nextActive = sessionActiveModelId(session);
           setPlaylist(nextPlaylist);
           setActiveModelId(nextActive);
           setPreviewModelId(nextActive ?? nextPlaylist[0] ?? null);
+          const layout =
+            session.stageLayout === "spotlight"
+              ? "Spotlight"
+              : session.stageLayout === "even_row"
+                ? "In a row"
+                : session.stageLayout === "custom"
+                  ? "Custom"
+                  : "Around you";
+          const experience =
+            session.guestExperience === "host_led"
+              ? "Host-led"
+              : session.guestExperience === "browse"
+                ? "Browse"
+                : "Open stage";
+          setStageRules(`${layout} · ${experience}`);
         } catch {
           /* preview optional if session fetch fails */
         }
@@ -288,6 +307,12 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
             {phase === "ready" ? (
               <>
                 <div className="vr-kiosk__loadout" aria-label="Exhibit manuscripts">
+                  <h3 className="vr-kiosk__playlist-title">Manuscripts in this exhibit</h3>
+                  {stageRules ? (
+                    <p className="vr-kiosk__hint" role="status">
+                      Stage: {stageRules}
+                    </p>
+                  ) : null}
                   <ManuscriptPreview
                     className="vr-kiosk__preview"
                     preview={loadoutPreview}

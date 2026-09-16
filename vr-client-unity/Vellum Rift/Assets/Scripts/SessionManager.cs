@@ -48,6 +48,8 @@ namespace VellumRift
         [SerializeField] private LaserPointer laserPointer;
         [SerializeField] private FlashlightController flashlightController;
         [SerializeField] private ActiveModelSwitcher activeModelSwitcher;
+        [SerializeField] private ModelGalleryManager modelGalleryManager;
+        [SerializeField] private ModelPlacementController modelPlacementController;
         [SerializeField] private SummonManager summonManager;
         [SerializeField] private ArtifactManager artifactManager;
         [SerializeField] private RemoteModelLoader modelLoader;
@@ -81,6 +83,7 @@ namespace VellumRift
         /// <summary>Sticky launch override from CLI/env/query; when set, ignores session activeModelId.</summary>
         private string _modelIdOverride = "";
         private string _loadedModelId = "";
+        private float _nextGallerySync;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         /// <summary>ID of the debug test player, or null when not spawned.</summary>
@@ -105,6 +108,8 @@ namespace VellumRift
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
             if (flashlightController == null) flashlightController = GetComponent<FlashlightController>() ?? gameObject.AddComponent<FlashlightController>();
             if (activeModelSwitcher == null) activeModelSwitcher = GetComponent<ActiveModelSwitcher>() ?? gameObject.AddComponent<ActiveModelSwitcher>();
+            if (modelGalleryManager == null) modelGalleryManager = GetComponent<ModelGalleryManager>() ?? gameObject.AddComponent<ModelGalleryManager>();
+            if (modelPlacementController == null) modelPlacementController = GetComponent<ModelPlacementController>() ?? gameObject.AddComponent<ModelPlacementController>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
             if (!WebGlShellMode.UsesExternalShell)
@@ -113,7 +118,7 @@ namespace VellumRift
                 if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
                 if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
             }
-            // Create model host at scene root so it doesn't move with the player
+            // Legacy single-loader kept for sticky -modelId override; playlist uses ModelGalleryManager (#243).
             if (modelLoader == null)
             {
                 GameObject modelHost = new GameObject("ModelHost");
@@ -286,7 +291,7 @@ namespace VellumRift
                 // Step 3: Initialize all feature components
                 InitializeFeatures(backendUrl, resolvedPlayerName);
 
-                // Step 4: Load manuscript from session activeModelId (or launch override).
+                // Step 4: Load stage manuscripts from playlist / placements (#243 / #144).
                 await ApplyActiveModelAsync(session.activeModelId);
 
                 IsReady = true;
@@ -364,6 +369,9 @@ namespace VellumRift
             }
             if (spatialIndicatorSystem != null)
             {
+                // Ensure active after Logout() SetActive(false) so player/model edge arrows resume (#230).
+                if (!spatialIndicatorSystem.gameObject.activeSelf)
+                    spatialIndicatorSystem.gameObject.SetActive(true);
                 spatialIndicatorSystem.SetBaseUrl(backendUrl);
                 spatialIndicatorSystem.SetPlayerSpawner(playerSpawner);
                 spatialIndicatorSystem.Initialize(SessionId, LocalPlayerId);
@@ -382,6 +390,16 @@ namespace VellumRift
             if (activeModelSwitcher != null)
             {
                 activeModelSwitcher.Initialize(SessionId, IsHost, apiClient, controlsGuide);
+            }
+            if (modelGalleryManager != null)
+            {
+                string token = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
+                modelGalleryManager.Initialize(_backendUrl, token, allowInsecureHttp);
+            }
+            if (modelPlacementController != null)
+            {
+                modelPlacementController.Initialize(
+                    SessionId, IsHost, apiClient, modelGalleryManager, playerController);
             }
             if (summonManager != null)
             {
@@ -429,33 +447,65 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Load or clear the manuscript mesh from session activeModelId (#144).
-        /// Launch <c>-modelId</c> / <c>?modelId=</c> overrides win when set.
+        /// Sync gallery meshes from session playlist + placements (#243).
+        /// Sticky launch <c>-modelId</c> / <c>?modelId=</c> still uses the single loader.
         /// </summary>
         private async Task ApplyActiveModelAsync(string sessionActiveModelId)
         {
-            if (modelLoader == null || string.IsNullOrEmpty(_backendUrl))
+            if (string.IsNullOrEmpty(_backendUrl))
                 return;
 
-            string desired = ModelIdResolver.ResolveActive(_modelIdOverride, sessionActiveModelId);
-            if (desired == _loadedModelId)
-                return;
-
-            if (string.IsNullOrEmpty(desired))
+            // Sticky launch override: single mesh, ignore multi-model stage.
+            if (!string.IsNullOrEmpty(_modelIdOverride))
             {
-                modelLoader.Clear();
-                _loadedModelId = "";
-                Debug.Log("[SessionManager] No activeModelId — manuscript cleared");
+                if (modelLoader == null) return;
+                string desired = ModelIdResolver.ResolveActive(_modelIdOverride, sessionActiveModelId);
+                if (desired == _loadedModelId) return;
+                if (string.IsNullOrEmpty(desired))
+                {
+                    modelLoader.Clear();
+                    _loadedModelId = "";
+                    return;
+                }
+                modelLoader.allowInsecureHttp = allowInsecureHttp;
+                modelLoader.modelUrl = $"{_backendUrl.TrimEnd('/')}/api/models/{desired}";
+                modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
+                await modelLoader.Load();
+                if (modelLoader.IsLoaded) _loadedModelId = desired;
                 return;
             }
 
-            modelLoader.allowInsecureHttp = allowInsecureHttp;
-            modelLoader.modelUrl = $"{_backendUrl.TrimEnd('/')}/api/models/{desired}";
-            modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
-            Debug.Log($"[SessionManager] Loading manuscript model {desired}");
-            await modelLoader.Load();
-            if (modelLoader.IsLoaded)
-                _loadedModelId = desired;
+            if (modelGalleryManager == null || apiClient == null || string.IsNullOrEmpty(SessionId))
+            {
+                // Fallback: single active model loader (#144).
+                if (modelLoader == null) return;
+                string desired = ModelIdResolver.ResolveActive(null, sessionActiveModelId);
+                if (desired == _loadedModelId) return;
+                if (string.IsNullOrEmpty(desired))
+                {
+                    modelLoader.Clear();
+                    _loadedModelId = "";
+                    return;
+                }
+                modelLoader.allowInsecureHttp = allowInsecureHttp;
+                modelLoader.modelUrl = $"{_backendUrl.TrimEnd('/')}/api/models/{desired}";
+                modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
+                await modelLoader.Load();
+                if (modelLoader.IsLoaded) _loadedModelId = desired;
+                return;
+            }
+
+            string json = await apiClient.GetRawAsync(
+                $"/api/game-state/{Uri.EscapeDataString(SessionId)}");
+            if (string.IsNullOrEmpty(json)) return;
+            var gallery = GallerySessionState.Parse(json);
+            if (string.IsNullOrEmpty(gallery.activeModelId) && !string.IsNullOrEmpty(sessionActiveModelId))
+                gallery.activeModelId = sessionActiveModelId;
+            await modelGalleryManager.SyncFromGalleryState(gallery);
+            modelPlacementController?.OnGalleryState(gallery);
+            _loadedModelId = gallery.activeModelId ?? "";
+            Debug.Log(
+                $"[SessionManager] Gallery sync layout={gallery.stageLayout} experience={gallery.guestExperience} active={_loadedModelId} count={gallery.playlist?.Length ?? 0}");
         }
 
         private void HandleGameStateReceived(GameState state)
@@ -466,8 +516,11 @@ namespace VellumRift
             if (!string.IsNullOrEmpty(_modelIdOverride))
                 return;
             string next = state.activeModelId ?? "";
-            if (next == _loadedModelId)
+            bool activeChanged = next != _loadedModelId;
+            // Re-sync layout/placements periodically so host stage changes land (#243).
+            if (!activeChanged && Time.unscaledTime < _nextGallerySync)
                 return;
+            _nextGallerySync = Time.unscaledTime + 2f;
             _ = ApplyActiveModelAsync(next);
         }
 
@@ -555,6 +608,9 @@ namespace VellumRift
             // 4. Deactivate spatial indicators (stops its own independent polling
             //    loop for players/artifacts so edge indicators & nameplates clear).
             if (spatialIndicatorSystem != null) spatialIndicatorSystem.gameObject.SetActive(false);
+
+            // 4b. Gallery-only flashlight — turn off and stop remote poll (#244).
+            if (flashlightController != null) flashlightController.Shutdown();
 
             // 5. Clean up all spawned player visuals (removes stale character icons).
             if (playerSpawner != null) playerSpawner.RemoveAllPlayers();

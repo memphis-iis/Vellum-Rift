@@ -745,6 +745,22 @@ export default function Enter({
         </p>
       ) : null}
 
+      {(status === "ready" || session) ? (
+        <p className="vr-enter__stage-rules" role="status">
+          Stage:{" "}
+          <strong>{STAGE_LAYOUTS.find((o) => o.id === stageLayout)?.label ?? stageLayout}</strong>
+          {" · "}
+          <strong>
+            {GUEST_EXPERIENCES.find((o) => o.id === guestExperience)?.label ?? guestExperience}
+          </strong>
+          {guestExperience === "host_led"
+            ? " — host controls the focus"
+            : canVisitorCycle
+              ? " — browse manuscripts below or with [ ] in 3D"
+              : null}
+        </p>
+      ) : null}
+
       {playlistError && !isHost ? (
         <p className="vr-enter__error" role="alert">
           {playlistError}

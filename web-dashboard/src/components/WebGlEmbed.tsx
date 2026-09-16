@@ -113,10 +113,36 @@ export function WebGlEmbed({
     setPinDraft("");
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (pinModal) {
+        e.preventDefault();
+        closePinModal({ cancelled: true });
+        return;
+      }
+      e.preventDefault();
+      onExit();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pinModal, onExit]);
+
   const onPinSubmit = (e: FormEvent) => {
     e.preventDefault();
     const label = pinDraft.trim() || "Pin";
     closePinModal({ label });
+  };
+
+  const postToWebGl = (payload: Record<string, unknown>) => {
+    const iframe = iframeRef.current;
+    const webGlOrigin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
+    if (!iframe?.contentWindow || !webGlOrigin) return;
+    try {
+      iframe.contentWindow.postMessage(payload, webGlOrigin);
+    } catch (err) {
+      console.warn("[VellumRift] WebGL control postMessage failed:", err);
+    }
   };
 
   return (
@@ -239,6 +265,33 @@ export function WebGlEmbed({
 
         <div className="vr-enter-3d__fog" aria-hidden="true" />
 
+        <div className="vr-enter-3d__simple-actions" role="group" aria-label="Quick actions">
+          <button
+            type="button"
+            className="vr-enter-3d__simple-btn"
+            onClick={() => postToWebGl({ type: "vellum-rift-flashlight-toggle" })}
+          >
+            <MaterialIcon name="flashlight_on" />
+            Light
+          </button>
+          <button
+            type="button"
+            className="vr-enter-3d__simple-btn"
+            onClick={() => postToWebGl({ type: "vellum-rift-manuscript-cycle", delta: -1 })}
+          >
+            <MaterialIcon name="chevron_left" />
+            Prev
+          </button>
+          <button
+            type="button"
+            className="vr-enter-3d__simple-btn"
+            onClick={() => postToWebGl({ type: "vellum-rift-manuscript-cycle", delta: 1 })}
+          >
+            Next
+            <MaterialIcon name="chevron_right" />
+          </button>
+        </div>
+
         <div className="vr-enter-3d__controls" aria-label="Controls">
           <span>
             <kbd className="vr-enter-3d__key">W</kbd>
@@ -261,6 +314,22 @@ export function WebGlEmbed({
           <span>
             <kbd className="vr-enter-3d__key">F</kbd>
             Pin
+          </span>
+          <span className="vr-enter-3d__sep" aria-hidden="true" />
+          <span>
+            <kbd className="vr-enter-3d__key">L</kbd>
+            Light
+          </span>
+          <span className="vr-enter-3d__sep" aria-hidden="true" />
+          <span>
+            <kbd className="vr-enter-3d__key">[</kbd>
+            <kbd className="vr-enter-3d__key">]</kbd>
+            Manuscript
+          </span>
+          <span className="vr-enter-3d__sep" aria-hidden="true" />
+          <span>
+            <kbd className="vr-enter-3d__key">Esc</kbd>
+            Leave
           </span>
         </div>
       </div>

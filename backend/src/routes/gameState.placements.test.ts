@@ -5,7 +5,7 @@ import express from "express";
 vi.mock("pg", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   const sharedQuery = vi.fn();
-  (globalThis as Record<string, unknown>).__pgMockQueryPlaylist = sharedQuery;
+  (globalThis as Record<string, unknown>).__pgMockQueryPlacements = sharedQuery;
   return {
     ...actual,
     default: {
@@ -17,7 +17,7 @@ vi.mock("pg", async (importOriginal) => {
 });
 
 const mocks = {
-  query: (globalThis as Record<string, unknown>).__pgMockQueryPlaylist as ReturnType<
+  query: (globalThis as Record<string, unknown>).__pgMockQueryPlacements as ReturnType<
     typeof vi.fn
   >,
 };
@@ -77,10 +77,6 @@ function modelRow(modelId: string) {
   };
 }
 
-/**
- * Route SQL through a small dispatcher keyed on query text.
- * Order-independent enough for playlist/active-model flows.
- */
 function installQueryRouter(opts: {
   session?: Record<string, unknown>;
   models?: Set<string>;
@@ -98,7 +94,6 @@ function installQueryRouter(opts: {
     }
 
     if (text.includes("UPDATE game_sessions")) {
-      // params: label, host_id, players, metadata, ...
       const metadataParam = params?.[3];
       if (typeof metadataParam === "string") {
         savedMetadata = JSON.parse(metadataParam) as Record<string, unknown>;
@@ -126,7 +121,7 @@ function installQueryRouter(opts: {
   });
 }
 
-describe("Game State — Playlist / active model (#141)", () => {
+describe("Game State - Model placements (#167)", () => {
   let app: express.Express;
   let currentUser: typeof HOST | typeof GUEST | null;
 
@@ -142,144 +137,61 @@ describe("Game State — Playlist / active model (#141)", () => {
     app.use("/api/game-state", gameStateRouter);
   });
 
-  it("GET session returns playlist + activeModelId top-level", async () => {
+  it("append seeds surround placement and selects new model", async () => {
     installQueryRouter({
       session: sessionRow({
         metadata: { playlist: [MODEL_A], activeModelId: MODEL_A },
       }),
     });
 
-    const res = await request(app).get("/api/game-state/session-1");
-    expect(res.status).toBe(200);
-    expect(res.body.playlist).toEqual([MODEL_A]);
-    expect(res.body.activeModelId).toBe(MODEL_A);
-    expect(res.body.metadata.playlist).toEqual([MODEL_A]);
-  });
-
-  it("host can replace playlist", async () => {
-    installQueryRouter({});
-
     const res = await request(app)
       .patch("/api/game-state/session-1/playlist")
-      .send({ playlist: [MODEL_A, MODEL_B] });
+      .send({ append: MODEL_B });
 
     expect(res.status).toBe(200);
     expect(res.body.playlist).toEqual([MODEL_A, MODEL_B]);
-    expect(res.body.activeModelId).toBe(MODEL_A);
+    expect(res.body.selectedModelId).toBe(MODEL_B);
+    // Default stage layout is surround — two items sit on a radius-3 ring.
+    expect(res.body.modelPlacements[MODEL_B].position[1]).toBe(0.5);
+    expect(res.body.modelPlacements[MODEL_B].position[2]).toBeCloseTo(3, 5);
+    expect(res.body.modelPlacements[MODEL_B].scale).toBe(1);
   });
 
-  it("host can append and set active", async () => {
-    installQueryRouter({
-      session: sessionRow({
-        metadata: { playlist: [MODEL_A], activeModelId: MODEL_A },
-      }),
-    });
-
-    const res = await request(app)
-      .patch("/api/game-state/session-1/playlist")
-      .send({ append: MODEL_B, activeModelId: MODEL_B });
-
-    expect(res.status).toBe(200);
-    expect(res.body.playlist).toEqual([MODEL_A, MODEL_B]);
-    expect(res.body.activeModelId).toBe(MODEL_B);
-  });
-
-  it("host can switch active model", async () => {
-    installQueryRouter({
-      session: sessionRow({
-        metadata: { playlist: [MODEL_A, MODEL_B], activeModelId: MODEL_A },
-      }),
-    });
-
-    const res = await request(app)
-      .patch("/api/game-state/session-1/active-model")
-      .send({ modelId: MODEL_B });
-
-    expect(res.status).toBe(200);
-    expect(res.body.activeModelId).toBe(MODEL_B);
-  });
-
-  it("rejects active model not in playlist", async () => {
-    installQueryRouter({
-      session: sessionRow({
-        metadata: { playlist: [MODEL_A], activeModelId: MODEL_A },
-      }),
-    });
-
-    const res = await request(app)
-      .patch("/api/game-state/session-1/active-model")
-      .send({ modelId: MODEL_B });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/playlist/i);
-  });
-
-  it("rejects unknown modelId on playlist replace", async () => {
-    installQueryRouter({ models: new Set([MODEL_A]) });
-
-    const res = await request(app)
-      .patch("/api/game-state/session-1/playlist")
-      .send({ playlist: [MODEL_A, MODEL_B] });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/Unknown modelId/);
-  });
-
-  it("non-host gets 403 on playlist; host_led blocks guest active-model", async () => {
-    installQueryRouter({
-      session: sessionRow({
-        metadata: {
-          playlist: [MODEL_A],
-          activeModelId: MODEL_A,
-          guestExperience: "host_led",
-        },
-      }),
-    });
-    currentUser = GUEST;
-
-    const playlistRes = await request(app)
-      .patch("/api/game-state/session-1/playlist")
-      .send({ playlist: [MODEL_A] });
-    expect(playlistRes.status).toBe(403);
-
-    const activeRes = await request(app)
-      .patch("/api/game-state/session-1/active-model")
-      .send({ modelId: MODEL_A });
-    expect(activeRes.status).toBe(403);
-  });
-
-  it("guest may switch active-model when open_stage (#243)", async () => {
+  it("host can patch placement transform", async () => {
     installQueryRouter({
       session: sessionRow({
         metadata: {
           playlist: [MODEL_A, MODEL_B],
-          activeModelId: MODEL_A,
-          guestExperience: "open_stage",
+          modelPlacements: {
+            [MODEL_A]: { position: [0, 0.5, 0], rotation: [0, 0, 0], scale: 1 },
+            [MODEL_B]: { position: [0, 0.5, 0], rotation: [0, 0, 0], scale: 1 },
+          },
         },
       }),
     });
+
+    const res = await request(app)
+      .patch("/api/game-state/session-1/model-placements")
+      .send({
+        selectedModelId: MODEL_B,
+        placements: {
+          [MODEL_B]: { position: [2, 0.5, 1], rotation: [0, 45, 0], scale: 2.5 },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.selectedModelId).toBe(MODEL_B);
+    expect(res.body.modelPlacements[MODEL_B].position).toEqual([2, 0.5, 1]);
+  });
+
+  it("non-host gets 403 on model-placements", async () => {
+    installQueryRouter({});
     currentUser = GUEST;
 
     const res = await request(app)
-      .patch("/api/game-state/session-1/active-model")
-      .send({ modelId: MODEL_B });
-    expect(res.status).toBe(200);
-    expect(res.body.activeModelId).toBe(MODEL_B);
-  });
+      .patch("/api/game-state/session-1/model-placements")
+      .send({ selectedModelId: MODEL_A });
 
-  it("empty playlist clears activeModelId", async () => {
-    installQueryRouter({
-      session: sessionRow({
-        metadata: { playlist: [MODEL_A], activeModelId: MODEL_A },
-      }),
-    });
-
-    const res = await request(app)
-      .patch("/api/game-state/session-1/playlist")
-      .send({ playlist: [] });
-
-    expect(res.status).toBe(200);
-    expect(res.body.playlist).toEqual([]);
-    expect(res.body.activeModelId).toBeNull();
+    expect(res.status).toBe(403);
   });
 });

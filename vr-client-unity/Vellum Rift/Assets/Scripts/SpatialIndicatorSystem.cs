@@ -70,18 +70,18 @@ namespace VellumRift
         // Indicator pools
         private readonly Dictionary<string, EdgeIndicator> edgeIndicators = new Dictionary<string, EdgeIndicator>();
         private readonly Dictionary<string, Transform> registeredEdgeTargets = new Dictionary<string, Transform>();
-        private static readonly Color COLOR_ARTIFACT = new Color(0.55f, 0.65f, 1f, 1f); // manuscript/book cyan-blue
+        private static readonly Color COLOR_ARTIFACT = VrTheme.Accent; // manuscript/model
         private readonly Dictionary<string, Nameplate> nameplates = new Dictionary<string, Nameplate>();
         private readonly Dictionary<string, GameObject> laserMarkers = new Dictionary<string, GameObject>();
 
         private Coroutine pollCoroutine;
         private Camera mainCamera;
 
-        // Colors
-        private static readonly Color COLOR_HOST = new Color(1f, 0.27f, 0.27f);
-        private static readonly Color COLOR_PARTICIPANT = new Color(0.27f, 1f, 0.27f);
-        private static readonly Color COLOR_WAYPOINT = new Color(1f, 1f, 0.2f);
-        private static readonly Color COLOR_LASER = new Color(0.27f, 0.85f, 1f);
+        // Colors (VrTheme tokens; host vs participant stay distinct)
+        private static readonly Color COLOR_HOST = VrTheme.Error;
+        private static readonly Color COLOR_PARTICIPANT = VrTheme.Primary;
+        private static readonly Color COLOR_WAYPOINT = VrTheme.PrimaryContainer;
+        private static readonly Color COLOR_LASER = VrTheme.AccentBright;
 
         // ---------------------------------------------------------------
         // Data classes
@@ -200,7 +200,16 @@ namespace VellumRift
         {
             this.sessionId = sessionId;
             this.localPlayerId = localPlayerId;
-            if (pollCoroutine == null && gameObject.activeInHierarchy)
+            // Logout deactivates this component; re-enable so edge arrows work after rejoin (#230).
+            if (!gameObject.activeSelf)
+                gameObject.SetActive(true);
+            _manuscriptAutoFound = false;
+            if (pollCoroutine != null)
+            {
+                StopCoroutine(pollCoroutine);
+                pollCoroutine = null;
+            }
+            if (gameObject.activeInHierarchy)
                 pollCoroutine = StartCoroutine(PollLoop());
             Debug.Log($"[SpatialIndicatorSystem] Initialized session={sessionId} player={localPlayerId}");
         }

@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace VellumRift
@@ -21,6 +22,8 @@ namespace VellumRift
         {
             Keyboard,   // Move Around
             Laser,      // Use Laser
+            Flashlight, // Toggle flashlight
+            Exit,       // Leave space
             Delete,     // Delete Object
             Waypoint,   // Drop a Marker
             Summon,     // Open Object Menu
@@ -35,6 +38,9 @@ namespace VellumRift
         [Tooltip("Start visible; H toggles. Keep existing Vellum Material 3 theme.")]
         [SerializeField] private bool startVisible = true;
         [SerializeField] private KeyCode toggleKey = KeyCode.H;
+
+        private bool isHost;
+        private bool manuscriptSwitchAllowed;
 
         // ---------------------------------------------------------------
         // Material 3 palette (Vellum Rift HUD design tokens)
@@ -82,7 +88,6 @@ namespace VellumRift
         private RectTransform contentRect;
         private Image pulseDot;
         private float lastPanelSpriteH = -1f;
-        private bool isHost;
         private bool isVisible = true;
 
         private void Awake()
@@ -133,6 +138,14 @@ namespace VellumRift
         public void SetHost(bool host)
         {
             isHost = host;
+            if (canvasGO != null) RebuildRows();
+        }
+
+        /// <summary>Show Next/Prev manuscript rows when stage mode + playlist allow (#243).</summary>
+        public void SetManuscriptSwitchAllowed(bool allowed)
+        {
+            if (manuscriptSwitchAllowed == allowed) return;
+            manuscriptSwitchAllowed = allowed;
             if (canvasGO != null) RebuildRows();
         }
 
@@ -305,6 +318,7 @@ namespace VellumRift
             {
                 (IconKind.Keyboard,  "Move Around",    "WASD"),
                 (IconKind.Laser,     "Use Laser",      "L-CLK"),
+                (IconKind.Flashlight,"Flashlight",     FlashlightBindingLabel()),
                 (IconKind.Waypoint,  "Drop a Pin",     "F"),
                 (IconKind.Waypoint,  "Rename Pin",     "L-CLK"),
                 (IconKind.Delete,    "Delete Pin",     "SHIFT+R-CLK"),
@@ -314,7 +328,14 @@ namespace VellumRift
             if (!showHostOnly || isHost)
                 rows = Append(rows, (IconKind.Summon, "Open Object Menu", "Q"));
 
+            if (manuscriptSwitchAllowed)
+            {
+                rows = Append(rows, (IconKind.Keyboard, "Next manuscript", "]"));
+                rows = Append(rows, (IconKind.Keyboard, "Prev manuscript", "["));
+            }
+
             rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
+            rows = Append(rows, (IconKind.Exit, "Leave space", "ESC"));
             rows = Append(rows, (IconKind.Gamepad, "Hide guide", "H"));
 
             // Build rows top-down inside the content area.
@@ -417,6 +438,20 @@ namespace VellumRift
             System.Array.Copy(arr, result, arr.Length);
             result[arr.Length] = item;
             return result;
+        }
+
+        /// <summary>Simple: Light HUD + L · Gamer: L / Y · VR: left grip (#244).</summary>
+        private static string FlashlightBindingLabel()
+        {
+            bool xr =
+#if UNITY_ANDROID && !UNITY_EDITOR
+                true;
+#else
+                UnityEngine.XR.XRSettings.enabled || UnityEngine.XR.XRSettings.isDeviceActive;
+#endif
+            if (xr) return "L-GRIP";
+            if (Gamepad.current != null) return "L / Y";
+            return "L";
         }
 
         private void ResizePanel(int rowCount = 6)
@@ -605,6 +640,8 @@ namespace VellumRift
             {
                 case IconKind.Keyboard:  DrawKeyboard(tex, color); break;
                 case IconKind.Laser:     DrawLaser(tex, color); break;
+                case IconKind.Flashlight: DrawFlashlight(tex, color); break;
+                case IconKind.Exit:      DrawExit(tex, color); break;
                 case IconKind.Delete:    DrawDelete(tex, color); break;
                 case IconKind.Waypoint:  DrawWaypoint(tex, color); break;
                 case IconKind.Summon:    DrawSummon(tex, color); break;
@@ -685,6 +722,27 @@ namespace VellumRift
             DrawLine(tex, 6, 24, 18, 24, c);
             DrawLine(tex, 30, 24, 42, 24, c);
             SetPx(tex, 24, 24, c);
+        }
+
+        private static void DrawFlashlight(Texture2D tex, Color c)
+        {
+            // Body + cone beam.
+            DrawRectOutline(tex, 8, 20, 22, 28, c);
+            DrawLine(tex, 22, 20, 40, 12, c);
+            DrawLine(tex, 22, 28, 40, 36, c);
+            DrawLine(tex, 40, 12, 40, 36, c);
+            DrawLine(tex, 12, 22, 18, 22, c);
+            DrawLine(tex, 12, 26, 18, 26, c);
+        }
+
+        private static void DrawExit(Texture2D tex, Color c)
+        {
+            // Door frame + outbound arrow.
+            DrawRectOutline(tex, 10, 10, 28, 38, c);
+            DrawLine(tex, 28, 24, 40, 24, c);
+            DrawLine(tex, 34, 18, 40, 24, c);
+            DrawLine(tex, 34, 30, 40, 24, c);
+            SetPx(tex, 22, 24, c);
         }
 
         private static void DrawDelete(Texture2D tex, Color c)

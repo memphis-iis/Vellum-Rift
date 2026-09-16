@@ -10,13 +10,22 @@ import { SessionModerationRepository } from "../lib/sessionModerationRepository.
 import {
   applyActiveModelPatch,
   applyPlaylistPatch,
+  readPlaylist,
   writePlaylist,
 } from "../lib/sessionPlaylist.js";
 import {
   applyStagePatch,
   guestsMaySwitch,
   readStage,
+  seedPlacementsForLayout,
 } from "../lib/sessionStage.js";
+import {
+  applyModelPlacementsPatch,
+  reconcileSelectedModel,
+  readModelPlacements,
+  syncPlacementsWithPlaylist,
+  writeModelPlacements,
+} from "../lib/sessionModelPlacements.js";
 import {
   canAccessSession,
   isSessionHost,
@@ -532,7 +541,35 @@ router.patch("/:sessionId/playlist", async (req: Request, res: Response) => {
 
     if (!(await assertModelsExist(res, patched.state.playlist))) return;
 
-    state.metadata = writePlaylist(state.metadata, patched.state);
+    const prevPlaylist = readPlaylist(state.metadata).playlist;
+    const prevPlacements = readModelPlacements(state.metadata, prevPlaylist);
+    const { stageLayout } = readStage(state.metadata);
+
+    let metadata = writePlaylist(state.metadata, patched.state);
+    const seeds =
+      stageLayout === "custom"
+        ? undefined
+        : seedPlacementsForLayout(patched.state.playlist, stageLayout);
+    const modelPlacements = syncPlacementsWithPlaylist(
+      patched.state.playlist,
+      stageLayout === "custom" ? prevPlacements.modelPlacements : {},
+      seeds,
+    );
+
+    // Prefer newly appended model as the placement selection (#167).
+    let selectedModelId = prevPlacements.selectedModelId;
+    if (body.append !== undefined) {
+      const appended = Array.isArray(body.append)
+        ? body.append.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+        : typeof body.append === "string" && body.append.trim()
+          ? [body.append.trim()]
+          : [];
+      if (appended.length) selectedModelId = appended[appended.length - 1]!.trim();
+    }
+    selectedModelId = reconcileSelectedModel(patched.state.playlist, selectedModelId);
+    metadata = writeModelPlacements(metadata, { selectedModelId, modelPlacements });
+
+    state.metadata = metadata;
     state.updatedAt = new Date().toISOString();
     await repo.save(state);
     await modelRepo.syncSessionPlaylist(state.sessionId, patched.state.playlist);
@@ -628,6 +665,63 @@ router.patch("/:sessionId/stage", async (req: Request, res: Response) => {
     console.error("PATCH /api/game-state/:sessionId/stage failed:", err);
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to update stage" });
+    }
+  }
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/model-placements — host transforms (#167 / #243 custom)
+// Body: { placements?, selectedModelId?, remove? }
+// ---------------------------------------------------------------
+router.patch("/:sessionId/model-placements", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const body = req.body as {
+      placements?: unknown;
+      selectedModelId?: unknown;
+      remove?: unknown;
+    };
+    if (
+      body.placements === undefined &&
+      body.selectedModelId === undefined &&
+      body.remove === undefined
+    ) {
+      res.status(400).json({
+        error: "Provide placements, selectedModelId, and/or remove",
+      });
+      return;
+    }
+
+    const { playlist } = readPlaylist(state.metadata);
+    const patched = applyModelPlacementsPatch(state.metadata, playlist, body);
+    if (!patched.ok) {
+      res.status(patched.statusCode).json({ error: patched.error });
+      return;
+    }
+
+    // Custom transforms imply custom stage layout so preset reseeds do not wipe them.
+    let metadata = writeModelPlacements(state.metadata, patched.state);
+    if (body.placements !== undefined && readStage(metadata).stageLayout !== "custom") {
+      const custom = applyStagePatch(metadata, { stageLayout: "custom" });
+      if (custom.ok) {
+        metadata = writeModelPlacements(custom.metadata, patched.state);
+      }
+    }
+
+    state.metadata = metadata;
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    res.json(serializeSession(state, req.user));
+  } catch (err) {
+    console.error("PATCH /api/game-state/:sessionId/model-placements failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to update model placements" });
     }
   }
 });

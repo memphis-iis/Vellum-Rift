@@ -2376,6 +2376,18 @@ button.vr-docs__row--model:hover {
   color: var(--vr-ink-muted, #4f6280);
 }
 
+.vr-enter__stage-rules {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.45;
+}
+
+.vr-enter__stage-rules strong {
+  font-weight: 650;
+  color: var(--vr-on-surface);
+}
+
 .vr-enter__visitor-cycle {
   display: flex;
   flex-wrap: wrap;
@@ -3286,6 +3298,13 @@ button.vr-docs__row--model:hover {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.vr-kiosk__playlist-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--vr-on-surface);
 }
 
 .vr-kiosk__playlist-btn {

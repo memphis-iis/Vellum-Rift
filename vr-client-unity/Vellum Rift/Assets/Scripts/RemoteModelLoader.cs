@@ -33,6 +33,12 @@ namespace VellumRift
         [Tooltip("Bearer token sent on the model request (Bluekey SSO). Required when the backend enforces auth on /api/models/*.")]
         public string authToken = "";
 
+        [Tooltip("SpatialIndicatorSystem edge-target id. Empty skips registration (e.g. ModelGalleryManager registers model_{id} on the pivot).")]
+        public string edgeTargetId = "manuscript";
+
+        [Tooltip("Optional label on the edge arrow pill. Empty/null = arrow only.")]
+        public string edgeTargetLabel = "MANUSCRIPT";
+
         /// <summary>True once the model has been loaded and instantiated.</summary>
         public bool IsLoaded { get; private set; }
 
@@ -111,7 +117,8 @@ namespace VellumRift
                     if (!instantiated)
                     {
                         Destroy(parent.gameObject);
-                        if (indicators != null) indicators.UnregisterEdgeTarget("manuscript");
+                        if (indicators != null && !string.IsNullOrEmpty(edgeTargetId))
+                            indicators.UnregisterEdgeTarget(edgeTargetId);
                         Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
                         return;
                     }
@@ -130,13 +137,11 @@ namespace VellumRift
                     // not a bounding box. glTFast does not add colliders.
                     AttachMeshColliders(parent);
 
-                    // Register the manuscript with the spatial indicator system
-                    // so an edge-direction pointer tracks it while off-screen.
-                    // Arrow-only marker (no label text on the pointer).
-                    if (indicators != null)
+                    // Register with SpatialIndicatorSystem for off-screen edge arrows (#230).
+                    if (indicators != null && !string.IsNullOrEmpty(edgeTargetId))
                     {
-                        indicators.UnregisterEdgeTarget("manuscript");
-                        indicators.RegisterEdgeTarget("manuscript", parent, "MANUSCRIPT");
+                        indicators.UnregisterEdgeTarget(edgeTargetId);
+                        indicators.RegisterEdgeTarget(edgeTargetId, parent, edgeTargetLabel, VrTheme.Accent);
                     }
 
                     IsLoaded = true;
@@ -173,8 +178,8 @@ namespace VellumRift
         public void Clear()
         {
             SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
-            if (indicators != null)
-                indicators.UnregisterEdgeTarget("manuscript");
+            if (indicators != null && !string.IsNullOrEmpty(edgeTargetId))
+                indicators.UnregisterEdgeTarget(edgeTargetId);
 
             foreach (Transform child in transform)
             {

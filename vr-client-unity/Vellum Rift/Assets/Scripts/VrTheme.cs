@@ -53,6 +53,7 @@ namespace VellumRift
         // LegacyRuntime/Arial builtins are often null on Linux Editors; never leave Text.font null.
         private static Font cachedUiFont;
         private static bool loggedFontSource;
+        private static bool uiFontIsOsFallback;
 
         /// <summary>Cached UI font for uGUI <see cref="UnityEngine.UI.Text"/> (never null when OS fonts exist).</summary>
         public static Font UiFont => ResolveUiFont();
@@ -70,6 +71,7 @@ namespace VellumRift
             if (fromResources != null)
             {
                 cachedUiFont = fromResources;
+                uiFontIsOsFallback = false;
                 LogFontSource("Resources/Fonts/VellumUI");
                 return cachedUiFont;
             }
@@ -80,11 +82,13 @@ namespace VellumRift
                 if (built != null)
                 {
                     cachedUiFont = built;
+                    uiFontIsOsFallback = false;
                     LogFontSource("builtin " + builtin);
                     return cachedUiFont;
                 }
             }
 
+            uiFontIsOsFallback = true;
             string[] osCandidates =
             {
                 "DejaVu Sans",
@@ -137,8 +141,11 @@ namespace VellumRift
             Font font = ResolveUiFont();
             if (font != null)
                 text.font = font;
-            if (bold)
+            // Prefer size over Bold when OS/dynamic fonts may lack bold glyphs (#223).
+            if (bold && !uiFontIsOsFallback)
                 text.fontStyle = FontStyle.Bold;
+            else if (uiFontIsOsFallback)
+                text.fontStyle = FontStyle.Normal;
         }
 
         private static void LogFontSource(string source)

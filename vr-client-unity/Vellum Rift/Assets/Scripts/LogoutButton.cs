@@ -70,8 +70,16 @@ namespace VellumRift
         {
             EnsureEventSystem();
 
-            float w = Mathf.Max(buttonWidth, VrTheme.MinHitWidthPx);
-            float h = Mathf.Max(buttonHeight, VrTheme.MinHitHeightPx);
+            bool xrLikely =
+#if UNITY_ANDROID && !UNITY_EDITOR
+                true;
+#else
+                UnityEngine.XR.XRSettings.enabled || UnityEngine.XR.XRSettings.isDeviceActive;
+#endif
+            // Simple / desktop: ≥56px hit (#245 accepts ~48+). VR / Quest: larger Exit control.
+            float w = Mathf.Max(buttonWidth, xrLikely ? 200f : VrTheme.MinHitWidthPx);
+            float h = Mathf.Max(buttonHeight, xrLikely ? 72f : VrTheme.MinHitHeightPx);
+            string leaveLabel = xrLikely ? "Exit" : "Leave space";
             Color fill = VrTheme.WithAlpha(VrTheme.SurfaceLow, 0.92f);
             Color border = VrTheme.Accent;
 
@@ -113,8 +121,8 @@ namespace VellumRift
             };
             button.onClick.AddListener(OnExitClicked);
 
-            // Label aligned with dashboard Leave space (Exit / Back to lobby live in the shell).
-            var label = CreateText("Label", bg.transform, "Leave space", 16, TextAnchor.MiddleCenter, VrTheme.OnSurface);
+            // Label aligned with dashboard Leave space (Exit on XR / Quest).
+            var label = CreateText("Label", bg.transform, leaveLabel, xrLikely ? 20 : 16, TextAnchor.MiddleCenter, VrTheme.OnSurface);
             label.fontStyle = FontStyle.Bold;
             var labelRect = label.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
