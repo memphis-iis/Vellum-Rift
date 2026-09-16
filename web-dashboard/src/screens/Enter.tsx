@@ -124,21 +124,32 @@ function buildDesktopCommand(
   ].join(" ");
 }
 
+/** Cap map dots so Spatial Presence stays readable with crowded sessions (#269). */
+const MAP_AVATAR_LIMIT = 12;
+const MAP_NAME_MAX = 12;
+
+function truncatePresenceName(name: string, max = MAP_NAME_MAX): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, Math.max(1, max - 1))}…`;
+}
+
 /** Place avatars on the schematic ring from player positions or a stable hash. */
 function avatarStyle(player: PlayerState, index: number, total: number): CSSProperties {
   const hasPos =
     Number.isFinite(player.position?.x) && Number.isFinite(player.position?.z);
   if (hasPos) {
-    // Map manuscript-ish coords into the ring (heuristic).
+    // Map manuscript-ish coords into the ring (heuristic) + light index jitter to unstack.
     const nx = Math.max(-1, Math.min(1, player.position.x / 50));
     const nz = Math.max(-1, Math.min(1, player.position.z / 50));
+    const jitter = total > 6 ? ((index % 5) - 2) * 1.2 : 0;
     return {
-      left: `${50 + nx * 32}%`,
-      top: `${50 + nz * 32}%`,
+      left: `${50 + nx * 32 + jitter}%`,
+      top: `${50 + nz * 32 + ((index % 3) - 1) * (total > 6 ? 1.1 : 0)}%`,
     };
   }
   const angle = (index / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
-  const r = 28;
+  const r = total > 8 ? 30 : 28;
   return {
     left: `${50 + Math.cos(angle) * r}%`,
     top: `${50 + Math.sin(angle) * r}%`,
@@ -339,6 +350,24 @@ export default function Enter({
     () => players.filter((p) => p.isConnected !== false).length || players.length,
     [players],
   );
+
+  const presenceMap = useMemo(() => {
+    const live = players.filter((p) => p.isConnected !== false);
+    const pool = live.length > 0 ? live : players;
+    const meId = me?.playerId;
+    const ranked = [...pool].sort((a, b) => {
+      if (a.id === meId) return -1;
+      if (b.id === meId) return 1;
+      if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+    const shown = ranked.slice(0, MAP_AVATAR_LIMIT);
+    return {
+      shown,
+      overflow: Math.max(0, ranked.length - shown.length),
+      roster: ranked,
+    };
+  }, [players, me?.playerId]);
 
   const isLive = players.some((p) => p.isConnected);
 
@@ -716,29 +745,6 @@ export default function Enter({
         </p>
       ) : null}
 
-      {canVisitorCycle ? (
-        <div className="vr-enter__visitor-cycle" role="group" aria-label="Browse manuscripts">
-          <button
-            type="button"
-            className="vr-btn vr-btn--outline"
-            disabled={playlistBusy}
-            onClick={() => void onCycleActiveModel(-1)}
-          >
-            <MaterialIcon name="chevron_left" />
-            Previous
-          </button>
-          <button
-            type="button"
-            className="vr-btn vr-btn--outline"
-            disabled={playlistBusy}
-            onClick={() => void onCycleActiveModel(1)}
-          >
-            Next
-            <MaterialIcon name="chevron_right" />
-          </button>
-        </div>
-      ) : null}
-
       {playlistError && !isHost ? (
         <p className="vr-enter__error" role="alert">
           {playlistError}
@@ -770,6 +776,11 @@ export default function Enter({
               <span className="vr-enter__badge">
                 {connectedCount} Active User{connectedCount === 1 ? "" : "s"}
               </span>
+              {presenceMap.overflow > 0 ? (
+                <span className="vr-enter__badge" title="Additional guests shown in the roster">
+                  +{presenceMap.overflow} more
+                </span>
+              ) : null}
               {me?.isHost ? (
                 <span className="vr-enter__badge vr-enter__badge--host">Host</span>
               ) : null}
@@ -787,23 +798,54 @@ export default function Enter({
                   </div>
                 </div>
               </div>
-              {players.map((player, index) => (
+              {presenceMap.shown.map((player, index) => (
                 <div
                   key={player.id}
                   className={`vr-enter__avatar${player.isHost ? " vr-enter__avatar--host" : ""}${
                     player.id === me?.playerId ? " vr-enter__avatar--me" : ""
                   }`}
-                  style={avatarStyle(player, index, players.length)}
+                  style={avatarStyle(player, index, presenceMap.shown.length)}
                   title={player.displayName}
                 >
                   <span className="vr-enter__avatar-dot" />
                   <span className="vr-enter__avatar-name">
-                    {player.id === me?.playerId ? "You" : player.displayName}
+                    {player.id === me?.playerId
+                      ? "You"
+                      : truncatePresenceName(player.displayName)}
                   </span>
                 </div>
               ))}
+              {presenceMap.overflow > 0 ? (
+                <div
+                  className="vr-enter__avatar vr-enter__avatar--overflow"
+                  style={{ left: "50%", top: "86%" }}
+                  title={`${presenceMap.overflow} more in roster`}
+                >
+                  <span className="vr-enter__avatar-dot" />
+                  <span className="vr-enter__avatar-name">+{presenceMap.overflow}</span>
+                </div>
+              ) : null}
             </div>
           </div>
+
+          {presenceMap.roster.length > 0 ? (
+            <ul className="vr-enter__roster" aria-label="People in this space">
+              {presenceMap.roster.map((player) => (
+                <li
+                  key={player.id}
+                  className={`vr-enter__roster-chip${
+                    player.id === me?.playerId ? " vr-enter__roster-chip--me" : ""
+                  }${player.isHost ? " vr-enter__roster-chip--host" : ""}`}
+                  title={player.displayName}
+                >
+                  {player.id === me?.playerId
+                    ? "You"
+                    : truncatePresenceName(player.displayName, 18)}
+                  {player.isHost ? " · Host" : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           <div className="vr-enter__controls-hint" aria-label="Controls">
             <span>
@@ -908,6 +950,8 @@ export default function Enter({
         />
       </div>
 
+      {/* Host tools + manuscripts stay below the enter/presence viewport (#242). */}
+      <div className="vr-enter__below-fold">
       {isHost ? (
         <details className="vr-enter__host-ops">
           <summary className="vr-enter__host-ops-summary">
@@ -1154,6 +1198,28 @@ export default function Enter({
               <span className="vr-enter__loadout-hint">Active: {activeTitle}</span>
             ) : null}
           </summary>
+          {canVisitorCycle ? (
+            <div className="vr-enter__visitor-cycle" role="group" aria-label="Browse manuscripts">
+              <button
+                type="button"
+                className="vr-btn vr-btn--outline"
+                disabled={playlistBusy}
+                onClick={() => void onCycleActiveModel(-1)}
+              >
+                <MaterialIcon name="chevron_left" />
+                Previous
+              </button>
+              <button
+                type="button"
+                className="vr-btn vr-btn--outline"
+                disabled={playlistBusy}
+                onClick={() => void onCycleActiveModel(1)}
+              >
+                Next
+                <MaterialIcon name="chevron_right" />
+              </button>
+            </div>
+          ) : null}
           <div className="vr-enter__loadout-grid">
             <ManuscriptPreview
               className="vr-enter__loadout-preview"
@@ -1276,6 +1342,7 @@ export default function Enter({
           </div>
         </details>
       ) : null}
+      </div>
     </main>
   );
 }

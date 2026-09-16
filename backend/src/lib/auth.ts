@@ -74,6 +74,7 @@ declare global {
 
 /**
  * Call the Bluekey introspection endpoint to verify a token.
+ * Bluekey returns identity under `claims` (sub/email/exp), not top-level.
  */
 async function introspectToken(token: string): Promise<AuthenticatedUser | null> {
   try {
@@ -85,16 +86,31 @@ async function introspectToken(token: string): Promise<AuthenticatedUser | null>
 
     if (!response.ok) return null;
 
-    const data = await response.json() as {
-      active: boolean;
-      sub: string;
-      email: string;
-      exp: number;
+    const data = (await response.json()) as {
+      active?: boolean;
+      reason?: string;
+      accountId?: string | number;
+      sub?: string;
+      email?: string;
+      exp?: number;
+      claims?: {
+        sub?: string;
+        email?: string;
+        exp?: number;
+      };
     };
 
     if (!data.active) return null;
 
-    return { sub: data.sub, email: data.email, exp: data.exp };
+    const sub = String(
+      data.sub ?? data.claims?.sub ?? data.accountId ?? "",
+    ).trim();
+    if (!sub) return null;
+
+    const email = String(data.email ?? data.claims?.email ?? "").trim();
+    const exp = Number(data.exp ?? data.claims?.exp) || 0;
+
+    return { sub, email, exp };
   } catch {
     return null;
   }
@@ -160,6 +176,10 @@ export async function requireAuth(
     res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
+  if (!user.sub?.trim()) {
+    res.status(401).json({ error: "Authentication required — token missing subject" });
+    return;
+  }
 
   req.user = user;
   next();
@@ -201,6 +221,10 @@ export async function requireAuthOrKiosk(
   const user = await introspectToken(token);
   if (!user) {
     res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+  if (!user.sub?.trim()) {
+    res.status(401).json({ error: "Authentication required — token missing subject" });
     return;
   }
 

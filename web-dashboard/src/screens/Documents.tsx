@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
 import {
@@ -77,6 +78,7 @@ export default function Documents({
   onOpenInSpace,
 }: DocumentsProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const { user, openPopup, authRequired } = useAuth();
 
   const [library, setLibrary] = useState<LibrarySummary | null>(null);
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -87,6 +89,9 @@ export default function Documents({
   const [viewingShared, setViewingShared] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const authGate =
+    Boolean(listingError && /authentication|sign in with bluekey|unauthorized/i.test(listingError)) ||
+    Boolean(error && /authentication|bluekey/i.test(error));
 
   const [spaces, setSpaces] = useState<GameSession[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(false);
@@ -160,18 +165,34 @@ export default function Documents({
   const bootstrap = useCallback(async () => {
     setListingLoading(true);
     setListingError(null);
+    setError(null);
+    // Production AUTH_REQUIRED: Library needs a real Bluekey Bearer (#240).
+    if (authRequired && (!user?.accessToken || user.isLocalDev)) {
+      setLibrary(null);
+      setListing(null);
+      setListingError(
+        "Authentication required — sign in with Bluekey (Library needs a real account token)",
+      );
+      setError("Your library needs Bluekey. Sign in again, then open Your library.");
+      setListingLoading(false);
+      return;
+    }
     try {
       const lib = await fetchLibrary();
       setLibrary(lib);
       setViewingShared(false);
       await loadFolder(lib.rootFolderId);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load library";
       setLibrary(null);
       setListing(null);
-      setListingError(err instanceof Error ? err.message : "Failed to load library");
+      setListingError(message);
+      if (/authentication|unauthorized|sign in|token/i.test(message)) {
+        setError("Your library needs Bluekey. Sign in again, then refresh.");
+      }
       setListingLoading(false);
     }
-  }, [loadFolder]);
+  }, [authRequired, loadFolder, user?.accessToken, user?.isLocalDev]);
 
   useEffect(() => {
     void bootstrap();
@@ -536,6 +557,14 @@ export default function Documents({
 
       {listingError ? <p className="vr-docs__error">{listingError}</p> : null}
       {error ? <p className="vr-docs__error">{error}</p> : null}
+      {authGate ? (
+        <p className="vr-docs__status" role="status">
+          <button type="button" className="vr-btn vr-btn--primary" onClick={() => openPopup()}>
+            <MaterialIcon name="login" />
+            Sign in with Bluekey
+          </button>
+        </p>
+      ) : null}
       {bindStatus ? (
         <p className="vr-docs__status" role="status">
           {bindStatus}

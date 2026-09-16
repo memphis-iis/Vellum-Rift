@@ -118,6 +118,38 @@ describe("requireAuth (AUTH_REQUIRED=true)", () => {
     });
     expect(next).toHaveBeenCalledOnce();
   });
+
+  it("reads sub/email/exp from Bluekey claims object", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          active: true,
+          authorized: true,
+          accountId: "99",
+          claims: {
+            sub: "acct:99",
+            email: "claims@memphis.edu",
+            exp: 8888888888,
+          },
+        }),
+      }),
+    );
+
+    const req = { headers: { authorization: "Bearer nested-token" } } as Request;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(req.user).toEqual({
+      sub: "acct:99",
+      email: "claims@memphis.edu",
+      exp: 8888888888,
+    });
+    expect(next).toHaveBeenCalledOnce();
+  });
 });
 
 describe("BLUEKEY_CONFIG defaults", () => {
