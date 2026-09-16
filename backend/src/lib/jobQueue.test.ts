@@ -274,6 +274,67 @@ describe("JobQueue", () => {
     expect(status!.progress).toBe(100);
   });
 
+  it("should persist ownerSub and folderId when creating models from uploads", async () => {
+    queue.start();
+
+    let insertParams: unknown[] | null = null;
+    let currentJob = {
+      job_id: sampleJobRow.job_id,
+      model_id: null as string | null,
+      upload_key: "uploads/test.png" as string | null,
+      payload: { type: "upload" } as unknown,
+      status: "pending" as string,
+      progress: 0,
+      error_message: null as string | null,
+      created_at: sampleJobRow.created_at,
+      updated_at: sampleJobRow.updated_at,
+    };
+    mocks.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const s = sql as string;
+
+      if (s.includes("INSERT INTO processing_jobs")) {
+        return { rows: [currentJob] };
+      }
+      if (s.includes("UPDATE processing_jobs")) {
+        currentJob.status = "completed";
+        currentJob.progress = 100;
+        currentJob.model_id = sampleModelRow.model_id;
+        return { rows: [currentJob] };
+      }
+      if (s.includes("INSERT INTO gltf_models")) {
+        insertParams = params ?? null;
+        return {
+          rows: [
+            {
+              ...sampleModelRow,
+              owner_sub: "acct:owner",
+              folder_id: "folder-uploads",
+            },
+          ],
+        };
+      }
+      if (s.includes("SELECT * FROM processing_jobs")) {
+        return { rows: [currentJob] };
+      }
+      return { rows: [] };
+    });
+
+    const jobId = await queue.enqueueUpload({
+      uploadKey: "uploads/test.png",
+      fileType: "image/png",
+      heightMode: "brightness",
+      ownerSub: "acct:owner",
+      folderId: "folder-uploads",
+    });
+    currentJob.job_id = jobId;
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(insertParams).not.toBeNull();
+    expect(insertParams![8]).toBe("acct:owner");
+    expect(insertParams![9]).toBe("folder-uploads");
+  });
+
   it("should handle job failure gracefully", async () => {
     queue.start();
 

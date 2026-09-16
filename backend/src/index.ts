@@ -23,6 +23,7 @@ import lodTiersRouter from "./routes/lodTiers.js";
 import realtimeRouter from "./routes/realtime.js";
 import notificationsRouter from "./routes/notifications.js";
 import kioskRouter from "./routes/kiosk.js";
+import libraryRouter from "./routes/library.js";
 
 dotenv.config();
 
@@ -104,6 +105,7 @@ app.use("/api/kiosk", kioskRouter);
 app.use("/api/game-state", requireAuthOrKiosk, gameStateRouter);
 app.use("/api/models", requireAuthOrKiosk, gltfModelRouter);
 app.use("/api/upload", requireAuth, uploadRouter);
+app.use("/api/library", requireAuth, libraryRouter);
 app.use("/api/jobs", requireAuth, jobsRouter);
 app.use("/api/assets", requireAuth, assetManifestRouter);
 app.use("/api/lod-tiers", requireAuth, lodTiersRouter);

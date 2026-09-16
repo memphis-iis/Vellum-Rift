@@ -248,7 +248,8 @@ describe("gltfModel routes", () => {
 
   describe("GET /:modelId/meta", () => {
     it("returns metadata for an existing model", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+      // libraryMayAccessModel + handler each call findById
+      mocks.query.mockResolvedValue({ rows: [mockDbRow] });
 
       const res = await request(app)
         .get(`/${SAMPLE_MODEL_ID}/meta`)
@@ -259,13 +260,81 @@ describe("gltfModel routes", () => {
     });
 
     it("returns 404 for a missing model", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [] });
+      mocks.query.mockResolvedValue({ rows: [] });
 
       const res = await request(app)
         .get("/nonexistent/meta")
         .expect(404);
 
       expect(res.body.error).toBe("Model not found");
+    });
+
+    it("allows view via session access when library share is missing (#239)", async () => {
+      const filedRow = {
+        ...mockDbRow,
+        folder_id: "folder-1",
+        session_id: "session-public",
+        owner_sub: "acct:owner",
+      };
+      const folderRow = {
+        folder_id: "folder-1",
+        library_id: "lib-1",
+        parent_id: null,
+        name: "Uploads",
+        path: "Uploads",
+        is_system: true,
+        created_at: "2025-06-01T00:00:00.000Z",
+        updated_at: "2025-06-01T00:00:00.000Z",
+      };
+      const libraryRow = {
+        library_id: "lib-1",
+        owner_sub: "acct:owner",
+        owner_email: "owner@memphis.edu",
+        root_folder_id: "folder-root",
+        uploads_folder_id: "folder-1",
+        created_at: "2025-06-01T00:00:00.000Z",
+        updated_at: "2025-06-01T00:00:00.000Z",
+      };
+      const sessionRow = {
+        session_id: "session-public",
+        label: "Public space",
+        host_id: "host-1",
+        players: [],
+        metadata: { playlist: [SAMPLE_MODEL_ID], activeModelId: SAMPLE_MODEL_ID },
+        is_active: true,
+        visibility: "public",
+        created_by_sub: "acct:owner",
+        created_by_email: "owner@memphis.edu",
+        created_at: "2025-06-01T00:00:00.000Z",
+        updated_at: "2025-06-01T00:00:00.000Z",
+      };
+
+      mocks.query.mockImplementation(async (sql: string) => {
+        const text = String(sql);
+        if (text.includes("FROM gltf_models WHERE model_id")) {
+          return { rows: [filedRow] };
+        }
+        if (text.includes("FROM library_folders WHERE folder_id")) {
+          return { rows: [folderRow] };
+        }
+        if (text.includes("FROM manuscript_libraries WHERE library_id")) {
+          return { rows: [libraryRow] };
+        }
+        if (text.includes("FROM library_shares")) {
+          return { rows: [] };
+        }
+        if (text.includes("FROM game_sessions WHERE session_id")) {
+          return { rows: [sessionRow] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/${SAMPLE_MODEL_ID}/meta`)
+        .expect(200);
+
+      expect(res.body.modelId).toBe(SAMPLE_MODEL_ID);
+      expect(res.body.folderId).toBe("folder-1");
     });
   });
 
@@ -275,7 +344,7 @@ describe("gltfModel routes", () => {
 
   describe("GET /:modelId", () => {
     it("streams the glb from storage and sets correct headers", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+      mocks.query.mockResolvedValue({ rows: [mockDbRow] });
       mockDownload.mockResolvedValueOnce(Readable.from(["FAKEGLB"]));
 
       const res = await request(app)
@@ -288,7 +357,7 @@ describe("gltfModel routes", () => {
     });
 
     it("returns 404 when model does not exist", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [] });
+      mocks.query.mockResolvedValue({ rows: [] });
 
       const res = await request(app)
         .get("/nonexistent")
@@ -304,10 +373,10 @@ describe("gltfModel routes", () => {
 
   describe("DELETE /:modelId", () => {
     it("removes from storage and DB, returns 200", async () => {
-      // findById
-      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
-      // delete
-      mocks.query.mockResolvedValueOnce({ rowCount: 1 });
+      mocks.query
+        .mockResolvedValueOnce({ rows: [mockDbRow] }) // libraryMayAccessModel findById
+        .mockResolvedValueOnce({ rows: [mockDbRow] }) // handler findById
+        .mockResolvedValueOnce({ rowCount: 1 }); // delete
 
       const res = await request(app)
         .delete(`/${SAMPLE_MODEL_ID}`)

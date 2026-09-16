@@ -14,7 +14,7 @@ import {
   type AllowlistEntry,
   type GameSession,
 } from "../api/gameState";
-import { fetchModels } from "../api/models";
+import { fetchModelMeta, fetchModels } from "../api/models";
 import {
   sessionActiveModelId,
   sessionPlaylist,
@@ -23,6 +23,7 @@ import {
 import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { ManuscriptPreview } from "../components/ManuscriptPreview";
 import { ShareQrPanel } from "../components/ShareQrPanel";
 import { SpaceChatPanel } from "../components/SpaceChatPanel";
 import { WebGlEmbed } from "../components/WebGlEmbed";
@@ -33,6 +34,7 @@ import {
   readDashboardEmail,
   webGlOriginFromBaseUrl,
 } from "../auth/launchWebGl";
+import { useModelPreview } from "../hooks/useModelPreview";
 import { useSessionRoom } from "../hooks/useSessionRoom";
 import type { PlayerState } from "../api/gameState";
 import { patchSessionEvent } from "../api/sessions";
@@ -129,6 +131,7 @@ export default function Enter({
   const [playlistBusy, setPlaylistBusy] = useState(false);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+  const [previewModelId, setPreviewModelId] = useState<string | null>(null);
 
   const isHost = Boolean(me?.isHost);
   const visibility = session?.visibility === "private" ? "private" : "public";
@@ -182,6 +185,37 @@ export default function Enter({
   const activeTitle = activeModelId
     ? shortModelLabel(activeModelId, modelLabels[activeModelId])
     : null;
+
+  useEffect(() => {
+    setPreviewModelId(activeModelId);
+  }, [activeModelId, sessionId]);
+
+  const loadoutPreview = useModelPreview(previewModelId);
+
+  useEffect(() => {
+    if (!playlist.length) return;
+    let cancelled = false;
+    void (async () => {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        playlist.map(async (modelId) => {
+          try {
+            const meta = await fetchModelMeta(modelId);
+            if (!cancelled) next[modelId] = meta.label?.trim() || modelId;
+          } catch {
+            /* optional — fall back to id */
+          }
+        }),
+      );
+      if (!cancelled && Object.keys(next).length) {
+        setModelLabels((prev) => ({ ...prev, ...next }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playlist.join("|")]);
 
   const onSetActiveModel = async (modelId: string) => {
     if (!sessionId || !isHost || playlistBusy) return;
@@ -577,12 +611,137 @@ export default function Enter({
         </p>
       ) : null}
 
+      {(status === "ready" || session) ? (
+        <section className="vr-enter__loadout" aria-label="Manuscript loadout">
+          <div className="vr-enter__loadout-grid">
+            <ManuscriptPreview
+              className="vr-enter__loadout-preview"
+              preview={loadoutPreview}
+              emptyMessage={
+                playlist.length
+                  ? "Select a manuscript in the list to preview its mesh."
+                  : "No manuscripts in this space yet — nothing to preview."
+              }
+              alt={
+                previewModelId
+                  ? shortModelLabel(previewModelId, modelLabels[previewModelId])
+                  : undefined
+              }
+            />
+            <div className="vr-enter__playlist vr-enter__playlist--loadout">
+              <div className="vr-enter__playlist-head">
+                <h2 className="vr-enter__playlist-title">
+                  <MaterialIcon name="menu_book" />
+                  Manuscripts
+                </h2>
+                {isHost && sessionId && onAddFromLibrary ? (
+                  <button
+                    type="button"
+                    className="vr-enter__text-btn"
+                    onClick={() => onAddFromLibrary(sessionId)}
+                    disabled={playlistBusy}
+                  >
+                    <MaterialIcon name="library_add" />
+                    Add from library
+                  </button>
+                ) : null}
+              </div>
+              {playlistError ? (
+                <p className="vr-enter__error" role="alert">
+                  {playlistError}
+                </p>
+              ) : null}
+              {!playlist.length ? (
+                <p className="vr-enter__playlist-empty">
+                  {isHost
+                    ? "No documents in this space yet."
+                    : "No manuscripts in this exhibit yet."}
+                  {isHost && onAddFromLibrary && sessionId ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="vr-enter__retry"
+                        onClick={() => onAddFromLibrary(sessionId)}
+                      >
+                        Add from library
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              ) : (
+                <ul className="vr-enter__playlist-list">
+                  {playlist.map((modelId) => {
+                    const isActive = modelId === activeModelId;
+                    const isPreviewing = modelId === previewModelId;
+                    const title = shortModelLabel(modelId, modelLabels[modelId]);
+                    return (
+                      <li
+                        key={modelId}
+                        className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}${
+                          isPreviewing ? " vr-enter__playlist-row--previewing" : ""
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          className="vr-enter__playlist-select"
+                          title={modelId}
+                          aria-pressed={isPreviewing}
+                          onClick={() => setPreviewModelId(modelId)}
+                        >
+                          {isActive ? (
+                            <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
+                          ) : (
+                            <MaterialIcon name="radio_button_unchecked" />
+                          )}
+                          <span className="vr-enter__playlist-name">{title}</span>
+                          {isActive ? (
+                            <span className="vr-enter__playlist-badge">Active</span>
+                          ) : null}
+                        </button>
+                        {isHost ? (
+                          <span className="vr-enter__playlist-actions">
+                            {!isActive ? (
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={playlistBusy}
+                                onClick={() => void onSetActiveModel(modelId)}
+                              >
+                                Set active
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="vr-enter__text-btn"
+                              disabled={playlistBusy}
+                              onClick={() => void onRemoveFromPlaylist(modelId)}
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {!isHost && playlist.length ? (
+                <p className="vr-enter__playlist-hint">
+                  Tap a manuscript to preview. Enter 3D uses the active one.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {isHost ? (
         <details className="vr-enter__host-ops" open>
           <summary className="vr-enter__host-ops-summary">
             <MaterialIcon name="admin_panel_settings" />
             Host tools
-            <span className="vr-enter__host-ops-hint">Visibility, kiosk, invites, manuscripts, participants</span>
+            <span className="vr-enter__host-ops-hint">Visibility, kiosk, invites, participants</span>
           </summary>
 
           <div className="vr-enter__host-ops-toolbar">
@@ -719,94 +878,6 @@ export default function Enter({
             )}
           </section>
 
-          {(status === "ready" || session) ? (
-            <section className="vr-enter__playlist" aria-label="Manuscript playlist">
-              <div className="vr-enter__playlist-head">
-                <h2 className="vr-enter__playlist-title">
-                  <MaterialIcon name="menu_book" />
-                  Manuscripts
-                </h2>
-                {sessionId && onAddFromLibrary ? (
-                  <button
-                    type="button"
-                    className="vr-enter__text-btn"
-                    onClick={() => onAddFromLibrary(sessionId)}
-                    disabled={playlistBusy}
-                  >
-                    <MaterialIcon name="library_add" />
-                    Add from library
-                  </button>
-                ) : null}
-              </div>
-              {playlistError ? (
-                <p className="vr-enter__error" role="alert">
-                  {playlistError}
-                </p>
-              ) : null}
-              {!playlist.length ? (
-                <p className="vr-enter__playlist-empty">
-                  No documents in this space yet.
-                  {onAddFromLibrary && sessionId ? (
-                    <>
-                      {" "}
-                      <button
-                        type="button"
-                        className="vr-enter__retry"
-                        onClick={() => onAddFromLibrary(sessionId)}
-                      >
-                        Add from library
-                      </button>
-                    </>
-                  ) : null}
-                </p>
-              ) : (
-                <ul className="vr-enter__playlist-list">
-                  {playlist.map((modelId) => {
-                    const isActive = modelId === activeModelId;
-                    const title = shortModelLabel(modelId, modelLabels[modelId]);
-                    return (
-                      <li
-                        key={modelId}
-                        className={`vr-enter__playlist-row${isActive ? " vr-enter__playlist-row--active" : ""}`}
-                      >
-                        <span className="vr-enter__playlist-name" title={modelId}>
-                          {isActive ? (
-                            <MaterialIcon name="check_circle" className="vr-enter__playlist-check" />
-                          ) : (
-                            <MaterialIcon name="radio_button_unchecked" />
-                          )}
-                          {title}
-                        </span>
-                        <span className="vr-enter__playlist-actions">
-                          {!isActive ? (
-                            <button
-                              type="button"
-                              className="vr-enter__text-btn"
-                              disabled={playlistBusy}
-                              onClick={() => void onSetActiveModel(modelId)}
-                            >
-                              Set active
-                            </button>
-                          ) : (
-                            <span className="vr-enter__playlist-badge">Active</span>
-                          )}
-                          <button
-                            type="button"
-                            className="vr-enter__text-btn"
-                            disabled={playlistBusy}
-                            onClick={() => void onRemoveFromPlaylist(modelId)}
-                          >
-                            Remove
-                          </button>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-          ) : null}
-
           <section className="vr-enter__moderation" aria-label="Participant moderation">
             <h2 className="vr-enter__playlist-title">
               <MaterialIcon name="group" />
@@ -918,8 +989,6 @@ export default function Enter({
               ))}
             </div>
           </div>
-
-          ) : null}
 
           <div className="vr-enter__controls-hint" aria-label="Controls">
             <span>

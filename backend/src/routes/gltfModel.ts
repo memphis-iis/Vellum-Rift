@@ -7,10 +7,14 @@ import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
 import { JobQueue } from "../lib/jobQueue.js";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { LibraryRepository } from "../lib/libraryRepository.js";
+import { canEdit, canView, resolveFolderAccess } from "../lib/libraryAccess.js";
+import { canAccessSession } from "../lib/sessionAccess.js";
 
 const router = Router();
 const repo = new GlTFModelRepository();
 const gameStateRepo = new GameStateRepository();
+const libraryRepo = new LibraryRepository();
 
 /** Safely extract a string route param (Express v5 types union string | string[]). */
 const param = (req: Request, name: string): string =>
@@ -40,6 +44,32 @@ async function kioskMayAccessModel(
   if (activeModelId) allowed.add(activeModelId);
   if (!allowed.has(modelId)) {
     return { ok: false, status: 403, error: "Model is not on this space playlist" };
+  }
+  return { ok: true };
+}
+
+/** Non-kiosk: library folder ACL when model is filed; else allow authenticated.
+ * View fallback (#239): if the model is bound to a Space the caller can access,
+ * allow meta/GLB so loadout / visitor preview works without a library share.
+ */
+async function libraryMayAccessModel(
+  req: Request,
+  modelId: string,
+  needEdit = false,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (isKioskGuest(req.user)) return { ok: true };
+  const record = await repo.findById(modelId);
+  if (!record) return { ok: false, status: 404, error: "Model not found" };
+  if (!record.folderId) return { ok: true };
+  const access = await resolveFolderAccess(record.folderId, req.user);
+  if (needEdit ? !canEdit(access.level) : !canView(access.level)) {
+    if (!needEdit && record.sessionId) {
+      const state = await gameStateRepo.findById(record.sessionId);
+      if (state && (await canAccessSession(req.user, state))) {
+        return { ok: true };
+      }
+    }
+    return { ok: false, status: 403, error: "Forbidden" };
   }
   return { ok: true };
 }
@@ -156,6 +186,11 @@ router.get("/:modelId", async (req: Request, res: Response) => {
       res.status(gate.status).json({ error: gate.error });
       return;
     }
+    const libGate = await libraryMayAccessModel(req, modelId);
+    if (!libGate.ok) {
+      res.status(libGate.status).json({ error: libGate.error });
+      return;
+    }
 
     const record = await repo.findById(modelId);
     if (!record) {
@@ -194,6 +229,11 @@ router.get("/:modelId/meta", async (req: Request, res: Response) => {
       res.status(gate.status).json({ error: gate.error });
       return;
     }
+    const libGate = await libraryMayAccessModel(req, modelId);
+    if (!libGate.ok) {
+      res.status(libGate.status).json({ error: libGate.error });
+      return;
+    }
 
     const record = await repo.findById(modelId);
     if (!record) {
@@ -211,6 +251,57 @@ router.get("/:modelId/meta", async (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/models/:modelId/location — move into a library folder (#234)
+// ---------------------------------------------------------------------------
+router.patch("/:modelId/location", async (req: Request, res: Response) => {
+  if (isKioskGuest(req.user)) {
+    res.status(403).json({ error: "Kiosk guests cannot move models" });
+    return;
+  }
+  try {
+    const modelId = param(req, "modelId");
+    const folderId = String((req.body as { folderId?: string }).folderId ?? "").trim();
+    if (!folderId) {
+      res.status(400).json({ error: "folderId is required" });
+      return;
+    }
+
+    const record = await repo.findById(modelId);
+    if (!record) {
+      res.status(404).json({ error: "Model not found" });
+      return;
+    }
+
+    // Must edit current location (if filed) or be authenticated owner adopting unfiled
+    if (record.folderId) {
+      const fromAccess = await resolveFolderAccess(record.folderId, req.user);
+      if (!canEdit(fromAccess.level)) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+    }
+
+    const toAccess = await resolveFolderAccess(folderId, req.user);
+    if (!toAccess.folder || !canEdit(toAccess.level)) {
+      res.status(toAccess.folder ? 403 : 404).json({
+        error: toAccess.folder ? "Forbidden" : "Folder not found",
+      });
+      return;
+    }
+
+    const updated = await repo.setLocation(
+      modelId,
+      folderId,
+      req.user?.sub ?? record.ownerSub,
+    );
+    res.json(updated);
+  } catch (err) {
+    console.error(`PATCH /api/models/${req.params.modelId}/location failed:`, err);
+    res.status(500).json({ error: "Failed to move model" });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/models/:modelId
 //   Remove a model from both MinIO and the DB.
 // ---------------------------------------------------------------------------
@@ -221,6 +312,12 @@ router.delete("/:modelId", async (req: Request, res: Response) => {
   }
   try {
     const modelId = param(req, "modelId");
+
+    const libGate = await libraryMayAccessModel(req, modelId, true);
+    if (!libGate.ok) {
+      res.status(libGate.status).json({ error: libGate.error });
+      return;
+    }
 
     const record = await repo.findById(modelId);
     if (!record) {

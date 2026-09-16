@@ -1,6 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { addPlayer, getSession } from "../api/gameState";
+import { addPlayer, getSession, type GameSession } from "../api/gameState";
 import { fetchKioskStatus, mintKioskToken } from "../api/kiosk";
+import { fetchModelMeta } from "../api/models";
+import {
+  sessionActiveModelId,
+  sessionPlaylist,
+  shortModelLabel,
+} from "../api/playlistHelpers";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { TOKEN_STORAGE_KEY, VELLUM_LOGO_URL } from "../auth/config";
 import {
@@ -8,6 +14,8 @@ import {
   webGlOriginFromBaseUrl,
 } from "../auth/launchWebGl";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { ManuscriptPreview } from "../components/ManuscriptPreview";
+import { useModelPreview } from "../hooks/useModelPreview";
 
 type KioskJoinProps = {
   sessionId: string;
@@ -18,6 +26,7 @@ type Phase = "loading" | "ready" | "launching" | "blocked" | "error";
 /**
  * Museum public join (#145 / #182): no Bluekey.
  * One primary CTA: nametag → join Space → open 3D (with popup-blocked fallback).
+ * Loadout preview (#239): guests can inspect playlist meshes before Enter 3D.
  */
 export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -27,12 +36,21 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [busy, setBusy] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const [playlist, setPlaylist] = useState<string[]>([]);
+  const [activeModelId, setActiveModelId] = useState<string | null>(null);
+  const [previewModelId, setPreviewModelId] = useState<string | null>(null);
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+
+  const loadoutPreview = useModelPreview(previewModelId);
 
   useEffect(() => {
     let cancelled = false;
     setPhase("loading");
     setError(null);
     setFallbackUrl(null);
+    setPlaylist([]);
+    setActiveModelId(null);
+    setPreviewModelId(null);
 
     void (async () => {
       try {
@@ -54,6 +72,19 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
         if (cancelled) return;
         sessionStorage.setItem(TOKEN_STORAGE_KEY, minted.accessToken);
         setAccessToken(minted.accessToken);
+
+        try {
+          const session = (await getSession(sessionId)) as GameSession;
+          if (cancelled) return;
+          const nextPlaylist = sessionPlaylist(session);
+          const nextActive = sessionActiveModelId(session);
+          setPlaylist(nextPlaylist);
+          setActiveModelId(nextActive);
+          setPreviewModelId(nextActive ?? nextPlaylist[0] ?? null);
+        } catch {
+          /* preview optional if session fetch fails */
+        }
+
         setPhase("ready");
       } catch (err) {
         if (cancelled) return;
@@ -66,6 +97,30 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
       cancelled = true;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!playlist.length) return;
+    let cancelled = false;
+    void (async () => {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        playlist.map(async (modelId) => {
+          try {
+            const meta = await fetchModelMeta(modelId);
+            if (!cancelled) next[modelId] = meta.label?.trim() || modelId;
+          } catch {
+            /* optional */
+          }
+        }),
+      );
+      if (!cancelled && Object.keys(next).length) {
+        setModelLabels((prev) => ({ ...prev, ...next }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playlist.join("|")]);
 
   const openWebGl = (url: string, token: string): boolean => {
     const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
@@ -147,7 +202,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
               ? "Public join is unavailable."
               : phase === "blocked"
                 ? "One more tap to open 3D."
-                : "No sign-in required — enter a nametag and open 3D."}
+                : "No sign-in required — preview the exhibit, enter a nametag, and open 3D."}
           </p>
         </header>
 
@@ -175,29 +230,71 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
             <h2 className="vr-kiosk__space">{label}</h2>
 
             {phase === "ready" ? (
-              <form className="vr-kiosk__form" onSubmit={(e) => void onEnter3d(e)}>
-                <label className="vr-kiosk__label" htmlFor="kiosk-nametag">
-                  Nametag
-                </label>
-                <input
-                  id="kiosk-nametag"
-                  className="vr-kiosk__input"
-                  value={nametag}
-                  onChange={(e) => setNametag(e.target.value)}
-                  maxLength={40}
-                  placeholder="Guest"
-                  autoComplete="nickname"
-                />
-                {error ? (
-                  <p className="vr-kiosk__error" role="alert">
-                    {error}
-                  </p>
-                ) : null}
-                <button type="submit" className="vr-btn vr-btn--primary" disabled={busy}>
-                  <MaterialIcon name="view_in_ar" />
-                  {busy ? "Opening 3D…" : "Enter 3D"}
-                </button>
-              </form>
+              <>
+                <div className="vr-kiosk__loadout" aria-label="Exhibit manuscripts">
+                  <ManuscriptPreview
+                    className="vr-kiosk__preview"
+                    preview={loadoutPreview}
+                    emptyMessage="No manuscripts in this exhibit yet."
+                    alt={
+                      previewModelId
+                        ? shortModelLabel(previewModelId, modelLabels[previewModelId])
+                        : undefined
+                    }
+                  />
+                  {playlist.length ? (
+                    <ul className="vr-kiosk__playlist">
+                      {playlist.map((modelId) => {
+                        const isActive = modelId === activeModelId;
+                        const isPreviewing = modelId === previewModelId;
+                        const title = shortModelLabel(modelId, modelLabels[modelId]);
+                        return (
+                          <li key={modelId}>
+                            <button
+                              type="button"
+                              className={`vr-kiosk__playlist-btn${isPreviewing ? " vr-kiosk__playlist-btn--previewing" : ""}`}
+                              aria-pressed={isPreviewing}
+                              onClick={() => setPreviewModelId(modelId)}
+                            >
+                              <MaterialIcon
+                                name={isActive ? "check_circle" : "radio_button_unchecked"}
+                              />
+                              <span>{title}</span>
+                              {isActive ? <span className="vr-kiosk__active-badge">Active</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="vr-kiosk__hint">No manuscripts in this exhibit yet.</p>
+                  )}
+                </div>
+
+                <form className="vr-kiosk__form" onSubmit={(e) => void onEnter3d(e)}>
+                  <label className="vr-kiosk__label" htmlFor="kiosk-nametag">
+                    Nametag
+                  </label>
+                  <input
+                    id="kiosk-nametag"
+                    className="vr-kiosk__input"
+                    value={nametag}
+                    onChange={(e) => setNametag(e.target.value)}
+                    maxLength={40}
+                    placeholder="Guest"
+                    autoComplete="nickname"
+                  />
+                  {error ? (
+                    <p className="vr-kiosk__error" role="alert">
+                      {error}
+                    </p>
+                  ) : null}
+                  <button type="submit" className="vr-btn vr-btn--primary" disabled={busy}>
+                    <MaterialIcon name="view_in_ar" />
+                    {busy ? "Opening 3D…" : "Enter 3D"}
+                  </button>
+                </form>
+              </>
             ) : null}
 
             {phase === "launching" ? (

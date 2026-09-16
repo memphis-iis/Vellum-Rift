@@ -15,6 +15,8 @@ export interface GlTFModelRecord {
   vertexCount: number;
   fileSize: number;
   createdAt: string; // ISO-8601
+  ownerSub: string | null;
+  folderId: string | null;
 }
 
 interface GlTFModelRow {
@@ -28,6 +30,8 @@ interface GlTFModelRow {
   vertex_count: number;
   file_size: number;
   created_at: string;
+  owner_sub?: string | null;
+  folder_id?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +50,8 @@ function toRecord(row: GlTFModelRow): GlTFModelRecord {
     vertexCount: row.vertex_count,
     fileSize: row.file_size,
     createdAt: row.created_at,
+    ownerSub: row.owner_sub ?? null,
+    folderId: row.folder_id ?? null,
   };
 }
 
@@ -66,11 +72,13 @@ export class GlTFModelRepository {
     height: number;
     vertexCount: number;
     fileSize: number;
+    ownerSub?: string | null;
+    folderId?: string | null;
   }): Promise<GlTFModelRecord> {
     const result = await pool.query(
       `INSERT INTO gltf_models
-         (session_id, label, storage_key, height_mode, width, height, vertex_count, file_size)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (session_id, label, storage_key, height_mode, width, height, vertex_count, file_size, owner_sub, folder_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         params.sessionId ?? null,
@@ -81,6 +89,8 @@ export class GlTFModelRepository {
         params.height,
         params.vertexCount,
         params.fileSize,
+        params.ownerSub ?? null,
+        params.folderId ?? null,
       ],
     );
     return toRecord(result.rows[0] as GlTFModelRow);
@@ -105,6 +115,14 @@ export class GlTFModelRepository {
     const result = await pool.query(
       `SELECT * FROM gltf_models WHERE session_id = $1 ORDER BY created_at DESC`,
       [sessionId],
+    );
+    return (result.rows as GlTFModelRow[]).map(toRecord);
+  }
+
+  async findByFolder(folderId: string): Promise<GlTFModelRecord[]> {
+    const result = await pool.query(
+      `SELECT * FROM gltf_models WHERE folder_id = $1 ORDER BY lower(label) ASC, created_at DESC`,
+      [folderId],
     );
     return (result.rows as GlTFModelRow[]).map(toRecord);
   }
@@ -142,6 +160,23 @@ export class GlTFModelRepository {
       [modelId, sessionId],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async setLocation(
+    modelId: string,
+    folderId: string,
+    ownerSub?: string | null,
+  ): Promise<GlTFModelRecord | null> {
+    const result = await pool.query(
+      `UPDATE gltf_models
+       SET folder_id = $2,
+           owner_sub = COALESCE($3, owner_sub)
+       WHERE model_id = $1
+       RETURNING *`,
+      [modelId, folderId, ownerSub ?? null],
+    );
+    if (!result.rows[0]) return null;
+    return toRecord(result.rows[0] as GlTFModelRow);
   }
 
   /**

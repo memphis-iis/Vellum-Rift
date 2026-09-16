@@ -26,6 +26,8 @@ export type ModelMeta = {
   vertexCount: number;
   fileSize: number;
   createdAt: string;
+  ownerSub?: string | null;
+  folderId?: string | null;
 };
 
 export async function fetchModelMeta(modelId: string): Promise<ModelMeta> {
@@ -51,6 +53,26 @@ export async function fetchModels(limit = 100): Promise<ModelMeta[]> {
     throw new Error(err || `Model list failed (${res.status})`);
   }
   return Array.isArray(data) ? data : [];
+}
+
+/** Move a manuscript into a library folder (one location; relocates). */
+export async function patchModelLocation(
+  modelId: string,
+  folderId: string,
+): Promise<ModelMeta> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/models/${encodeURIComponent(modelId)}/location`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify({ folderId }),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as ModelMeta & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Move failed (${res.status})`);
+  }
+  return data;
 }
 
 /**
