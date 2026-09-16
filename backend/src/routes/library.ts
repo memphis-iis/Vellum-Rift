@@ -31,7 +31,10 @@ function rejectKiosk(req: Request, res: Response): boolean {
 function requireUser(req: Request, res: Response): { sub: string; email: string } | null {
   const sub = req.user?.sub?.trim();
   if (!sub) {
-    res.status(401).json({ error: "Authentication required" });
+    res.status(401).json({
+      error:
+        "Authentication required — sign in with Bluekey (Library needs a real account token, not local-dev skip)",
+    });
     return null;
   }
   return { sub, email: req.user?.email ?? "" };

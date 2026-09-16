@@ -198,6 +198,20 @@ describe("Library API (#233–#235)", () => {
     ).toBe(true);
   });
 
+  it("GET /api/library returns 401 when user has no sub", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { sub: "", email: "", exp: 999 } as typeof OWNER;
+      next();
+    });
+    app.use("/api/library", libraryRouter);
+
+    const res = await request(app).get("/api/library");
+    expect(res.status).toBe(401);
+    expect(String(res.body.error)).toMatch(/Authentication required/i);
+  });
+
   it("POST /api/library/folders creates under editable parent", async () => {
     mockOwnerAclQueries((text) => {
       if (text.includes("INSERT INTO library_folders")) {
