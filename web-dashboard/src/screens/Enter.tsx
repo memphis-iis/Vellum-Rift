@@ -919,8 +919,6 @@ export default function Enter({
             </div>
           </div>
 
-          ) : null}
-
           <div className="vr-enter__controls-hint" aria-label="Controls">
             <span>
               <kbd>WASD</kbd> Move
