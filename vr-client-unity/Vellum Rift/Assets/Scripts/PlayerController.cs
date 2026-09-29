@@ -184,10 +184,13 @@ namespace VellumRift.Control
                 .With("Negative", "<Keyboard>/leftCtrl");
             verticalAction.AddCompositeBinding("1DAxis")
                 .With("Negative", "<Keyboard>/x");
-            // XR Jetpack vertical lift via Primary/Grip or Gamepad triggers
+            // XR Jetpack vertical lift via Primary/Grip (separate composites per source)
             verticalAction.AddCompositeBinding("1DAxis")
-                .With("Positive", "<XRController>{RightHand}/primaryButton")
-                .With("Positive", "<XRController>{LeftHand}/gripButton")
+                .With("Positive", "<XRController>{RightHand}/primaryButton");
+            verticalAction.AddCompositeBinding("1DAxis")
+                .With("Positive", "<XRController>{LeftHand}/gripButton");
+            // Gamepad elevation via triggers
+            verticalAction.AddCompositeBinding("1DAxis")
                 .With("Positive", "<Gamepad>/rightTrigger")
                 .With("Negative", "<Gamepad>/leftTrigger");
 

@@ -12,9 +12,9 @@ Editor/PlayMode and on-device checklist for dual-platform Desktop and Meta Quest
 ## 1. Desktop Keyboard & Mouse Mode (`InputControlSchema.Detect() == KeyboardMouse`)
 - [ ] **Planar Locomotion:** Pressing `W` / `A` / `S` / `D` moves player camera forward, left, backward, and right.
 - [ ] **Elevation:** `Space` moves camera up; `Left Ctrl` or `X` moves camera down.
-- [ ] **Turning:** Holding `Right Mouse Button` + mouse delta looks in pitch/yaw; `Q` / `E` turns yaw.
+- [ ] **Turning:** Holding `Right Mouse Button` + mouse delta looks in pitch/yaw; `Z` / `E` turns yaw.
 - [ ] **Laser Pointer:** Holding `Left Mouse Button` projects laser ray from camera forward; hit marker appears on manuscript surface.
-- [ ] **Controls Guide:** Top-right HUD displays `WASD`, `L-CLK`, `SPACE / CTRL`, `Q / E` badges.
+- [ ] **Controls Guide:** Top-right HUD displays `WASD`, `L-CLK`, `SPACE / CTRL`, `Z / E` badges.
 
 ---
 

@@ -95,7 +95,7 @@ namespace VellumRift
                         new BindingRow("Move Around", "WASD"),
                         new BindingRow("Mouse Look", "R-CLK (hold)"),
                         new BindingRow("Elevation", "SPACE / CTRL"),
-                        new BindingRow("Turn Left / Right", "Q / E"),
+                        new BindingRow("Turn Left / Right", "Z / E"),
                         new BindingRow("Use Laser", "L-CLK"),
                         new BindingRow("Drop a Pin", "F"),
                     };
