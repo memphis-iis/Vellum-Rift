@@ -112,7 +112,7 @@ When implemented, expected shape:
 | Install dependencies | `Unity -batchmode -nographics -projectPath "vr-client-unity/Vellum Rift" -executeMethod CI.InstallDependencies` | All |
 | Run tests (EditMode) | `Unity -batchmode -nographics -projectPath "..." -runTests -testPlatform editmode -testResults unity-test-results.xml` | All |
 | Build WebGL | `Unity -batchmode -nographics -projectPath "..." -executeMethod CI.BuildWebGL -quit` | `web build/` |
-| Build Android (Quest) | `Unity -batchmode -nographics -projectPath "..." -executeMethod CI.BuildAndroid -quit` | `.apk` / `.aab` |
+| Build Android (Quest) | `Unity -batchmode -nographics -projectPath "..." -executeMethod VellumRift.Editor.CIBuild.BuildAndroid -quit` | `.apk` |
 | Build Windows (SteamVR) | `Unity -batchmode -nographics -projectPath "..." -executeMethod CI.BuildWindows -quit` | `.exe` |
 
 - Test results should publish as JUnit XML artifacts (`unity-test-results.xml`).

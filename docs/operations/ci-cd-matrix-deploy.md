@@ -24,6 +24,12 @@ This document describes the GitHub Actions workflows that currently run for the 
       backend, webrtc-sfu, web-dashboard
                 |
                 v
+[ Manual / dispatch Unity clients ]
+  - EditMode tests: workflow_dispatch → unity-editmode-tests.yml
+  - Quest APK: workflow_dispatch → unity-build-android.yml → artifact VellumRift-Quest-apk
+  - WebGL museum: local `vr-client-unity/scripts/build-webgl-museum.sh`
+                |
+                v
 [ Manual deploy / store packaging by maintainers ]
 ```
 
@@ -31,8 +37,10 @@ Workflows:
 
 - `.github/workflows/ci.yml` — lint, backend tests, workspace build
 - `.github/workflows/build-publish.yml` — GHCR images
+- `.github/workflows/unity-editmode-tests.yml` — EditMode NUnit (requires `UNITY_LICENSE`)
+- `.github/workflows/unity-build-android.yml` — Quest APK via `VellumRift.Editor.CIBuild.BuildAndroid` (requires `UNITY_LICENSE`)
 
-Both support `workflow_dispatch` for manual runs.
+All support `workflow_dispatch` for manual runs (Unity workflows are dispatch-only until license secrets are standard).
 
 ## 2. What CI Actually Enforces Today
 
@@ -46,14 +54,25 @@ Every pull request and push targeting **`main`** should run the `CI` workflow (`
 | Unit tests | `pnpm --filter @vellum-rift/backend test` | Backend (Vitest) |
 | Build | `pnpm build` | All packages with `build` |
 
-**Not in CI today (planned / manual):**
+**Not required on every PR (dispatch / local):**
 
-- ESLint / Prettier as separate jobs (packages use `tsc --noEmit` via `lint`)
-- Unity EditMode tests
-- Headless Unity WebGL / Android / Windows builds
+- Unity EditMode tests — `.github/workflows/unity-editmode-tests.yml` (`UNITY_LICENSE`)
+- Headless Unity Android Quest APK — `.github/workflows/unity-build-android.yml` + local `vr-client-unity/scripts/build-android-quest.sh`
+- Headless Unity WebGL — local `vr-client-unity/scripts/build-webgl-museum.sh` (`VellumRift.Editor.CIBuild.BuildWebGL`)
 - Automatic production schema migrations
 
-Unity WebGL compilation is **not** a required GitHub Actions check. Native and WebGL client builds are produced locally (or in a future Unity CI job tracked as IMPL-025b).
+### Android / Quest APK
+
+| Item | Value |
+|------|--------|
+| Entry | `VellumRift.Editor.CIBuild.BuildAndroid` |
+| Local script | `vr-client-unity/scripts/build-android-quest.sh` |
+| Default output | `vr-client-unity/Vellum Rift/build/VellumRift-Quest.apk` |
+| CI artifact | `VellumRift-Quest-apk` from `unity-build-android.yml` |
+| Target | ARM64, IL2CPP, min API 29, Vulkan + OpenGLES3 |
+| Signing | Optional `ANDROID_KEYSTORE_*` env vars; otherwise debug-signed |
+
+Unity WebGL compilation is **not** a required GitHub Actions check on every PR. Sideload steps live in `docs/qa/quest-museum-verify.md` (Step 6).
 
 ## 3. Container Publish (GHCR)
 
@@ -79,8 +98,8 @@ Dashboard image serves the Vite production build via nginx. Backend uses `node:2
 
 ### Native Store Deployments
 
-- Meta Quest and Steam / PCVR packages are **manual**.
-- Maintainers build, sign, and upload from a local Unity environment when releasing store builds.
+- Meta Quest APK can be produced via `workflow_dispatch` (`unity-build-android.yml`) or locally with `build-android-quest.sh`; store upload / signing remains a maintainer step.
+- Steam / PCVR packages remain **manual**.
 
 ### Production Database Migration Policy
 

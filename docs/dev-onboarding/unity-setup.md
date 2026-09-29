@@ -58,6 +58,14 @@ Trigger via **Actions → Unity EditMode Tests → Run workflow** (`workflow_dis
 
 Unity version pinned to **6000.2.13f1** (see `ProjectSettings/ProjectVersion.txt`), matching GameCI `unityVersion`.
 
+### Android / Quest APK builds (#193, #209, #275)
+
+- Local: `vr-client-unity/scripts/build-android-quest.sh` → `vr-client-unity/Vellum Rift/build/VellumRift-Quest.apk`
+  - Optional: `DEVELOPMENT_BUILD=1`, `CUSTOM_BUILD_PATH=/abs/path.apk`, `UNITY_EDITOR=...`
+  - Optional signing: `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASS`, `ANDROID_KEYALIAS_NAME`, `ANDROID_KEYALIAS_PASS`
+- CI: **Actions → Unity Android Quest APK → Run workflow** (`.github/workflows/unity-build-android.yml`); uploads `VellumRift-Quest-apk` artifact.
+- Editor menu: **Vellum Rift → Build → Android Quest APK** (`VellumRift.Editor.CIBuild.BuildAndroid`). Does not modify `BuildWebGL`.
+
 ## Implementation Constraints
 
 1. Shared state models should come from backend-generated contracts rather than manually duplicated network models.
