@@ -54,7 +54,7 @@ Workflow: [`.github/workflows/unity-editmode-tests.yml`](../../.github/workflows
 | `UNITY_EMAIL` | Optional; used by some activation flows |
 | `UNITY_PASSWORD` | Optional; used by some activation flows |
 
-Without `UNITY_LICENSE`, pull_request/push jobs are skipped; `workflow_dispatch` fails fast with a pointer to this section. Passing runs upload NUnit/JUnit XML under the `unity-editmode-results` artifact. Failing tests fail the job.
+Trigger via **Actions → Unity EditMode Tests → Run workflow** (`workflow_dispatch`). The job fails fast if `UNITY_LICENSE` is empty. Passing runs upload NUnit/JUnit XML under the `unity-editmode-results` artifact. Failing tests fail the job.
 
 Unity version pinned to **6000.2.13f1** (see `ProjectSettings/ProjectVersion.txt`), matching GameCI `unityVersion`.
 

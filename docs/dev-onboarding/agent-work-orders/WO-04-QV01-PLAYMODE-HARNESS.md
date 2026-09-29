@@ -42,4 +42,4 @@ Establish EditMode + PlayMode NUnit coverage for dual-platform input (Desktop WA
 1. Open Unity Test Runner → EditMode → run all `VellumRift.Tests` (0 failures).
 2. Optionally run PlayMode fixtures locally.
 3. `pnpm run verify:quest` still exits 0.
-4. With `UNITY_LICENSE` configured, dispatch **Unity EditMode Tests** and confirm the XML artifact uploads.
+4. With `UNITY_LICENSE` configured, dispatch **Unity EditMode Tests** (`workflow_dispatch`) and confirm the XML artifact uploads.

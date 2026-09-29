@@ -6,32 +6,25 @@ name: Unity EditMode Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "vr-client-unity/**"
-      - ".github/workflows/unity-editmode-tests.yml"
-  push:
-    branches: [main]
-    paths:
-      - "vr-client-unity/**"
-      - ".github/workflows/unity-editmode-tests.yml"
+  # Path-filtered PR/push intentionally omitted until UNITY_LICENSE is configured
+  # in repo secrets. Maintainers run via Actions → Unity EditMode Tests → Run workflow.
 
 jobs:
   editmode:
     name: EditMode
     runs-on: ubuntu-latest
-    # Skip quietly when license secrets are not configured (forks / early setup).
-    # workflow_dispatch always runs so maintainers can verify once secrets exist.
-    if: ${{ github.event_name == 'workflow_dispatch' || secrets.UNITY_LICENSE != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify license secret present
-        if: ${{ secrets.UNITY_LICENSE == '' }}
+      - name: Require UNITY_LICENSE secret
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         run: |
-          echo "::error::UNITY_LICENSE secret is empty. Add UNITY_LICENSE (and optionally UNITY_EMAIL / UNITY_PASSWORD) per docs/dev-onboarding/unity-setup.md"
-          exit 1
+          if [ -z "$UNITY_LICENSE" ]; then
+            echo "::error::UNITY_LICENSE secret is empty. Add UNITY_LICENSE (and optionally UNITY_EMAIL / UNITY_PASSWORD) per docs/dev-onboarding/unity-setup.md"
+            exit 1
+          fi
 
       - name: Run EditMode tests
         uses: game-ci/unity-test-runner@v4
@@ -54,7 +47,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unity-editmode-results
-          path: |
-            unity-editmode-results/**
-            ${{ steps.tests.outputs.artifactsPath }}
+          path: unity-editmode-results
           if-no-files-found: warn
