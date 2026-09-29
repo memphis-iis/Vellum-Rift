@@ -26,7 +26,8 @@
     "dashboard:dev": "pnpm --filter @vellum-rift/web-dashboard dev",
     "dashboard:build": "pnpm --filter @vellum-rift/web-dashboard build",
     "launcher:dev": "pnpm --filter @vellum-rift/launcher dev",
-    "launcher:build": "pnpm --filter @vellum-rift/launcher build"
+    "launcher:build": "pnpm --filter @vellum-rift/launcher build",
+    "verify:quest": "./scripts/verify-quest-readiness.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
