@@ -76,7 +76,8 @@ namespace VellumRift
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                Debug.Log($"[RemoteModelLoader] Loading {modelUrl}");
+                string effectiveUrl = AppendLodTierIfNeeded(modelUrl);
+                Debug.Log($"[RemoteModelLoader] Loading {effectiveUrl}");
                 var gltf = new GltfImport();
                 SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
                 bool loaded;
@@ -85,13 +86,13 @@ namespace VellumRift
                     // The endpoint is auth-protected; glTFast's default
                     // downloader can't send the Bearer header. Pre-download the
                     // GLB with UnityWebRequest, then load it from memory.
-                    byte[] glb = await DownloadWithAuthAsync(modelUrl, authToken);
+                    byte[] glb = await DownloadWithAuthAsync(effectiveUrl, authToken);
                     if (glb == null) return;
                     loaded = await gltf.LoadGltfBinary(glb);
                 }
                 else
                 {
-                    loaded = await gltf.Load(modelUrl);
+                    loaded = await gltf.Load(effectiveUrl);
                 }
                     stopwatch.Stop();
                     float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
@@ -251,6 +252,23 @@ namespace VellumRift
                 }
                 return request.downloadHandler?.data;
             }
+        }
+
+        /// <summary>
+        /// Request quest LoD tier on Quest / Android VR platforms (#195).
+        /// Appends ?tier=quest or &tier=quest to model URLs when running under Android/Quest.
+        /// </summary>
+        private static string AppendLodTierIfNeeded(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+#if UNITY_ANDROID
+            if (!url.Contains("tier="))
+            {
+                string sep = url.Contains("?") ? "&" : "?";
+                return $"{url}{sep}tier=quest";
+            }
+#endif
+            return url;
         }
 
         /// <summary>
