@@ -2,7 +2,9 @@
 	"name": "VellumRift",
 	"references": [
 		"Unity.InputSystem",
-		"glTFast"
+		"glTFast",
+		"Unity.XR.Interaction.Toolkit",
+		"Unity.XR.CoreUtils"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],

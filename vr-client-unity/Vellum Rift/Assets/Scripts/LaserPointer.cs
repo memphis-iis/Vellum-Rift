@@ -32,10 +32,6 @@ namespace VellumRift
         [SerializeField] private float sendInterval = 1f / 30f;
         [SerializeField] private float pollInterval = 1f / 10f;
 
-        [Header("Input")]
-        [SerializeField] private string triggerAxis = "XRI_Right_Trigger";
-        [SerializeField] private float triggerThreshold = 0.5f;
-
         [Header("Runtime State")]
         [SerializeField] private string sessionId;
         [SerializeField] private string playerId;
@@ -51,12 +47,19 @@ namespace VellumRift
         private GameObject hitMarker;
         private Light hitLight;
         private GameObject beamCylinder;
+        private InputAction xrTriggerAction;
 
         private void Awake()
         {
             // Treat MeshColliders as double-sided so the laser never passes
             // through back-facing triangles on the heightmap surface.
             Physics.queriesHitBackfaces = true;
+
+            xrTriggerAction = new InputAction("XrLaserTrigger", InputActionType.Button);
+            xrTriggerAction.AddBinding("<XRController>{RightHand}/triggerPressed");
+            xrTriggerAction.AddBinding("<XRController>{RightHand}/trigger");
+            xrTriggerAction.AddBinding("<Mouse>/leftButton");
+            xrTriggerAction.Enable();
 
             Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Color");
             remoteBeamMaterial = new Material(shader ?? Shader.Find("Standard"));
@@ -99,6 +102,28 @@ namespace VellumRift
 
         private void Start()
         {
+            FindControllerAnchor();
+        }
+
+        private void FindControllerAnchor()
+        {
+            if (controllerTransform != null && controllerTransform != Camera.main?.transform)
+                return;
+
+            // Search for RightHand controller anchor if in VR
+            if (InputControlSchema.IsXrActive())
+            {
+                var candidates = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+                foreach (var t in candidates)
+                {
+                    if (t.name.Contains("Right") && (t.name.Contains("Controller") || t.name.Contains("Hand")))
+                    {
+                        controllerTransform = t;
+                        break;
+                    }
+                }
+            }
+
             if (controllerTransform == null)
             {
                 Camera cam = Camera.main;
@@ -110,12 +135,15 @@ namespace VellumRift
         {
             if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(playerId)) return;
 
+            if (controllerTransform == null || controllerTransform == Camera.main?.transform)
+            {
+                if (InputControlSchema.IsXrActive()) FindControllerAnchor();
+            }
+
             bool isVR = controllerTransform != null && controllerTransform != Camera.main?.transform;
             if (isVR)
             {
-                float triggerValue = 0f;
-                if (!string.IsNullOrEmpty(triggerAxis)) { try { triggerValue = Input.GetAxis(triggerAxis); } catch { } }
-                bool shouldActivate = triggerValue >= triggerThreshold;
+                bool shouldActivate = xrTriggerAction != null && xrTriggerAction.IsPressed();
                 if (shouldActivate && !laserActive) ActivateLaser();
                 else if (!shouldActivate && laserActive) DeactivateLaser();
             }
@@ -136,7 +164,11 @@ namespace VellumRift
             foreach (var b in remoteBeams.Values) { if (b != null) Destroy(b.gameObject); }
             remoteBeams.Clear();
         }
-        private void OnDestroy() { if (remoteBeamMaterial != null) { Destroy(remoteBeamMaterial); remoteBeamMaterial = null; } }
+        private void OnDestroy()
+        {
+            if (xrTriggerAction != null) { xrTriggerAction.Disable(); xrTriggerAction.Dispose(); }
+            if (remoteBeamMaterial != null) { Destroy(remoteBeamMaterial); remoteBeamMaterial = null; }
+        }
 
         public void Initialize(string sessionId, string playerId, string userId, bool isHost)
         {

@@ -58,9 +58,24 @@ namespace VellumRift.Control
         public void Tick(MovementIntent intent, float deltaTime)
         {
             // --- Translation ---
-            // Move relative to the camera's current facing direction (Space.Self)
             if (intent.Move.sqrMagnitude > 0f)
-                body.Translate(intent.Move.normalized * MoveSpeed * deltaTime, Space.Self);
+            {
+                if (InputControlSchema.IsXrActive())
+                {
+                    // In VR, project movement onto horizontal plane relative to camera yaw
+                    Camera cam = Camera.main;
+                    Transform refTransform = cam != null ? cam.transform : body;
+                    Vector3 forward = Vector3.ProjectOnPlane(refTransform.forward, Vector3.up).normalized;
+                    Vector3 right = Vector3.ProjectOnPlane(refTransform.right, Vector3.up).normalized;
+                    Vector3 worldMove = (forward * intent.Move.z + right * intent.Move.x + Vector3.up * intent.Move.y).normalized;
+                    body.position += worldMove * MoveSpeed * deltaTime;
+                }
+                else
+                {
+                    // Move relative to the camera's current facing direction (Space.Self)
+                    body.Translate(intent.Move.normalized * MoveSpeed * deltaTime, Space.Self);
+                }
+            }
 
             // --- Rotation ---
             if (intent.LookActive)
@@ -76,7 +91,7 @@ namespace VellumRift.Control
             }
             else if (intent.Yaw != 0f)
             {
-                // Keyboard turning: Only active when mouse-look is not being held
+                // Keyboard / Touch thumbstick turning: Only active when mouse-look is not being held
                 body.Rotate(Vector3.up, intent.Yaw * YawSpeed * deltaTime, Space.World);
             }
         }
@@ -156,6 +171,9 @@ namespace VellumRift.Control
                 .With("Down",  "<Keyboard>/s")
                 .With("Left",  "<Keyboard>/a")
                 .With("Right", "<Keyboard>/d");
+            // Also bind XR Left Hand thumbstick & Gamepad left stick
+            moveAction.AddBinding("<XRController>{LeftHand}/thumbstick");
+            moveAction.AddBinding("<Gamepad>/leftStick");
 
             // Map Space (Up) and Left Ctrl / X (Down) to a single axis.
             // Two 1DAxis composites are stacked so either Left Ctrl or X
@@ -166,6 +184,15 @@ namespace VellumRift.Control
                 .With("Negative", "<Keyboard>/leftCtrl");
             verticalAction.AddCompositeBinding("1DAxis")
                 .With("Negative", "<Keyboard>/x");
+            // XR Jetpack vertical lift via Primary/Grip (separate composites per source)
+            verticalAction.AddCompositeBinding("1DAxis")
+                .With("Positive", "<XRController>{RightHand}/primaryButton");
+            verticalAction.AddCompositeBinding("1DAxis")
+                .With("Positive", "<XRController>{LeftHand}/gripButton");
+            // Gamepad elevation via triggers
+            verticalAction.AddCompositeBinding("1DAxis")
+                .With("Positive", "<Gamepad>/rightTrigger")
+                .With("Negative", "<Gamepad>/leftTrigger");
 
             // Map E (Right) and Z (Left) to a single turning axis.
             // Q is reserved for summoning.
@@ -173,19 +200,32 @@ namespace VellumRift.Control
             yawAction.AddCompositeBinding("1DAxis")
                 .With("Positive", "<Keyboard>/e")
                 .With("Negative", "<Keyboard>/z");
+            // XR Right Hand thumbstick for turning & Gamepad right stick X
+            yawAction.AddBinding("<XRController>{RightHand}/thumbstick/x");
+            yawAction.AddBinding("<Gamepad>/rightStick/x");
 
             // Bind mouse tracking and click logic
             lookAction = new InputAction("Look", InputActionType.Value, "<Mouse>/delta");
             lookHoldAction = new InputAction("LookHold", InputActionType.Button, "<Mouse>/rightButton");
 
-            // Laser pointer: left mouse button (hold)
-            laserAction = new InputAction("Laser", InputActionType.Button, "<Mouse>/leftButton");
+            // Laser pointer: left mouse button (hold) or XR right trigger / Gamepad right shoulder
+            laserAction = new InputAction("Laser", InputActionType.Button);
+            laserAction.AddBinding("<Mouse>/leftButton");
+            laserAction.AddBinding("<XRController>{RightHand}/triggerPressed");
+            laserAction.AddBinding("<XRController>{RightHand}/trigger");
+            laserAction.AddBinding("<Gamepad>/rightShoulder");
 
-            // Waypoint: F key (press)
-            waypointAction = new InputAction("Waypoint", InputActionType.Button, "<Keyboard>/f");
+            // Waypoint: F key (press) or XR primary button
+            waypointAction = new InputAction("Waypoint", InputActionType.Button);
+            waypointAction.AddBinding("<Keyboard>/f");
+            waypointAction.AddBinding("<XRController>{LeftHand}/primaryButton");
+            waypointAction.AddBinding("<Gamepad>/buttonSouth");
 
-            // Summon: Q key (press, host only)
-            summonAction = new InputAction("Summon", InputActionType.Button, "<Keyboard>/q");
+            // Summon: Q key (press, host only) or XR secondary button
+            summonAction = new InputAction("Summon", InputActionType.Button);
+            summonAction.AddBinding("<Keyboard>/q");
+            summonAction.AddBinding("<XRController>{RightHand}/secondaryButton");
+            summonAction.AddBinding("<Gamepad>/buttonNorth");
 
             // Initialize the default free fly mover
             mover = new FreeFlyMover(transform, moveSpeed, yawSpeed, lookSensitivity);
