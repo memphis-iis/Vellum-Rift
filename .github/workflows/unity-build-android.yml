@@ -1,0 +1,62 @@
+name: Unity Android Quest APK
+
+# Issues #193 / #209 / #275 — headless Quest APK via CIBuild.BuildAndroid.
+# Requires UNITY_LICENSE (and Android module on the game-ci image).
+# See docs/dev-onboarding/unity-setup.md and docs/operations/ci-cd-matrix-deploy.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      developmentBuild:
+        description: "Development build (-developmentBuild)"
+        type: boolean
+        default: true
+
+jobs:
+  android-quest:
+    name: Build Quest APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require UNITY_LICENSE secret
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ]; then
+            echo "::error::UNITY_LICENSE secret is empty. Add UNITY_LICENSE per docs/dev-onboarding/unity-setup.md"
+            exit 1
+          fi
+
+      - name: Build Android APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          ANDROID_KEYALIAS_NAME: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          ANDROID_KEYALIAS_PASS: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+        with:
+          projectPath: vr-client-unity/Vellum Rift
+          unityVersion: 6000.2.13f1
+          targetPlatform: Android
+          buildMethod: VellumRift.Editor.CIBuild.BuildAndroid
+          customParameters: >-
+            -customBuildPath ${{ github.workspace }}/build/VellumRift-Quest.apk
+            ${{ inputs.developmentBuild && '-developmentBuild' || '' }}
+          buildsPath: build
+          buildName: VellumRift-Quest
+
+      - name: Upload Quest APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VellumRift-Quest-apk
+          path: |
+            build/VellumRift-Quest.apk
+            build/**/*.apk
+          if-no-files-found: warn
+          retention-days: 14
