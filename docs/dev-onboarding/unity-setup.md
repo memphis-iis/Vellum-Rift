@@ -20,6 +20,44 @@ This document captures the current setup expectations for the Unity client works
 - VR uses joystick locomotion and a jetpack action.
 - Drawing support should begin with VR-first authoring.
 
+## Dual-Platform & Quest XR Device Simulator
+
+Vellum Rift is dual-platform (Desktop / WebGL + Meta Quest Android). To iterate on Touch controls without a headset:
+
+1. **Unity Hub modules:** add **Android Build Support**, **Android SDK & NDK Tools**, and **OpenJDK** for the Unity 6 (`6000.2.13f1`) install.
+2. **XR Device Simulator (Editor PlayMode):**
+   - Open `Edit > Project Settings > XR Plug-in Management > XR Interaction Toolkit`.
+   - Enable **Use XR Device Simulator in scenes** (or drop the `XR Device Simulator` prefab from the XRI package into the active scene for local debugging).
+   - Simulated bindings exercise left/right controller sticks, grip/jetpack, and trigger laser alongside the Hybrid Rig.
+3. **Static readiness gate (no Unity license):** `pnpm run verify:quest` / `./scripts/verify-quest-readiness.sh`.
+
+## EditMode / PlayMode tests & CI (#210, #271)
+
+### Local
+
+- EditMode (headless): `vr-client-unity/scripts/run-editmode-tests.sh [results.xml]`
+- PlayMode (headless): `vr-client-unity/scripts/run-playmode-tests.sh [results.xml]`
+- Or Unity Test Runner window: **Window → General → Test Runner**.
+
+Test assemblies:
+
+- `Assets/Scripts/Tests` — EditMode (`VellumRift.Tests`), including `InputControlSchemaTests`, `LaserPointerTests`, `XrRigHierarchyTests`.
+- `Assets/Scripts/Tests/PlayMode` — PlayMode (`VellumRift.PlayModeTests`), including desktop WASD regression and Hybrid Rig / XR binding fixtures.
+
+### GitHub Actions (EditMode)
+
+Workflow: [`.github/workflows/unity-editmode-tests.yml`](../../.github/workflows/unity-editmode-tests.yml)
+
+| Secret | Purpose |
+|--------|---------|
+| `UNITY_LICENSE` | Unity license activation file / serial (required) |
+| `UNITY_EMAIL` | Optional; used by some activation flows |
+| `UNITY_PASSWORD` | Optional; used by some activation flows |
+
+Trigger via **Actions → Unity EditMode Tests → Run workflow** (`workflow_dispatch`). The job fails fast if `UNITY_LICENSE` is empty. Passing runs upload NUnit/JUnit XML under the `unity-editmode-results` artifact. Failing tests fail the job.
+
+Unity version pinned to **6000.2.13f1** (see `ProjectSettings/ProjectVersion.txt`), matching GameCI `unityVersion`.
+
 ## Implementation Constraints
 
 1. Shared state models should come from backend-generated contracts rather than manually duplicated network models.
