@@ -99,8 +99,17 @@ namespace VellumRift
             if (pulseDot != null) StartCoroutine(PulseDotRoutine(pulseDot));
         }
 
+        private ControlSchema lastSchema = ControlSchema.KeyboardMouse;
+
         private void Update()
         {
+            var currentSchema = InputControlSchema.Detect();
+            if (currentSchema != lastSchema)
+            {
+                lastSchema = currentSchema;
+                if (canvasGO != null) RebuildRows();
+            }
+
             bool pressed = false;
             if (UnityEngine.InputSystem.Keyboard.current != null
                 && UnityEngine.InputSystem.Keyboard.current.hKey.wasPressedThisFrame)
@@ -301,18 +310,25 @@ namespace VellumRift
                 if (c != null) Destroy(c.gameObject);
             }
 
-            var rows = new (IconKind icon, string action, string key)[]
+            var schema = InputControlSchema.Detect();
+            var guideRows = InputControlSchema.GuideRows(schema);
+
+            (IconKind icon, string action, string key)[] rows = new (IconKind, string, string)[guideRows.Length];
+            for (int i = 0; i < guideRows.Length; i++)
             {
-                (IconKind.Keyboard,  "Move Around",    "WASD"),
-                (IconKind.Laser,     "Use Laser",      "L-CLK"),
-                (IconKind.Waypoint,  "Drop a Pin",     "F"),
-                (IconKind.Waypoint,  "Rename Pin",     "L-CLK"),
-                (IconKind.Delete,    "Delete Pin",     "SHIFT+R-CLK"),
-            };
+                IconKind kind = IconKind.Keyboard;
+                string act = guideRows[i].Action;
+                if (act.Contains("Laser")) kind = IconKind.Laser;
+                else if (act.Contains("Pin") || act.Contains("Marker")) kind = IconKind.Waypoint;
+                else if (act.Contains("Turn") || act.Contains("Look")) kind = IconKind.Gamepad;
+                else if (act.Contains("Move") || act.Contains("Lift") || act.Contains("Elevation")) kind = IconKind.Keyboard;
+
+                rows[i] = (kind, act, guideRows[i].Binding);
+            }
 
             // showHostOnly=true → summon row for hosts only; false → all guests (museum).
             if (!showHostOnly || isHost)
-                rows = Append(rows, (IconKind.Summon, "Open Object Menu", "Q"));
+                rows = Append(rows, (IconKind.Summon, "Open Object Menu", schema == ControlSchema.XR ? "R-SEC" : "Q"));
 
             rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
             rows = Append(rows, (IconKind.Gamepad, "Hide guide", "H"));
