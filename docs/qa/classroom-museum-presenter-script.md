@@ -30,7 +30,7 @@
 
 *(Point to taped areas and tables.)*
 
-> “We’ll rotate so everyone gets a turn. While you wait, you’re still part of the visit — you can watch, sketch, or talk about what you see on the screen.”
+> “We’ll rotate so everyone gets a turn. When you’re **not** in VR or on a laptop, your job is **peer observation** — watch what your classmates notice in the exhibit and be ready to **describe** it in your own words. You might watch them in the headset area, on the **observer screen**, or on a laptop view. Pay attention like a museum buddy taking mental notes.”
 
 ---
 
@@ -46,11 +46,15 @@
 
 *(For elementary, add:)*
 
-> “Only **one person** inside each taped area at a time. Friends stay **outside** the tape.”
+> “Only **one person** inside each taped area at a time. Friends and **observers** stay **outside** the tape — **don’t tap** the player or step on the tape to get closer.”
 
 *(For middle school, add:)*
 
 > “Spotters are here to keep you safe, not to scold you. Help each other follow the tape rule.”
+
+*(Hygiene — all grades:)*
+
+> “We use **clean face pads** on the headsets — soft covers that touch your face. **Wait for an adult** to put yours on or swap it before your turn. Don’t share a pad that was on someone else’s face without an adult changing it.”
 
 ---
 
@@ -62,7 +66,7 @@
 >
 > **Laptop station** — same exhibit in the browser. Good for looking at details with a keyboard and mouse.
 >
-> **Waiting station** — at the tables. When you hear the timer, you **switch** — Quest → waiting, waiting → laptop, laptop → Quest, in the order your teacher shows you.”
+> **Peer observation station** — outside the tape near each Quest area (or at the observer screen). Your job: **watch and listen** for details the player finds. When you hear the timer, you **switch** — Quest → peer observation, peer observation → laptop, laptop → Quest, in the order your teacher shows you.”
 
 *(Hold up timer / rotation chart.)*
 
@@ -117,7 +121,11 @@
 >
 > **What is one thing** you noticed on the manuscript that surprised you?”
 
-*(Take 2–3 hands.)*
+*(Take 2–3 hands from players.)*
+
+> “**Observers** — what did you see **from outside** the tape or on the screen that the person in VR might not have said out loud?”
+
+*(Take 2–3 hands from peer observers.)*
 
 > “Thank you for being careful with the equipment and kind to each other. If your class has a journal, write one sentence about what you’d ask the person who made the manuscript, if you could.”
 
@@ -127,6 +135,7 @@
 
 Use if time and attention allow.
 
+- “**Observers:** what detail did you catch by watching someone else explore?”
 - “How is exploring in VR **different** from a photo on a slide?”
 - “Why do you think we use **tape** instead of letting you walk anywhere?”
 - “What would you add to the exhibit so a friend who wasn’t here could understand the book?”

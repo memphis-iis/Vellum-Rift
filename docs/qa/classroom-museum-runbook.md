@@ -32,10 +32,11 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
 | 2–3 Quest 2 + charged controllers | Spare AA batteries if using disposable cells |
 | USB cables / SideQuest-capable laptop | For sideload updates during prep only |
 | Host laptop | Dashboard + **Call for help** alerts on Enter tab |
-| Optional wall display + HDMI | Observer link for class watching one explorer |
+| Optional wall display + HDMI / projector | **Observer / spectator link** so peers (and staff) can watch the same explorer view |
+| Reusable or disposable **VR face pads** (foam/silicone covers) | Enough for full rotations, or a wipe-and-swap protocol between users |
 | Painter’s tape or floor tape | Play rectangles + “do not cross” lines |
-| Sanitizing wipes | Face interfaces and controllers between users |
-| Printed rotation sign / station cards | Quest A/B/C, Laptops, Waiting |
+| Sanitizing wipes | Controller grips and **underside of face pads** between users |
+| Printed rotation sign / station cards | Quest A/B/C, Laptops, **Peer observation** |
 | Extension cord / power strip | Tables rarely have enough outlets |
 
 ---
@@ -49,12 +50,15 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
 ```
   [Teacher / presenter]     [Host laptop + server]
 
-  [Tables — waiting / laptops]     [Tables — waiting / laptops]
+  [Tables — laptops]     [Peer observation — outside tape]
 
      ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
      │  Quest 2    │   │  Quest 2    │   │  Quest 2    │   ← taped rectangles
      │  (standing) │   │  (standing) │   │  (optional) │
      └─────────────┘   └─────────────┘   └─────────────┘
+        ↑ peers watch from here (seats/standing spots OUTSIDE tape)
+
+  [Optional wall / projector — observer link for shared view]
 
   [Clear aisle — no cables across walkways]
 ```
@@ -65,14 +69,15 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
   - **Elementary:** about **1.5 m × 1.5 m** (5 ft × 5 ft) per player — seated variant OK at **1.2 m × 1.2 m** if you disable vigorous movement in briefing.
   - **Middle school:** about **2 m × 2 m** (6.5 ft × 6.5 ft) if space allows; same seated fallback as above.
 - **Laptop explorers:** students at tables with browsers; power and Wi‑Fi to the LAN only.
-- **Waiting queue:** designated table rows; no standing in taped zones while not playing.
+- **Peer observation (primary waiting mode):** students watch classmates in VR, on a **wall or laptop observer link**, or over a peer’s shoulder at laptops — not only an adult-only wall screen. Assign **seats or standing spots outside the tape** beside each Quest rectangle (**2–4 peers** per active headset). Optional: middle school assigns one **narrator** per group to describe what the player notices (quiet voice, no coaching through the tape).
+- **Tape rule for peers:** observers **never** enter taped zones or adjust headsets; only adults handle equipment.
 
 ### Tape boundaries and guardian
 
 1. Mark each rectangle with **continuous tape** on the floor (corners + mid-edge if helpful).
 2. When a student sets up **Guardian / boundary** inside the headset, align it **inside the tape**, not larger than the tape.
 3. **Class rule:** “The tape is the wall.” Non-players do **not** step inside tape while someone is in VR.
-4. **Spotters** stand **outside** the tape, on the side away from desks, to catch stumbles without entering the play zone.
+4. **Spotters** (adults) stand **outside** the tape, on the side away from desks, to catch stumbles without entering the play zone. **Peer observers** stay outside the tape too — they watch and describe; they do **not** spot or enter the play zone.
 
 ---
 
@@ -96,15 +101,16 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 3. Open the prepared **Space** → Enter lobby.
 4. Enable **Kiosk on**; confirm Space is an **Event** (Quest event list).
 5. Confirm manuscript playlist; run a **30-second Quest + one laptop** smoke test.
-6. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
-7. Remind staff: **chat is off** on this profile; guests use **Call for help** and the in-world **ControlsGuide** (wrist / help gesture) still works ([#293](https://github.com/memphis-iis/Vellum-Rift/issues/293)).
+6. If you have a wall display or projector, open the **observer / spectator link** so peer observers can watch the same view during rotations ([museum-guest-entry.md](museum-guest-entry.md)).
+7. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
+8. Remind staff: **chat is off** on this profile; guests use **Call for help** and the in-world **ControlsGuide** (wrist / help gesture) still works ([#293](https://github.com/memphis-iis/Vellum-Rift/issues/293)).
 
 ### How students join
 
 | Station | Steps |
 |---------|--------|
 | **Quest** | Launch LAN APK → pick the **exhibit event** → enter Space (see [museum-guest-entry.md](museum-guest-entry.md)). |
-| **Laptop** | Kiosk URL or QR → nametag → **Enter 3D** (WebGL). Optional: one **observer** URL on wall display. |
+| **Laptop** | Kiosk URL or QR → nametag → **Enter 3D** (WebGL). Optional **observer** URL on wall display or projector for **peer** viewing. |
 
 Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-only features.
 
@@ -118,7 +124,7 @@ Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-
 |---------|-------|------|
 | **Quest players** | 2–3 | Immersive exploration; one adult spotter each |
 | **Laptop explorers** | 4–8 | WebGL at tables; helper circulates |
-| **Waiting / reflection** | Everyone else | Sketching, vocabulary sheet, or peer observation **outside** tape |
+| **Peer observation** | Everyone else (2–4 per active Quest) | Watch classmates in VR / on observer link / laptop; stay **outside** tape; optional **narrator** (middle school) |
 
 ### Time boxes
 
@@ -131,7 +137,10 @@ Use a **visible timer** (projector or phone) for fairness. Signal **one minute l
 
 ### Hygiene
 
-- Wipe **face interface** and **controller grips** between every user.
+- Use **VR face pads** (foam/silicone covers) on the headset interface when available.
+- **Swap or wipe** the face pad between every user; **never share the bare face interface** when pads are available.
+- Store **used pads separately** (bag or bin); an **adult** handles pad changes — students wait off to the side.
+- Wipe **controller grips** and the **underside of face pads** with sanitizing wipes between users.
 - Hand sanitizer at exit from Quest station.
 - Hair ties / glasses: ask students to adjust **before** headset goes on.
 
@@ -140,7 +149,7 @@ Use a **visible timer** (projector or phone) for fairness. Signal **one minute l
 | Role | Responsibility |
 |------|----------------|
 | **Presenter** | Welcome, safety, rotation cues — [classroom-museum-presenter-script.md](classroom-museum-presenter-script.md) |
-| **Quest spotter(s)** | Tape rules, guardian check, physical safety, mute chaos |
+| **Quest spotter(s)** | Tape rules, guardian check, physical safety, mute chaos; **face pad swap** between players |
 | **Laptop helper** | Kiosk tab open, nametag help, tab/popup blockers |
 | **Host (tech)** | Dashboard Enter tab, Call for help, restart client if stuck |
 
