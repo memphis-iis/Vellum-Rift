@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Build Meta Quest Android APK (requires Unity Editor closed + Android Build Support).
 # Issues #193 / #209 / #275 — mirrors build-webgl-museum.sh.
+# Optional (#295, inherited by Unity): VELLUM_BUILD_BACKEND_URL, VELLUM_BUILD_ALLOW_INSECURE_HTTP
+# (baked into SessionManager for this build only; unset = committed IIS SampleScene defaults).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UNITY="${UNITY_EDITOR:-$HOME/Unity/Hub/Editor/6000.2.13f1/Editor/Unity}"
