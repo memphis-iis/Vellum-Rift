@@ -41,6 +41,7 @@ Full ops checklist: [docs/qa/lan-party-runbook.md](../../../docs/qa/lan-party-ru
    (`VITE_API_BASE_URL`, `VITE_WEBGL_BASE_URL`, `VITE_CHAT_ENABLED=false`).
 
 4. Point Quest/standalone at the LAN API (`VELLUM_BACKEND_HOST` / `-backendHost`).
+   Quest/WebGL museum builds: optional `VELLUM_BUILD_BACKEND_URL` and `VELLUM_BUILD_ALLOW_INSECURE_HTTP` (see `vr-client-unity/scripts/build-*.sh`, #295).
 
 ### Without the backend container
 
