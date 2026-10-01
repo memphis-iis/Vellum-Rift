@@ -15,7 +15,7 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 ### Local Infrastructure
 
 - Docker Compose stack for Postgres, MinIO, and optional tools / speech services
-- offline LAN party deploy profile and QA runbook: [docs/qa/lan-party-runbook.md](docs/qa/lan-party-runbook.md) (`infra/deploy/lan-party/`)
+- offline LAN party deploy profile and QA runbook: [docs/qa/lan-party-runbook.md](docs/qa/lan-party-runbook.md) (`infra/deploy/lan-party/`); classroom museum facilitation: [docs/qa/classroom-museum-runbook.md](docs/qa/classroom-museum-runbook.md)
 - workspace onboarding via `pnpm onboard` / `pnpm onboard:speech`
 - application durable state is accessed through Express + `pg` (not through a GraphQL subscription layer)
 
