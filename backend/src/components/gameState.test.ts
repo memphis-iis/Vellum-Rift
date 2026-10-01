@@ -228,6 +228,41 @@ describe("GameState", () => {
   });
 
   // ---------------------------------------------------------------
+  // help requests (#294)
+  // ---------------------------------------------------------------
+  describe("help requests", () => {
+    it("records pending requests and exposes them in toJSON", () => {
+      const state = new GameState();
+      const guest = state.addPlayer("Guest");
+      const req = state.addHelpRequest(guest.id, Date.parse("2026-08-27T12:00:00.000Z"));
+      expect(req?.playerName).toBe("Guest");
+      expect(state.getPendingHelpRequests()).toHaveLength(1);
+      const json = state.toJSON() as { helpRequests: { id: string }[] };
+      expect(json.helpRequests).toHaveLength(1);
+      expect(json.helpRequests[0]!.id).toBe(req!.id);
+    });
+
+    it("enforces per-player cooldown", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-27T12:00:00.000Z"));
+      const state = new GameState();
+      const guest = state.addPlayer("Guest");
+      expect(state.addHelpRequest(guest.id)).not.toBeNull();
+      expect(state.addHelpRequest(guest.id)).toBeNull();
+      expect(state.helpRequestCooldownRemainingMs(guest.id)).toBeGreaterThan(0);
+    });
+
+    it("acknowledging clears pending list", () => {
+      const state = new GameState();
+      const guest = state.addPlayer("Guest");
+      const req = state.addHelpRequest(guest.id)!;
+      const acked = state.acknowledgeHelpRequest(req.id);
+      expect(acked?.acknowledgedAt).toBeTruthy();
+      expect(state.getPendingHelpRequests()).toHaveLength(0);
+    });
+  });
+
+  // ---------------------------------------------------------------
   // updatePosition
   // ---------------------------------------------------------------
   describe("updatePosition", () => {
