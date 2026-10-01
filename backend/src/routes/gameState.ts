@@ -1108,6 +1108,78 @@ router.delete("/:sessionId/summon", async (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/help-request
+//   Joined participant asks the host for assistance (#294). Rate-limited per player.
+// ---------------------------------------------------------------
+router.post("/:sessionId/help-request", async (req: Request, res: Response) => {
+  try {
+    const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+    if (!state) return;
+
+    const { playerId } = req.body as { playerId?: string };
+    if (!playerId) {
+      res.status(400).json({ error: "playerId is required" });
+      return;
+    }
+
+    const requestPlayerId = resolveRequestPlayerId(state, req.user);
+    if (!requestPlayerId || requestPlayerId !== playerId) {
+      res.status(403).json({ error: "You must join this session as that player" });
+      return;
+    }
+
+    const remainingMs = state.helpRequestCooldownRemainingMs(playerId);
+    if (remainingMs > 0) {
+      res.status(429).json({
+        error: "Please wait before calling for help again",
+        retryAfterSeconds: Math.ceil(remainingMs / 1000),
+      });
+      return;
+    }
+
+    const helpRequest = state.addHelpRequest(playerId);
+    if (!helpRequest) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    await repo.save(state);
+    res.status(201).json({ helpRequest, helpRequests: state.getPendingHelpRequests() });
+  } catch (err) {
+    console.error("POST help-request failed:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Failed to create help request" });
+  }
+});
+
+// ---------------------------------------------------------------
+// POST /api/game-state/:sessionId/help-requests/:id/ack
+//   Host acknowledges a pending help request (#294).
+// ---------------------------------------------------------------
+router.post(
+  "/:sessionId/help-requests/:id/ack",
+  async (req: Request, res: Response) => {
+    try {
+      const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+      if (!state) return;
+      if (!requireHost(req, res, state)) return;
+
+      const requestId = param(req, "id");
+      const acked = state.acknowledgeHelpRequest(requestId);
+      if (!acked) {
+        res.status(404).json({ error: "Help request not found or already acknowledged" });
+        return;
+      }
+
+      await repo.save(state);
+      res.json({ helpRequest: acked, helpRequests: state.getPendingHelpRequests() });
+    } catch (err) {
+      console.error("POST help-request ack failed:", err);
+      if (!res.headersSent) res.status(500).json({ error: "Failed to acknowledge help request" });
+    }
+  },
+);
+
+// ---------------------------------------------------------------
 // GET /api/game-state/:sessionId/chat
 //   Return persisted text messages for a session, oldest first.
 // ---------------------------------------------------------------

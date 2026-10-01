@@ -57,6 +57,7 @@ namespace VellumRift
         [Serializable] private class RotationBody { public string playerId; public Vector3Data rotation; }
         [Serializable] private class HostBody { public string playerId; }
         [Serializable] private class ConnectionBody { public string playerId; public bool connected; }
+        [Serializable] private class HelpRequestBody { public string playerId; }
 
         // ---------------------------------------------------------------
         // GetSession result
@@ -372,6 +373,26 @@ namespace VellumRift
             }
 
             return JsonUtility.FromJson<GameState>(res.Body);
+        }
+
+        /// <summary>
+        /// POST /api/game-state/:sessionId/help-request — guest calls for host help (#294).
+        /// </summary>
+        public async Task<bool> PostHelpRequest(string sessionId, string playerId)
+        {
+            string body = JsonUtility.ToJson(new HelpRequestBody { playerId = playerId });
+            ApiResponse res = await SendRequest(
+                UnityWebRequest.kHttpVerbPOST,
+                BuildUrl($"/{Uri.EscapeDataString(sessionId)}/help-request"),
+                body);
+
+            if (!res.IsSuccess)
+            {
+                LogFailure("PostHelpRequest", res);
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>

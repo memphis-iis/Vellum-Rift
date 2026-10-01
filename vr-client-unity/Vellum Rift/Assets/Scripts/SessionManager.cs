@@ -51,6 +51,7 @@ namespace VellumRift
         [SerializeField] private RemoteModelLoader modelLoader;
         [SerializeField] private ChatManager chatManager;
         [SerializeField] private ControlsGuide controlsGuide;
+        [SerializeField] private HelpRequestButton helpRequestButton;
         [SerializeField] private PlayerSpawner playerSpawner;
 
         [Header("Multiplayer Sync")]
@@ -113,6 +114,8 @@ namespace VellumRift
             if (!WebGlShellMode.UsesExternalShell)
             {
                 if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
+                if (helpRequestButton == null)
+                    helpRequestButton = GetComponent<HelpRequestButton>() ?? gameObject.AddComponent<HelpRequestButton>();
             }
             // Create model host at scene root so it doesn't move with the player
             if (modelLoader == null)
@@ -416,6 +419,16 @@ namespace VellumRift
                     controlsGuide.gameObject.SetActive(false);
                 else
                     controlsGuide.SetHost(IsHost);
+            }
+            if (helpRequestButton != null)
+            {
+                if (spectator || IsHost)
+                    helpRequestButton.gameObject.SetActive(false);
+                else
+                {
+                    helpRequestButton.gameObject.SetActive(true);
+                    helpRequestButton.Initialize(apiClient, SessionId, LocalPlayerId);
+                }
             }
             if (chatManager != null)
             {

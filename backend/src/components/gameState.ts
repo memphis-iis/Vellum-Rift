@@ -7,8 +7,17 @@ import { touchPlayerSeen } from "../lib/sessionPresence.js";
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
 
+/** Metadata key for help-request history (#294). */
+const HELP_REQUESTS_KEY = "helpRequests";
+
 /** Upper bound on persisted chat history per session. */
 const MAX_CHAT_MESSAGES = 200;
+
+/** Max stored help requests (including acknowledged). */
+const MAX_HELP_REQUESTS = 100;
+
+/** Minimum seconds between help requests from the same player. */
+export const HELP_REQUEST_COOLDOWN_MS = 30_000;
 
 /**
  * Represents a single participant's spatial and session state
@@ -59,6 +68,15 @@ export interface SummonState {
   targetX: number;
   targetY: number;
   targetZ: number;
+}
+
+/** Guest "call for help" alert for the host dashboard (#294). */
+export interface HelpRequestState {
+  id: string;
+  playerId: string;
+  playerName: string;
+  createdAt: string;
+  acknowledgedAt?: string;
 }
 
 /** A persisted text chat message attributed to a session participant. */
@@ -215,6 +233,79 @@ export class GameState {
     return raw as ChatMessageState[];
   }
 
+  // ---------------------------------------------------------------
+  // Help requests (#294)
+  // ---------------------------------------------------------------
+
+  /** All help requests, oldest first. */
+  getHelpRequests(): HelpRequestState[] {
+    const raw = this.metadata[HELP_REQUESTS_KEY];
+    if (!Array.isArray(raw)) return [];
+    return raw as HelpRequestState[];
+  }
+
+  /** Pending (unacknowledged) help requests for host polling. */
+  getPendingHelpRequests(): HelpRequestState[] {
+    return this.getHelpRequests().filter((r) => !r.acknowledgedAt);
+  }
+
+  /** Milliseconds until this player may request help again (0 = allowed). */
+  helpRequestCooldownRemainingMs(playerId: string, nowMs = Date.now()): number {
+    const last = this.getHelpRequests()
+      .filter((r) => r.playerId === playerId)
+      .map((r) => Date.parse(r.createdAt))
+      .filter((t) => Number.isFinite(t))
+      .sort((a, b) => b - a)[0];
+    if (last === undefined) return 0;
+    const elapsed = nowMs - last;
+    return elapsed >= HELP_REQUEST_COOLDOWN_MS
+      ? 0
+      : HELP_REQUEST_COOLDOWN_MS - elapsed;
+  }
+
+  /**
+   * Record a help request from a joined player. Returns null when the player
+   * is missing or still within the per-player cooldown window.
+   */
+  addHelpRequest(playerId: string, nowMs = Date.now()): HelpRequestState | null {
+    const player = this.getPlayer(playerId);
+    if (!player) return null;
+    if (this.helpRequestCooldownRemainingMs(playerId, nowMs) > 0) return null;
+
+    const request: HelpRequestState = {
+      id: crypto.randomUUID(),
+      playerId,
+      playerName: player.displayName,
+      createdAt: new Date(nowMs).toISOString(),
+    };
+
+    const requests = this.getHelpRequests();
+    requests.push(request);
+    while (requests.length > MAX_HELP_REQUESTS) requests.shift();
+    this.metadata[HELP_REQUESTS_KEY] = requests;
+
+    this._touch();
+    return request;
+  }
+
+  /** Host acknowledges a pending help request; null if id not found or already acked. */
+  acknowledgeHelpRequest(requestId: string, nowMs = Date.now()): HelpRequestState | null {
+    const requests = this.getHelpRequests();
+    const idx = requests.findIndex((r) => r.id === requestId);
+    if (idx === -1) return null;
+    const existing = requests[idx]!;
+    if (existing.acknowledgedAt) return null;
+
+    const updated: HelpRequestState = {
+      ...existing,
+      acknowledgedAt: new Date(nowMs).toISOString(),
+    };
+    requests[idx] = updated;
+    this.metadata[HELP_REQUESTS_KEY] = requests;
+    this._touch();
+    return updated;
+  }
+
   /**
    * Add a server-generated chat message (not attributed to a player), e.g.
    * "Player joined the session". System messages are persisted alongside
@@ -343,6 +434,8 @@ export class GameState {
       /** Optional event window (#146). */
       startsAt,
       endsAt,
+      /** Pending guest help alerts for host dashboard (#294). */
+      helpRequests: this.getPendingHelpRequests(),
       metadata: { ...this.metadata },
     };
   }

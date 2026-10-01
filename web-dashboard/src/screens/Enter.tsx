@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { API_BASE_URL } from "../api/config";
 import {
+  acknowledgeHelpRequest,
   addAllowlistEmail,
   fetchAllowlist,
   inviteToSession,
@@ -13,6 +14,7 @@ import {
   unmutePlayer,
   type AllowlistEntry,
   type GameSession,
+  type HelpRequest,
 } from "../api/gameState";
 import { fetchModels } from "../api/models";
 import {
@@ -58,6 +60,12 @@ function displayNameFromEmail(email: string): string {
   if (!trimmed) return "Learner";
   const local = trimmed.split("@")[0]?.trim();
   return local || trimmed;
+}
+
+function formatHelpRequestTime(iso: string): string {
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return iso;
+  return new Date(parsed).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function shortSessionLabel(label: string | undefined, sessionId: string): string {
@@ -141,6 +149,10 @@ export default function Enter({
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
 
   const isHost = Boolean(me?.isHost);
+  const pendingHelpRequests = useMemo((): HelpRequest[] => {
+    const raw = session?.helpRequests;
+    return Array.isArray(raw) ? raw : [];
+  }, [session?.helpRequests]);
   const visibility = session?.visibility === "private" ? "private" : "public";
   const kioskEnabled = Boolean(
     session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
@@ -462,6 +474,19 @@ export default function Enter({
     }
   };
 
+  const onAckHelp = async (requestId: string) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const result = await acknowledgeHelpRequest(sessionId, requestId);
+      if (session) applySession({ ...session, helpRequests: result.helpRequests });
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Could not acknowledge help request");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
   const onMuteToggle = async (playerId: string, muted: boolean) => {
     if (!sessionId || !isHost || hostBusy) return;
     setHostBusy(true);
@@ -630,6 +655,33 @@ export default function Enter({
         <p className="vr-enter__invite-status" role="status">
           {inviteStatus}
         </p>
+      ) : null}
+
+      {isHost && pendingHelpRequests.length > 0 ? (
+        <section className="vr-enter__help-banner" role="alert" aria-live="polite">
+          <div className="vr-enter__help-banner-head">
+            <MaterialIcon name="support_agent" />
+            <strong>Call for help</strong>
+          </div>
+          <ul className="vr-enter__help-banner-list">
+            {pendingHelpRequests.map((req) => (
+              <li key={req.id} className="vr-enter__help-banner-item">
+                <span>
+                  {req.playerName}{" "}
+                  <time dateTime={req.createdAt}>{formatHelpRequestTime(req.createdAt)}</time>
+                </span>
+                <button
+                  type="button"
+                  className="vr-btn vr-btn--primary vr-enter__help-ack"
+                  disabled={hostBusy}
+                  onClick={() => void onAckHelp(req.id)}
+                >
+                  Acknowledge
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       {spaceKind === "event" && eventWindow ? (

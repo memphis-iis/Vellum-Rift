@@ -23,6 +23,14 @@ export interface PlayerState {
   chatMuted?: boolean;
 }
 
+export interface HelpRequest {
+  id: string;
+  playerId: string;
+  playerName: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+}
+
 export interface ChatMessage {
   id: string;
   playerId: string;
@@ -52,6 +60,8 @@ export interface GameSession {
   kind?: "exploration" | "event";
   startsAt?: string | null;
   endsAt?: string | null;
+  /** Pending guest help alerts (#294). */
+  helpRequests?: HelpRequest[];
   metadata?: Record<string, unknown>;
 }
 
@@ -296,5 +306,30 @@ export function deleteArtifact(sessionId: string, artifactId: string): Promise<v
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
     { method: "DELETE" },
+  );
+}
+
+/** Guest calls for host assistance (#294). */
+export function postHelpRequest(
+  sessionId: string,
+  playerId: string,
+): Promise<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }> {
+  return request<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/help-request`,
+    {
+      method: "POST",
+      body: JSON.stringify({ playerId }),
+    },
+  );
+}
+
+/** Host acknowledges a pending help request (#294). */
+export function acknowledgeHelpRequest(
+  sessionId: string,
+  requestId: string,
+): Promise<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }> {
+  return request<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/help-requests/${encodeURIComponent(requestId)}/ack`,
+    { method: "POST", body: JSON.stringify({}) },
   );
 }
