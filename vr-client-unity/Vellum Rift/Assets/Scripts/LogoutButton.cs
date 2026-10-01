@@ -47,6 +47,13 @@ namespace VellumRift
             if (canvasGO != null) Destroy(canvasGO);
         }
 
+        /// <summary>Screen HUD only — logout logic unchanged (#312).</summary>
+        public void SetHudVisible(bool visible)
+        {
+            if (canvasGO != null)
+                canvasGO.SetActive(visible);
+        }
+
         private void BuildLogoutUI()
         {
             EnsureEventSystem();

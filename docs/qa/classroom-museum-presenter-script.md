@@ -42,7 +42,7 @@
 >
 > **Two:** **No running**, no jumping, no reaching for friends. Move **slowly and gently**, like you’re in a library with something fragile.
 >
-> **Three:** If anything feels wrong — dizzy, stuck, scared, or you can’t find a button — **take the headset off** or raise your hand. An adult will help. In VR, press the **Y button on the left controller** (we call it **Call for help** in the controls guide). A teacher on the laptop will see your name. There is also a small on-screen button if you need it.”
+> **Three:** If anything feels wrong — dizzy, stuck, scared, or you can’t find a button — **take the headset off** or raise your hand. An adult will help. In VR, press the **Y button on the left controller** — that’s **Call for help**. A teacher on the laptop will see your name. For the controls list, **raise your left wrist** and look at the **MENU** pad, or ask an adult to show you once.”
 
 *(For elementary, add:)*
 
@@ -82,7 +82,7 @@
 >
 > Look straight ahead. Use the **controllers** — they’re like remote controls. If you see a **menu** or **events list**, choose our class **exhibit** — it should match the name on the board.
 >
-> You’ll appear in a **room with manuscripts**. Look left and right slowly. **Do not walk fast.** If you need controls, open the **help / controls guide** — your teacher will show you the wrist menu once. Remember: **left Y** calls for help if you’re stuck.
+> You’ll appear in a **room with manuscripts**. Look left and right slowly. **Do not walk fast.** Your teacher may show the wrist **MENU** once — raise your left wrist and look at it to open **How to Play**. Remember: **left Y** calls for help if you’re stuck. There’s **no log out button in VR** — hand the headset to an adult when your turn ends.
 >
 > Try three things: **look closely** at a page, **move gently** to see it from another angle, and if your teacher says it’s OK for today, try the **laser** or **pin** tool to point at something interesting — **never** point at people in real life.”
 

@@ -34,6 +34,13 @@ namespace VellumRift
             RefreshLabel();
         }
 
+        /// <summary>Screen HUD only — component stays active for L-Y input (#312).</summary>
+        public void SetHudVisible(bool visible)
+        {
+            if (canvasGO != null)
+                canvasGO.SetActive(visible);
+        }
+
         private void Awake()
         {
             if (WebGlShellMode.UsesExternalShell)
@@ -101,7 +108,7 @@ namespace VellumRift
         /// <summary>Controller or HUD entry — same cooldown and POST as the on-screen button.</summary>
         public void RequestHelpFromInput(bool pulseHaptic = true)
         {
-            if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+            if (!isActiveAndEnabled)
                 return;
             StartCoroutine(SendHelpRequest(pulseHaptic));
         }
