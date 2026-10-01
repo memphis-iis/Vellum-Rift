@@ -90,29 +90,35 @@ export VELLUM_BUILD_ALLOW_INSECURE_HTTP=1   # required for http:// LAN API on Qu
 
 Runtime overrides still work for dev (`VELLUM_BACKEND_URL`, `-backendUrl`, etc.) — see [multiplayer-demo-runbook.md](multiplayer-demo-runbook.md).
 
-### 2.4 Dashboard artifact
+### 2.4 Dashboard + WebGL artifacts (compose path)
 
-From `web-dashboard/`, build with LAN Vite vars (match `infra/deploy/lan-party/.env.example`):
+Set LAN Vite URLs in `infra/deploy/lan-party/.env` (see `.env.example`):
+
+- `VITE_API_BASE_URL=http://<SERVER_LAN_IP>:4000`
+- `VITE_WEBGL_BASE_URL=http://<SERVER_LAN_IP>:8080/`
+- `VITE_AUTH_REQUIRED=false`, `VITE_CHAT_ENABLED=false`
+
+Copy the Unity WebGL museum build into the compose volume directory:
 
 ```bash
-export VITE_API_BASE_URL="http://<SERVER_LAN_IP>:4000"
-export VITE_WEBGL_BASE_URL="http://<SERVER_LAN_IP>:8080/"
-export VITE_AUTH_REQUIRED=false
-export VITE_CHAT_ENABLED=false
-pnpm install && pnpm build
+rsync -a --delete "vr-client-unity/Vellum Rift/web build/" infra/deploy/lan-party/webgl/
 ```
 
-Serve `web-dashboard/dist` on the LAN (e.g. `pnpm preview --host 0.0.0.0 --port 5173`) or any static file server bound to `0.0.0.0`.
+`docker compose up -d` builds the dashboard from `Dockerfile.dashboard` (bakes `VITE_*`) and serves WebGL from `./webgl` via nginx (`WEBGL_DIST` / `WEBGL_PORT`).
 
-Publish WebGL output (`vr-client-unity/Vellum Rift/web build/`) to port **8080** (e.g. `python -m http.server 8080 --bind 0.0.0.0` from that directory).
+**Manual alternative (no dashboard compose build):** from `web-dashboard/`, `pnpm install && pnpm build` with the same exports, then serve `dist/` on **5173**; publish WebGL with any static host on **8080** (Unity needs correct `Content-Encoding` for `.br` — see `infra/deploy/lan-party/nginx-webgl.conf`).
 
 ## 3. Air-gap bring-up
 
 On the party server (from `infra/deploy/lan-party/`):
 
 ```bash
+cp .env.example .env   # if not done in prep; edit SERVER_LAN_IP + VITE_* + secrets
+# WebGL build must already be under ./webgl (or WEBGL_DIST)
 docker compose up -d
 curl "http://<SERVER_LAN_IP>:4000/api/health"
+curl -I "http://<SERVER_LAN_IP>:5173/"
+curl -I "http://<SERVER_LAN_IP>:8080/"
 ```
 
 Confirm backend env:
@@ -121,9 +127,11 @@ Confirm backend env:
 - `AUTH_REQUIRED` unset/false
 - **No** `webrtc-sfu` container — polling only
 
-Alternative without containerized backend: root `make infra-up`, then run `npm run dev` in `backend/` with the same env vars (`DATABASE_URL` / `S3_ENDPOINT` toward localhost on the server process; clients still use `SERVER_LAN_IP:4000`).
+Services published for guests on Wi‑Fi: backend **4000**, dashboard **5173** (default), WebGL **8080** (default).
 
-Start dashboard and WebGL static hosts on `0.0.0.0` so other devices on Wi‑Fi can reach them.
+Alternative without containerized backend: root `make infra-up`, then run `npm run dev` in `backend/` with the same env vars (`DATABASE_URL` / `S3_ENDPOINT` toward localhost on the server process; clients still use `SERVER_LAN_IP:4000`). You can still run only `web-dashboard` and `webgl` from this compose file, or serve static assets manually.
+
+**Still required outside compose:** Quest APK sideload/install; host kiosk **Space** / Event setup on the dashboard; IIS Memphis production deploy is unchanged.
 
 ## 4. Host flow
 
