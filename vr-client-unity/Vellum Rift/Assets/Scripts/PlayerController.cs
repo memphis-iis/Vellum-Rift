@@ -175,6 +175,7 @@ namespace VellumRift.Control
         private InputAction summonAction;     // G key (host summon)
         private InputAction xrRenameAction;   // Right primary — rename pin while aiming (#287)
         private InputAction xrDeleteAction;   // Right secondary — delete pin while aiming (#287)
+        private InputAction xrHelpAction;     // Left secondary — guest Call for help (#310)
 
         /// <summary>True while left mouse button is held (laser pointer).</summary>
         public bool LaserPressed { get; private set; }
@@ -190,6 +191,8 @@ namespace VellumRift.Control
         public bool XrRenameTriggered { get; private set; }
         /// <summary>XR: Right secondary pressed this frame (delete when aiming at pin).</summary>
         public bool XrDeleteTriggered { get; private set; }
+        /// <summary>XR: Left secondary pressed this frame (Call for help when guest).</summary>
+        public bool XrHelpTriggered { get; private set; }
 
         private void Awake()
         {
@@ -260,6 +263,9 @@ namespace VellumRift.Control
             xrDeleteAction = new InputAction("XrDeletePin", InputActionType.Button);
             xrDeleteAction.AddBinding("<XRController>{RightHand}/secondaryButton");
 
+            xrHelpAction = new InputAction("XrHelp", InputActionType.Button);
+            xrHelpAction.AddBinding(HelpRequestBindings.XrInputPath);
+
             // Initialize the default free fly mover
             mover = new FreeFlyMover(transform, moveSpeed, yawSpeed, lookSensitivity);
         }
@@ -276,6 +282,7 @@ namespace VellumRift.Control
             summonAction.Enable();
             xrRenameAction.Enable();
             xrDeleteAction.Enable();
+            xrHelpAction.Enable();
         }
 
         private void OnDisable()
@@ -290,6 +297,7 @@ namespace VellumRift.Control
             summonAction.Disable();
             xrRenameAction.Disable();
             xrDeleteAction.Disable();
+            xrHelpAction.Disable();
         }
 
         private void OnDestroy()
@@ -304,6 +312,7 @@ namespace VellumRift.Control
             summonAction.Dispose();
             xrRenameAction.Dispose();
             xrDeleteAction.Dispose();
+            xrHelpAction.Dispose();
         }
 
         private void Update()
@@ -328,6 +337,7 @@ namespace VellumRift.Control
                 SummonTriggered = summonAction.WasPressedThisFrame();
                 XrRenameTriggered = xrRenameAction.WasPressedThisFrame();
                 XrDeleteTriggered = xrDeleteAction.WasPressedThisFrame();
+                XrHelpTriggered = xrHelpAction.WasPressedThisFrame();
 
                 // Process the movement calculations every frame
                 mover.Tick(ReadIntent(), Time.deltaTime);
@@ -341,6 +351,7 @@ namespace VellumRift.Control
                 SummonTriggered = false;
                 XrRenameTriggered = false;
                 XrDeleteTriggered = false;
+                XrHelpTriggered = false;
             }
         }
 

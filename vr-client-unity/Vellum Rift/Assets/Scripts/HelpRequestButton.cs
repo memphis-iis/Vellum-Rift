@@ -2,11 +2,13 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 namespace VellumRift
 {
     /// <summary>
-    /// Guest "Call for help" control — lower-right HUD, separate from chat (#294).
+    /// Guest "Call for help" — Quest <see cref="HelpRequestBindings.XrGuideLabel"/> primary (#310);
+    /// lower-right HUD remains secondary (#294).
     /// </summary>
     public class HelpRequestButton : MonoBehaviour
     {
@@ -77,7 +79,7 @@ namespace VellumRift
             rect.anchoredPosition = new Vector2(-padding, padding);
 
             button = bg.GetComponent<Button>();
-            button.onClick.AddListener(() => StartCoroutine(SendHelpRequest()));
+            button.onClick.AddListener(() => RequestHelpFromInput(pulseHaptic: false));
 
             label = CreateText("Label", bg.transform, "Call for help", 15, TextAnchor.MiddleCenter);
             var labelRect = label.GetComponent<RectTransform>();
@@ -96,7 +98,15 @@ namespace VellumRift
             toast.gameObject.SetActive(false);
         }
 
-        private IEnumerator SendHelpRequest()
+        /// <summary>Controller or HUD entry — same cooldown and POST as the on-screen button.</summary>
+        public void RequestHelpFromInput(bool pulseHaptic = true)
+        {
+            if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+                return;
+            StartCoroutine(SendHelpRequest(pulseHaptic));
+        }
+
+        private IEnumerator SendHelpRequest(bool pulseHaptic)
         {
             if (busy || apiClient == null || string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(playerId))
                 yield break;
@@ -104,9 +114,14 @@ namespace VellumRift
             double now = DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
             if (!HelpRequestCooldown.IsReady(lastRequestUtc, now))
             {
+                if (pulseHaptic)
+                    PulseLeftControllerHaptic();
                 ShowToast("Please wait before calling again");
                 yield break;
             }
+
+            if (pulseHaptic)
+                PulseLeftControllerHaptic();
 
             busy = true;
             button.interactable = false;
@@ -164,6 +179,15 @@ namespace VellumRift
             yield return new WaitForSeconds(seconds);
             if (toast != null) toast.gameObject.SetActive(false);
             RefreshLabel();
+        }
+
+        private static void PulseLeftControllerHaptic()
+        {
+            if (!InputControlSchema.IsXrActive())
+                return;
+            var device = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            if (device.isValid)
+                device.SendHapticImpulse(0u, 0.35f, 0.07f);
         }
 
         private static Text CreateText(string name, Transform parent, string content, int size, TextAnchor anchor)

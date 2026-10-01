@@ -161,7 +161,7 @@ Alternative without containerized backend: root `make infra-up`, then run `npm r
 2. Launch — public **events** list comes from `GET /api/kiosk/events` (active Event + kiosk on).
 3. Pick the party event (or auto-join when only one is open) and enter the session.
 
-Guests use **Call for help** in-world when stuck; they do not need dashboard chat.
+Quest guests press **left Y** (**Call for help** in ControlsGuide) when stuck; WebGL guests use the on-screen button. Chat is not required.
 
 ## 6. Verification checklist
 
@@ -173,7 +173,7 @@ Run through this on the LAN before guests arrive.
 | Dashboard lobby | **No** chat panel / send box when `VITE_CHAT_ENABLED=false` |
 | WebGL / Quest in session | **No** in-game text chat UI when backend `CHAT_ENABLED=false` |
 | ControlsGuide (wrist / help gesture) | Still opens control reference (#293) |
-| Guest taps **Call for help** | Host Enter screen shows **Call for help** banner with guest name + time (#294) |
+| Quest **L-Y** / guest **Call for help** | Host Enter screen shows **Call for help** banner with guest name + time (#294, #310) |
 | Host taps **Acknowledge** | Banner entry clears; guest can request again after cooldown |
 | Two clients in one session | Each sees the other via polling (~10 Hz) — [multiplayer-demo-runbook.md](multiplayer-demo-runbook.md) |
 | Quest event picker | Party Space appears when marked Event + kiosk on |
@@ -195,7 +195,7 @@ curl -s "http://<SERVER_LAN_IP>:4000/api/health"
 | Quest shows no events | Space not Event and/or kiosk off | Host enables kiosk and sets kind **event** |
 | Kiosk join 401/403 | `KIOSK_JWT_SECRET` mismatch or rate limit | Same secret in `.env` across restarts; wait out kiosk rate window |
 | Chat still visible | Env not applied to running/build | Backend `CHAT_ENABLED=false`; dashboard build `VITE_CHAT_ENABLED=false`; restart backend |
-| Help banner never appears | Host not on Enter, or not session host | Host opens Enter for that `sessionId`; guest must send help from in-game button |
+| Help banner never appears | Host not on Enter, or not session host | Host opens Enter for that `sessionId`; guest presses **L-Y** (Quest) or HUD **Call for help** |
 | MinIO/upload errors | Wrong `S3_ENDPOINT` | LAN IP in `.env` for client-visible URLs; in-compose backend uses `http://minio:9000` |
 | `docker compose` pull fails offline | No pre-pulled images | Pull images during prep or build backend from repo Dockerfile |
 

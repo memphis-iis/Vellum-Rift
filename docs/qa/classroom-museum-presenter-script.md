@@ -42,7 +42,7 @@
 >
 > **Two:** **No running**, no jumping, no reaching for friends. Move **slowly and gently**, like you’re in a library with something fragile.
 >
-> **Three:** If anything feels wrong — dizzy, stuck, scared, or you can’t find a button — **take the headset off** or raise your hand. An adult will help. Inside the app there is also a **Call for help** button; press it and a teacher on the laptop will see your name.”
+> **Three:** If anything feels wrong — dizzy, stuck, scared, or you can’t find a button — **take the headset off** or raise your hand. An adult will help. In VR, press the **Y button on the left controller** (we call it **Call for help** in the controls guide). A teacher on the laptop will see your name. There is also a small on-screen button if you need it.”
 
 *(For elementary, add:)*
 
@@ -82,7 +82,7 @@
 >
 > Look straight ahead. Use the **controllers** — they’re like remote controls. If you see a **menu** or **events list**, choose our class **exhibit** — it should match the name on the board.
 >
-> You’ll appear in a **room with manuscripts**. Look left and right slowly. **Do not walk fast.** If you need controls, open the **help / controls guide** — your teacher will show you the gesture or button once.
+> You’ll appear in a **room with manuscripts**. Look left and right slowly. **Do not walk fast.** If you need controls, open the **help / controls guide** — your teacher will show you the wrist menu once. Remember: **left Y** calls for help if you’re stuck.
 >
 > Try three things: **look closely** at a page, **move gently** to see it from another angle, and if your teacher says it’s OK for today, try the **laser** or **pin** tool to point at something interesting — **never** point at people in real life.”
 
@@ -96,7 +96,7 @@
 >
 > Click **Enter 3D**. If a popup is blocked, tap **Open 3D** on the same page.
 >
-> Same rule: **move gently**, explore the manuscript, and use **Call for help** if you’re stuck.”
+> Same rule: **move gently**, explore the manuscript. Laptops use the on-screen **Call for help** button if you’re stuck.”
 
 ---
 
@@ -145,8 +145,8 @@ Use if time and attention allow.
 
 ## Reminders for the presenter
 
-- **Chat is off** in the LAN classroom profile — direct students to **Call for help** and adults, not typed chat.
-- **ControlsGuide** in-headset help still works — demonstrate once on a spare minute.
+- **Chat is off** in the LAN classroom profile — direct Quest students to **left Y (Call for help)** and adults, not typed chat.
+- **ControlsGuide** in-headset help still works — demonstrate wrist menu + **L-Y** once on a spare minute.
 - Keep **Bluekey / account** language off the mic; only the host laptop uses **Continue as local developer**.
 - Celebrate **curiosity**, not scores. No competition to “finish” the manuscript.
 
