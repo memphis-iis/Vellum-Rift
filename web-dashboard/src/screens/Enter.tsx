@@ -25,6 +25,7 @@ import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ShareQrPanel } from "../components/ShareQrPanel";
 import { SpaceChatPanel } from "../components/SpaceChatPanel";
+import { CHAT_ENABLED } from "../auth/config";
 import { WebGlEmbed } from "../components/WebGlEmbed";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -1110,7 +1111,8 @@ export default function Enter({
           ) : null}
         </section>
 
-        <SpaceChatPanel
+        {CHAT_ENABLED ? (
+          <SpaceChatPanel
           messages={messages}
           me={me}
           status={status}
@@ -1118,6 +1120,7 @@ export default function Enter({
           onDraftChange={setDraft}
           onSubmit={onSend}
         />
+        ) : null}
       </div>
     </main>
   );

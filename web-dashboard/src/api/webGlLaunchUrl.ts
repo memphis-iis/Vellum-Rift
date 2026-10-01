@@ -1,3 +1,4 @@
+import { CHAT_ENABLED } from "../auth/config";
 import { API_BASE_URL } from "./config";
 
 /**
@@ -28,6 +29,7 @@ export function buildWebGlLaunchUrl(options: {
   url.searchParams.set("playerName", options.playerName);
   url.searchParams.set("isHost", options.isHost ? "true" : "false");
   url.searchParams.set("backendUrl", API_BASE_URL);
+  if (!CHAT_ENABLED) url.searchParams.set("chat", "0");
   if (options.kiosk) url.searchParams.set("kiosk", "1");
   if (options.embed) url.searchParams.set("embed", "1");
   if (options.spectator) {

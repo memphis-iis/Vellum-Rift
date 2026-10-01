@@ -104,7 +104,7 @@ namespace VellumRift
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
-            if (!WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive)
+            if (ChatEnabled.IsEnabled() && (!WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive))
             {
                 if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
                 if (chatManager != null && !SpectatorMode.IsActive)

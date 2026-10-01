@@ -8,6 +8,7 @@ import {
   type GameSession,
   type PlayerState,
 } from "../api/gameState";
+import { CHAT_ENABLED } from "../auth/config";
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -65,7 +66,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
         displayName: player.displayName || name,
         isHost: player.isHost,
       });
-      setMessages(await fetchChat(sessionId));
+      setMessages(CHAT_ENABLED ? await fetchChat(sessionId) : []);
       setStatus("ready");
     } catch (err) {
       setStatus("error");
@@ -81,7 +82,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     async (text: string) => {
       const trimmed = text.trim();
       const identity = meRef.current;
-      if (!trimmed || !session || !identity) return;
+      if (!CHAT_ENABLED || !trimmed || !session || !identity) return;
 
       try {
         const message = await postChat(session.sessionId, identity.playerId, trimmed);
@@ -99,10 +100,10 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const [nextSession, nextMessages] = await Promise.all([
-          getSession(session.sessionId),
-          fetchChat(session.sessionId),
-        ]);
+        const nextSession = await getSession(session.sessionId);
+        const nextMessages = CHAT_ENABLED
+          ? await fetchChat(session.sessionId)
+          : [];
         if (cancelled) return;
         setSession(nextSession);
         setMessages(nextMessages);
