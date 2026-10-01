@@ -44,6 +44,36 @@ namespace VellumRift
             return result;
         }
 
+        /// <summary>Parse a JSON array of objects into string maps (nested values stay raw strings).</summary>
+        public static System.Collections.Generic.List<Dictionary<string, string>> ParseObjectArray(string json)
+        {
+            var list = new System.Collections.Generic.List<Dictionary<string, string>>();
+            if (string.IsNullOrEmpty(json)) return list;
+
+            json = json.Trim();
+            if (json.Length < 2 || json[0] != '[' || json[json.Length - 1] != ']')
+                return null;
+
+            string body = json.Substring(1, json.Length - 2).Trim();
+            if (body.Length == 0) return list;
+
+            int i = 0;
+            int n = body.Length;
+            while (i < n)
+            {
+                while (i < n && (char.IsWhiteSpace(body[i]) || body[i] == ',')) i++;
+                if (i >= n) break;
+                if (body[i] != '{') return null;
+
+                string objRaw = ReadRawValue(body, ref i);
+                if (objRaw == null) return null;
+                var obj = ParseObject(objRaw);
+                if (obj == null) return null;
+                list.Add(obj);
+            }
+            return list;
+        }
+
         private static string ReadQuotedString(string s, ref int i)
         {
             i++;

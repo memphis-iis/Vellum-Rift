@@ -193,17 +193,21 @@ namespace VellumRift
             foreach (var player in state.players)
             {
                 if (player == null)
-                {
                     continue;
-                }
-                 
+
                 // Skip local player
                 if (player.id == localPlayerId)
-                {
                     continue;
-                    
+
+                if (!PresenceFilter.ShouldShowRemote(player, localPlayerId, state.hostId))
+                {
+                    if (playerSpawner.IsPlayerSpawned(player.id))
+                        playerSpawner.RemovePlayer(player.id);
+                    continue;
                 }
-                    
+
+                if (!playerSpawner.IsPlayerSpawned(player.id))
+                    playerSpawner.SpawnPlayer(player);
 
                 UpdateSinglePlayer(player);
             }
@@ -371,7 +375,10 @@ namespace VellumRift
         private void HandlePlayerJoined(PlayerState player)
         {
             // Skip if it's the local player
-            if (player.id == localPlayerId)
+            if (player == null || player.id == localPlayerId)
+                return;
+
+            if (!PresenceFilter.ShouldShowRemote(player, localPlayerId, hostId: null))
                 return;
 
             if (playerSpawner != null)

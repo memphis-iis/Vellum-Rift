@@ -5,6 +5,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
+using VellumRift.Control;
 
 namespace VellumRift
 {
@@ -16,6 +17,7 @@ namespace VellumRift
     {
         [Header("References")]
         [SerializeField] private Transform controllerTransform;
+        [SerializeField] private Transform aimTransform;
         [SerializeField] private LineRenderer localBeamRenderer;
 
         [Header("API Configuration")]
@@ -27,6 +29,12 @@ namespace VellumRift
         [SerializeField] private float beamLength = 50f;
         [SerializeField] private float beamStartWidth = 0.005f;
         [SerializeField] private float beamEndWidth = 0.005f;
+
+        /// <summary>
+        /// Hit-dot sphere diameter in meters. Deliberately small: a large sphere
+        /// centred on the eyes crosses the near plane and fills the Quest view.
+        /// </summary>
+        private const float HitDotDiameter = 0.06f;
 
         [Header("Timing")]
         [SerializeField] private float sendInterval = 1f / 30f;
@@ -47,6 +55,8 @@ namespace VellumRift
         private GameObject hitMarker;
         private Light hitLight;
         private GameObject beamCylinder;
+        private LineRenderer muzzleReticleH;
+        private LineRenderer muzzleReticleV;
         private InputAction xrTriggerAction;
 
         private void Awake()
@@ -61,13 +71,20 @@ namespace VellumRift
             xrTriggerAction.AddBinding("<Mouse>/leftButton");
             xrTriggerAction.Enable();
 
-            Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Color");
-            remoteBeamMaterial = new Material(shader ?? Shader.Find("Standard"));
+            // Resolve shared materials up front. Nothing in Awake may throw: an
+            // exception here used to abort before the hit dot and beam cylinder
+            // were hidden, leaving untextured geometry — which renders as a
+            // bright gold/yellow square — parked in the headset view.
+            remoteBeamMaterial = VellumShaders.TryCreateLineMaterial(Color.white);
 
             if (localBeamRenderer == null)
             {
                 localBeamRenderer = gameObject.AddComponent<LineRenderer>();
-                localBeamRenderer.material = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Color"));
+                Material beamMaterial = VellumShaders.TryCreateLineMaterial(Color.white);
+                if (beamMaterial != null)
+                    localBeamRenderer.material = beamMaterial;
+                else
+                    localBeamRenderer.enabled = false;
             }
             localBeamRenderer.positionCount = 2;
             localBeamRenderer.startWidth = beamStartWidth;
@@ -75,29 +92,35 @@ namespace VellumRift
             localBeamRenderer.enabled = false;
 
             hitMarker = CreateHitDot(Color.red, "LocalLaserDot");
-            hitMarker.SetActive(false);
+            if (hitMarker != null)
+                hitMarker.SetActive(false);
 
             // Small point light at the end of the beam for a visible glow.
-            var lightObj = new GameObject("LaserHitLight");
-            lightObj.transform.SetParent(hitMarker.transform, false);
-            hitLight = lightObj.AddComponent<Light>();
-            hitLight.type = LightType.Point;
-            hitLight.range = 1f;
-            hitLight.intensity = 2f;
-            hitLight.color = Color.red;
-
-            // Cylinder placeholder for the laser beam itself.
-            beamCylinder = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            beamCylinder.name = "LaserBeamCylinder";
-            beamCylinder.transform.SetParent(transform, false);
-            Destroy(beamCylinder.GetComponent<Collider>());
-            var cylRenderer = beamCylinder.GetComponent<Renderer>();
-            if (cylRenderer != null)
+            if (hitMarker != null)
             {
-                cylRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                cylRenderer.material.color = Color.red;
+                var lightObj = new GameObject("LaserHitLight");
+                lightObj.transform.SetParent(hitMarker.transform, false);
+                hitLight = lightObj.AddComponent<Light>();
+                hitLight.type = LightType.Point;
+                hitLight.range = 1f;
+                hitLight.intensity = 2f;
+                hitLight.color = Color.red;
             }
-            beamCylinder.SetActive(false);
+
+            // Cylinder placeholder for the laser beam itself. Only built when a
+            // shader resolved, so it can never render as an untinted slab.
+            Material cylinderMaterial = VellumShaders.TryCreateLineMaterial(Color.red);
+            if (cylinderMaterial != null)
+            {
+                beamCylinder = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                beamCylinder.name = "LaserBeamCylinder";
+                beamCylinder.transform.SetParent(transform, false);
+                Destroy(beamCylinder.GetComponent<Collider>());
+                var cylRenderer = beamCylinder.GetComponent<Renderer>();
+                if (cylRenderer != null)
+                    cylRenderer.sharedMaterial = cylinderMaterial;
+                beamCylinder.SetActive(false);
+            }
         }
 
         private void Start()
@@ -107,18 +130,30 @@ namespace VellumRift
 
         private void FindControllerAnchor()
         {
-            if (controllerTransform != null && controllerTransform != Camera.main?.transform)
+            if (controllerTransform != null && controllerTransform != Camera.main?.transform
+                && aimTransform != null)
                 return;
 
-            // Search for RightHand controller anchor if in VR
             if (InputControlSchema.IsXrActive())
             {
+                Transform aim = HybridRigBuilder.FindRightLaserAim();
+                if (aim != null)
+                {
+                    aimTransform = aim;
+                    controllerTransform = aim.parent;
+                    EnsureMuzzleReticle();
+                    return;
+                }
+
                 var candidates = FindObjectsByType<Transform>(FindObjectsSortMode.None);
                 foreach (var t in candidates)
                 {
                     if (t.name.Contains("Right") && (t.name.Contains("Controller") || t.name.Contains("Hand")))
                     {
                         controllerTransform = t;
+                        Transform childAim = t.Find(HybridRigBuilder.LaserAimName);
+                        aimTransform = childAim != null ? childAim : t;
+                        EnsureMuzzleReticle();
                         break;
                     }
                 }
@@ -127,8 +162,62 @@ namespace VellumRift
             if (controllerTransform == null)
             {
                 Camera cam = Camera.main;
-                if (cam != null) controllerTransform = cam.transform;
+                if (cam != null)
+                {
+                    controllerTransform = cam.transform;
+                    aimTransform = cam.transform;
+                }
             }
+        }
+
+        /// <summary>World-space ray axis for VR (LaserAim +Z) or desktop fallback.</summary>
+        public static Vector3 ResolveAimDirection(Transform aim, Transform gripFallback)
+        {
+            Transform t = aim != null ? aim : gripFallback;
+            return t != null ? t.forward : Vector3.forward;
+        }
+
+        public static Vector3 ResolveAimOrigin(Transform aim, Transform gripFallback)
+        {
+            Transform t = aim != null ? aim : gripFallback;
+            return t != null ? t.position : Vector3.zero;
+        }
+
+        private void EnsureMuzzleReticle()
+        {
+            if (aimTransform == null || muzzleReticleH != null)
+                return;
+            if (!InputControlSchema.IsXrActive())
+                return;
+
+            var root = new GameObject("MuzzleReticle");
+            root.transform.SetParent(aimTransform, false);
+            root.transform.localPosition = Vector3.zero;
+            root.transform.localRotation = Quaternion.identity;
+
+            const float arm = 0.012f;
+            const float w = 0.0015f;
+            muzzleReticleH = CreateReticleArm(root.transform, "H", arm, w);
+            muzzleReticleV = CreateReticleArm(root.transform, "V", arm, w, vertical: true);
+        }
+
+        private LineRenderer CreateReticleArm(Transform parent, string name, float halfLen, float width, bool vertical = false)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var lr = go.AddComponent<LineRenderer>();
+            Material mat = VellumShaders.TryCreateLineMaterial(new Color(0.7f, 0.95f, 1f, 0.95f));
+            if (mat != null)
+                lr.material = mat;
+            lr.useWorldSpace = false;
+            lr.positionCount = 2;
+            lr.startWidth = width;
+            lr.endWidth = width;
+            Vector3 a = vertical ? new Vector3(0f, -halfLen, 0f) : new Vector3(-halfLen, 0f, 0f);
+            Vector3 b = vertical ? new Vector3(0f, halfLen, 0f) : new Vector3(halfLen, 0f, 0f);
+            lr.SetPosition(0, a);
+            lr.SetPosition(1, b);
+            return lr;
         }
 
         private void Update()
@@ -189,7 +278,7 @@ namespace VellumRift
             var beamColor = isHost ? Color.red : Color.green;
             if (hitMarker != null) { hitMarker.SetActive(true); UpdateHitDotColor(hitMarker, beamColor); }
             if (hitLight != null) hitLight.color = beamColor;
-            if (beamCylinder != null)
+            if (beamCylinder != null && !InputControlSchema.IsXrActive())
             {
                 beamCylinder.SetActive(true);
                 var cylRenderer = beamCylinder.GetComponent<Renderer>();
@@ -230,13 +319,40 @@ namespace VellumRift
                 return (worldOrigin, aimDir, worldOrigin + aimDir * beamLength);
             }
 
-            Vector3 fwd = controllerTransform.forward;
-            Vector3 pos = controllerTransform.position;
+            Vector3 fwd = ResolveAimDirection(aimTransform, controllerTransform);
+            Vector3 pos = ResolveAimOrigin(aimTransform, controllerTransform);
             if (Physics.Raycast(pos, fwd, out RaycastHit vrHit, beamLength))
             {
                 return (pos, fwd, vrHit.point);
             }
             return (pos, fwd, pos + fwd * beamLength);
+        }
+
+        /// <summary>
+        /// Current laser aim origin, direction, and hit (or end-of-beam) point (#287).
+        /// </summary>
+        public bool TryGetAim(out Vector3 origin, out Vector3 direction, out Vector3 hitPoint)
+        {
+            origin = Vector3.zero;
+            direction = Vector3.forward;
+            hitPoint = Vector3.forward * beamLength;
+            if (controllerTransform == null)
+            {
+                FindControllerAnchor();
+                if (controllerTransform == null) return false;
+            }
+            (origin, direction, hitPoint) = GetLaserOrigin();
+            return true;
+        }
+
+        /// <summary>Aim ray for pin select/delete along the laser (#287).</summary>
+        public bool TryGetAimRay(out Ray ray)
+        {
+            ray = default;
+            if (!TryGetAim(out Vector3 origin, out Vector3 direction, out _))
+                return false;
+            ray = new Ray(origin, direction);
+            return true;
         }
 
         private void UpdateLocalBeam()
@@ -249,8 +365,13 @@ namespace VellumRift
                 localBeamRenderer.SetPosition(1, hitPoint);
             }
 
-            // Position, orient, and stretch the beam cylinder between the
-            // hand origin and the hit point.
+            if (hitMarker != null && hitMarker.activeSelf)
+            {
+                hitMarker.transform.position = hitPoint;
+                hitMarker.transform.localScale = Vector3.one * HitDotDiameter;
+            }
+
+            // Desktop-only cylinder; Quest uses the line renderer (phaser beam).
             if (beamCylinder != null && beamCylinder.activeSelf)
             {
                 float length = Vector3.Distance(o, hitPoint);
@@ -263,12 +384,6 @@ namespace VellumRift
                     new Vector3(beamStartWidth * 3f, length * 0.5f, beamStartWidth * 3f);
             }
 
-            if (hitMarker != null && hitMarker.activeSelf)
-            {
-                hitMarker.transform.position = hitPoint;
-                // Keep the target bubble small — a tight cap on the beam end.
-                hitMarker.transform.localScale = Vector3.one * 0.03f;
-            }
         }
 
         private IEnumerator SendLaserState()
@@ -375,19 +490,31 @@ namespace VellumRift
             }
         }
 
+        /// <summary>
+        /// Small hit dot. Returns <c>null</c> — without creating geometry — when
+        /// no dot shader resolves, so a missing shader can never leave an
+        /// untextured sphere sitting on the camera origin.
+        /// </summary>
         private GameObject CreateHitDot(Color color, string name)
         {
+            Material material = VellumShaders.TryCreateLineMaterial(color);
+            if (material == null)
+            {
+                Debug.LogWarning($"[LaserPointer] No shader for '{name}' — hit dot skipped.");
+                return null;
+            }
+
             var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             dot.name = name;
             dot.transform.SetParent(transform, false);
-            dot.transform.localScale = Vector3.one * 0.4f;
+            // Kept under 10 cm: a large sphere centred on the eyes crosses the
+            // near plane and rasterizes as a view-filling square.
+            dot.transform.localScale = Vector3.one * HitDotDiameter;
             Destroy(dot.GetComponent<Collider>());
             var r = dot.GetComponent<Renderer>();
             if (r != null)
-            {
-                r.material = new Material(Shader.Find("Unlit/Color"));
-                r.material.color = color;
-            }
+                r.sharedMaterial = material;
+            dot.SetActive(false);
             return dot;
         }
 
@@ -406,14 +533,18 @@ namespace VellumRift
             lr.positionCount = 2;
             lr.startWidth = beamStartWidth * 2f;
             lr.endWidth = beamEndWidth * 2f;
-            lr.material = new Material(remoteBeamMaterial);
+            if (remoteBeamMaterial != null)
+                lr.material = new Material(remoteBeamMaterial);
             lr.startColor = c;
             lr.endColor = c;
             lr.enabled = false;
 
             var dot = CreateHitDot(c, $"RemoteDot_{Guid.NewGuid():N}"[..16]);
-            dot.transform.SetParent(go.transform, false);
-            dot.SetActive(false);
+            if (dot != null)
+            {
+                dot.transform.SetParent(go.transform, false);
+                dot.SetActive(false);
+            }
             var data = go.AddComponent<RemoteBeamData>();
             data.hitDot = dot;
 

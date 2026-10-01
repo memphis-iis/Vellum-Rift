@@ -23,6 +23,7 @@ vr-client-unity/Vellum Rift/Temp/
 vr-client-unity/Vellum Rift/Obj/
 vr-client-unity/Vellum Rift/Build/
 vr-client-unity/Vellum Rift/Builds/
+vr-client-unity/Vellum Rift/build/
 vr-client-unity/Vellum Rift/Logs/
 vr-client-unity/Vellum Rift/UserSettings/
 
@@ -50,3 +51,4 @@ voynich/
 infrared.zip
 infrared-extract/
 .deploy/
+.unity-cache/

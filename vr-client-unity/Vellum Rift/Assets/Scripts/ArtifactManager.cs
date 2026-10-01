@@ -181,52 +181,31 @@ namespace VellumRift
                 go = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 go.transform.SetParent(null); // world space, not parented
                 go.transform.position = new Vector3(entry.x, entry.y, entry.z);
-                go.transform.localScale = Vector3.one * 0.6f;
-                // Billboard: full glyph readable from any angle, transparent bg.
+                go.transform.localScale = Vector3.one * 0.28f;
+                // Billboard: glyph readable from any angle, never a wall in the headset.
                 var bm = go.AddComponent<VellumRift.Environment.BillboardMarker>();
-                bm.screenHeightPixels = 110f;
-                bm.minWorldScale = 0.25f;
-                bm.maxWorldScale = 40f;
+                bm.screenHeightPixels = 72f;
+                bm.minWorldScale = 0.12f;
+                bm.maxWorldScale = 0.55f;
+                bm.hideWithinMeters = 0.45f;
                 // Drop the quad's flat MeshCollider; EnsureClickable will add a
                 // proper SphereCollider for screen-space click targeting.
                 var qc = go.GetComponent<Collider>();
                 if (qc != null) Destroy(qc);
-                var renderer = go.GetComponent<Renderer>();
-                if (renderer != null)
+                // Animated Vellum glyph (port of the WebGL ANIMATION_12 shader).
+                // BillboardMarker owns the material and the missing-shader guard, so
+                // a shader regression hides the pin instead of leaving the parchment
+                // gold square that used to sit in the headset view.
+                if (bm.ApplyMarkerGlyph(
+                        new Color(1f, 0.8f, 0.4f),
+                        new Color(0f, 0.86f, 0.91f),
+                        2.5f,
+                        3f,   // quad-local UV: 3 fits the glyph nicely
+                        1.2f))
                 {
-                    // Animated Vellum glyph shader (port of the WebGL ANIMATION_12
-                    // shader) replacing the flat yellow primitive.
-                    Shader shader = Resources.Load<Shader>("Shaders/AnimatedMarker");
-                    if (shader == null)
-                    {
-                        shader = Shader.Find("VellumRift/AnimatedMarker");
-                    }
-                    if (shader != null)
-                    {
-                        var mat = new Material(shader);
-                        mat.SetColor("_Gold", new Color(1f, 0.8f, 0.4f));
-                        mat.SetColor("_Cyan", new Color(0f, 0.86f, 0.91f));
-                        mat.SetFloat("_Speed", 2.5f);
-                        mat.SetFloat("_UvScale", 3f); // quad-local UV: 3 fits the glyph nicely
-                        mat.SetFloat("_AlphaBoost", 1.2f);
-                        renderer.sharedMaterial = mat;
-                        // Per-marker animation seed so glyphs don't animate in lockstep.
-                        go.AddComponent<VellumRift.Environment.AnimatedMarkerDriver>();
-                    }
-                    else
-                    {
-                        renderer.material = new Material(Shader.Find("Unlit/Color"));
-                        renderer.material.color = new Color(1f, 1f, 0.2f); // bright yellow
-                    }
+                    // Per-marker animation seed so glyphs don't animate in lockstep.
+                    go.AddComponent<VellumRift.Environment.AnimatedMarkerDriver>();
                 }
-
-                // Add a pulsing glow light to make it stand out
-                var glow = new GameObject("WaypointGlow").AddComponent<Light>();
-                glow.transform.SetParent(go.transform, false);
-                glow.type = LightType.Point;
-                glow.range = 2f;
-                glow.intensity = 1.5f;
-                glow.color = Color.yellow;
             }
 
             EnsureClickable(go);
@@ -292,6 +271,95 @@ namespace VellumRift
                 return false;
             artifactId = bestId;
             waypointLabels.TryGetValue(bestId, out currentLabel);
+            return true;
+        }
+
+        /// <summary>
+        /// Select an owned pin along a controller/laser ray (#287).
+        /// </summary>
+        public bool TrySelectOwnedWaypointAlongRay(
+            Ray ray,
+            float maxDistance,
+            out string artifactId,
+            out string currentLabel)
+        {
+            artifactId = null;
+            currentLabel = "";
+            if (!TryHitWaypointAlongRay(ray, maxDistance, out string bestId))
+                return false;
+            if (!CanModify(bestId))
+                return false;
+            artifactId = bestId;
+            waypointLabels.TryGetValue(bestId, out currentLabel);
+            return true;
+        }
+
+        /// <summary>
+        /// Delete a modifiable waypoint along a controller/laser ray (#287).
+        /// </summary>
+        public bool TryDeleteWaypointAlongRay(Ray ray, float maxDistance)
+        {
+            if (!TryHitWaypointAlongRay(ray, maxDistance, out string bestId))
+                return false;
+            if (!CanModify(bestId))
+                return false;
+            Debug.Log($"[ArtifactManager] Deleting waypoint {bestId} (ray)");
+            DeleteWaypoint(bestId);
+            return true;
+        }
+
+        private bool TryHitWaypointAlongRay(Ray ray, float maxDistance, out string artifactId)
+        {
+            artifactId = null;
+            if (spawnedWaypoints.Count == 0) return false;
+
+            // Prefer Physics hits on waypoint colliders (triggers included).
+            RaycastHit[] hits = Physics.RaycastAll(
+                ray, maxDistance, ~0, QueryTriggerInteraction.Collide);
+            string bestId = null;
+            float bestDist = maxDistance;
+            foreach (RaycastHit hit in hits)
+            {
+                foreach (var kvp in spawnedWaypoints)
+                {
+                    if (kvp.Value == null) continue;
+                    if (hit.collider != null &&
+                        (hit.collider.gameObject == kvp.Value ||
+                         hit.collider.transform.IsChildOf(kvp.Value.transform)))
+                    {
+                        if (hit.distance <= bestDist)
+                        {
+                            bestDist = hit.distance;
+                            bestId = kvp.Key;
+                        }
+                    }
+                }
+            }
+
+            if (bestId == null)
+            {
+                // Fallback: closest waypoint within 0.6m of the ray segment.
+                foreach (var kvp in spawnedWaypoints)
+                {
+                    GameObject go = kvp.Value;
+                    if (go == null) continue;
+                    Vector3 closest = ray.GetPoint(
+                        Mathf.Clamp(Vector3.Dot(go.transform.position - ray.origin, ray.direction), 0f, maxDistance));
+                    float d = Vector3.Distance(closest, go.transform.position);
+                    if (d <= 0.6f)
+                    {
+                        float along = Vector3.Distance(ray.origin, closest);
+                        if (along <= bestDist)
+                        {
+                            bestDist = along;
+                            bestId = kvp.Key;
+                        }
+                    }
+                }
+            }
+
+            if (bestId == null) return false;
+            artifactId = bestId;
             return true;
         }
 
@@ -371,6 +439,25 @@ namespace VellumRift
         {
             spawnedWaypoints.TryGetValue(artifactId, out GameObject go);
             return go;
+        }
+
+        /// <summary>
+        /// Stable-sorted orbit targets (pins) for the museum wall director.
+        /// </summary>
+        public void CollectOrbitTargets(List<Transform> into, List<string> ids = null)
+        {
+            if (into == null) return;
+            into.Clear();
+            if (ids != null) ids.Clear();
+            var sorted = new List<string>(spawnedWaypoints.Keys);
+            sorted.Sort(string.CompareOrdinal);
+            foreach (string id in sorted)
+            {
+                if (!spawnedWaypoints.TryGetValue(id, out GameObject go) || go == null)
+                    continue;
+                into.Add(go.transform);
+                if (ids != null) ids.Add(id);
+            }
         }
 
         /// <summary>

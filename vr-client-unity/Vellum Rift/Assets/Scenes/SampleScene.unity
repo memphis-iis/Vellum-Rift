@@ -145,19 +145,32 @@ MonoBehaviour:
   m_GameObject: {fileID: 218744881}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ddc7c16dd05246a481fd2f48b764622a, type: 3}
+  m_Script: {fileID: 11500000, guid: 68449db3e418a443cb291a59dc575b2b, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: VellumRift::VellumRift.DemoSession
-  sessionIdOverride: ea0b2eec-c1ec-43c6-b7c1-d1bb7041c814
+  m_EditorClassIdentifier: VellumRift::VellumRift.SessionManager
+  sessionIdOverride: 
   playerName: Player
+  defaultBackendUrl: https://iis.memphis.edu/apis/vellumrift
+  allowInsecureHttp: 0
+  modelId: 
   apiClient: {fileID: 0}
-  poller: {fileID: 0}
+  bluekeyAuth: {fileID: 0}
+  positionSender: {fileID: 0}
+  spatialIndicatorSystem: {fileID: 0}
+  laserPointer: {fileID: 0}
+  summonManager: {fileID: 0}
+  artifactManager: {fileID: 0}
+  modelLoader: {fileID: 0}
+  chatManager: {fileID: 0}
+  controlsGuide: {fileID: 0}
   playerSpawner: {fileID: 0}
+  gameStatePoller: {fileID: 0}
   multiplayerController: {fileID: 0}
   healthChecker: {fileID: 0}
-  defaultBackendUrl: https://iis.memphis.edu/apis/vellumrift
-  pollingInterval: 0.1
-  localPlayerObject: {fileID: 0}
+  logoutButton: {fileID: 0}
+  spacesLobbyOverlay: {fileID: 0}
+  playerController: {fileID: 0}
+  pinNamePrompt: {fileID: 0}
 --- !u!4 &218744883
 Transform:
   m_ObjectHideFlags: 0
@@ -453,7 +466,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &803260839
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -466,9 +479,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 204fb4161d57477baccb039f6741da85, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VellumRift::VellumRift.RemoteModelLoader
-  modelUrl: https://iis.memphis.edu/apis/vellumrift/api/models/168ef5d4-983b-4947-bbe4-9bed481a828b
-  modelScale: 0.1
-  loadOnStart: 1
+  modelUrl: 
+  modelScale: 0.01
+  loadOnStart: 0
+  allowInsecureHttp: 0
+  authToken: 
 --- !u!4 &803260840
 Transform:
   m_ObjectHideFlags: 0

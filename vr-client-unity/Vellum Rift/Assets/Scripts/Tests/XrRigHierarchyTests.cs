@@ -1,6 +1,8 @@
 using NUnit.Framework;
 using UnityEngine;
+using VellumRift;
 using VellumRift.Control;
+using VellumRift.Tests.PlayMode;
 
 namespace VellumRift.Tests
 {
@@ -22,7 +24,7 @@ namespace VellumRift.Tests
         [Test]
         public void HybridRig_HasCameraOffsetAndControllers()
         {
-            root = BuildHybridRig();
+            root = HybridRigTestBuilder.BuildHybridRig();
 
             Transform origin = root.transform.Find("XR Origin");
             Assert.That(origin, Is.Not.Null);
@@ -73,32 +75,13 @@ namespace VellumRift.Tests
             Assert.That(yaw, Is.EqualTo(90f).Within(0.5f));
         }
 
-        /// <summary>
-        /// Minimal Hybrid Rig hierarchy matching WO-03 architecture (scene wiring / Device Simulator attach point).
-        /// </summary>
-        public static GameObject BuildHybridRig()
+        [Test]
+        public void GuideRows_Xr_JetpackIsLeftGripLookThrust_NotRightPrimary()
         {
-            var player = new GameObject("Player");
-            player.AddComponent<PlayerController>();
-
-            var origin = new GameObject("XR Origin");
-            origin.transform.SetParent(player.transform, false);
-
-            var offset = new GameObject("Camera Offset");
-            offset.transform.SetParent(origin.transform, false);
-
-            var cameraGo = new GameObject("Main Camera");
-            cameraGo.transform.SetParent(offset.transform, false);
-            cameraGo.tag = "MainCamera";
-            cameraGo.AddComponent<Camera>();
-
-            var left = new GameObject("Left Controller");
-            left.transform.SetParent(offset.transform, false);
-
-            var right = new GameObject("Right Controller");
-            right.transform.SetParent(offset.transform, false);
-
-            return player;
+            var rows = InputControlSchema.GuideRows(ControlSchema.XR);
+            string joined = string.Join(" | ", System.Array.ConvertAll(rows, r => $"{r.Action}={r.Binding}"));
+            Assert.That(joined, Does.Contain("Jetpack=L-GRIP (look direction)"));
+            Assert.That(joined, Does.Not.Contain("GRIP / A"));
         }
     }
 }

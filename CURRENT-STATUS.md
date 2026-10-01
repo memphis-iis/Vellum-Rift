@@ -44,6 +44,8 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 
 - multiplayer demo path (HTTP polling), flight/controls work, remote glTF loading, session link overlays
 - additional session UX (chat, summon, lasers, artifacts, Bluekey client helpers) present in the project tree; treat maturity as demo / WIP rather than production-complete
+- Quest 2 presentation: side-slot world-space visor HUDs (`XrHudFollow`) with Quest scale tokens and ≥64 px hit targets (`VrTheme`); procedural visuals (laser, wireframes, pins) resolve project-owned shaders from `Assets/Resources/Shaders/` via `VellumShaders` and hide rather than draw untinted geometry
+- verification surfaces: `pnpm run verify:quest`, `vr-client-unity/scripts/run-editmode-tests.sh`, and the on-headset smoke test in [docs/qa/quest-museum-verify.md](docs/qa/quest-museum-verify.md)
 
 ### Speech (`infra/speech/`)
 

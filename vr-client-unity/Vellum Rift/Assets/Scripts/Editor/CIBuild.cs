@@ -33,6 +33,10 @@ namespace VellumRift.Editor
                 return;
             }
 
+            // Custom shell chrome (no default Unity footer/logo). Folder name under Assets/WebGLTemplates.
+            PlayerSettings.WebGL.template = "PROJECT:VellumRift";
+            Debug.Log("[CIBuild] WebGL template = PROJECT:VellumRift");
+
             var options = new BuildPlayerOptions
             {
                 scenes = scenes,
@@ -75,12 +79,23 @@ namespace VellumRift.Editor
                 return;
             }
 
-            // Switch active target without touching WebGL player settings permanently beyond Android keys.
-            if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
+            // Prefer Android as the active target, but do not hard-fail the switch:
+            // SwitchActiveBuildTarget returns false when already on Android, and can
+            // also flap after a crashed Editor session even when AndroidPlayer is present.
+            // BuildPipeline.BuildPlayer still targets Android via BuildPlayerOptions.
+            var active = EditorUserBuildSettings.activeBuildTarget;
+            Debug.Log($"[CIBuild] Active build target before switch: {active}");
+            if (active != BuildTarget.Android)
             {
-                Debug.LogError("[CIBuild] Failed to switch active build target to Android. Is Android Build Support installed?");
-                EditorApplication.Exit(1);
-                return;
+                bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
+                    BuildTargetGroup.Android, BuildTarget.Android);
+                Debug.Log(switched
+                    ? "[CIBuild] Switched active build target to Android."
+                    : "[CIBuild] SwitchActiveBuildTarget returned false — continuing with Android BuildPlayerOptions anyway.");
+            }
+            else
+            {
+                Debug.Log("[CIBuild] Active build target already Android — skipping switch.");
             }
 
             EditorUserBuildSettings.buildAppBundle = false;
@@ -135,7 +150,9 @@ namespace VellumRift.Editor
 
         private static void ApplyOptionalAndroidKeystore()
         {
-            string keystore = Environment.GetEnvironmentVariable("ANDROID_KEYSTORE_PATH");
+            // Qualify System.Environment — inside namespace VellumRift.Editor, bare
+            // "Environment" resolves to VellumRift.Environment (GalleryEnvironment folder).
+            string keystore = System.Environment.GetEnvironmentVariable("ANDROID_KEYSTORE_PATH");
             if (string.IsNullOrEmpty(keystore) || !File.Exists(keystore))
             {
                 PlayerSettings.Android.useCustomKeystore = false;
@@ -145,9 +162,9 @@ namespace VellumRift.Editor
 
             PlayerSettings.Android.useCustomKeystore = true;
             PlayerSettings.Android.keystoreName = keystore;
-            PlayerSettings.Android.keystorePass = Environment.GetEnvironmentVariable("ANDROID_KEYSTORE_PASS") ?? "";
-            PlayerSettings.Android.keyaliasName = Environment.GetEnvironmentVariable("ANDROID_KEYALIAS_NAME") ?? "";
-            PlayerSettings.Android.keyaliasPass = Environment.GetEnvironmentVariable("ANDROID_KEYALIAS_PASS") ?? "";
+            PlayerSettings.Android.keystorePass = System.Environment.GetEnvironmentVariable("ANDROID_KEYSTORE_PASS") ?? "";
+            PlayerSettings.Android.keyaliasName = System.Environment.GetEnvironmentVariable("ANDROID_KEYALIAS_NAME") ?? "";
+            PlayerSettings.Android.keyaliasPass = System.Environment.GetEnvironmentVariable("ANDROID_KEYALIAS_PASS") ?? "";
             Debug.Log($"[CIBuild] Using custom keystore: {keystore}");
         }
 
@@ -165,7 +182,7 @@ namespace VellumRift.Editor
         /// <summary>Reads <c>-flag value</c> from the Unity process command line.</summary>
         internal static string GetArg(string name)
         {
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
             {
                 if (string.Equals(args[i], name, StringComparison.Ordinal))
@@ -176,7 +193,7 @@ namespace VellumRift.Editor
 
         internal static bool HasFlag(string name)
         {
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
             {
                 if (string.Equals(args[i], name, StringComparison.Ordinal))

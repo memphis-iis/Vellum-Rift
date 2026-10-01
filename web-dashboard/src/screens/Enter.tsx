@@ -115,9 +115,18 @@ export default function Enter({
     useSessionRoom(sessionId, displayName);
 
   const [draft, setDraft] = useState("");
-  const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | null>(null);
+  const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | "observer" | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [in3d, setIn3d] = useState(false);
+  const [enterMode, setEnterMode] = useState<"play" | "observer">(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("observer") === "1" || params.get("mode") === "observer") return "observer";
+    } catch {
+      /* ignore */
+    }
+    return "play";
+  });
   const [showDesktop, setShowDesktop] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
@@ -237,6 +246,20 @@ export default function Enter({
     });
   }, [sessionId, me]);
 
+  const observerUrl = useMemo(() => {
+    if (!sessionId || !me) return null;
+    return buildWebGlLaunchUrl({
+      sessionId,
+      playerName: me.displayName,
+      isHost: false,
+      spectator: true,
+      kiosk: kioskEnabled,
+    });
+  }, [sessionId, me, kioskEnabled]);
+
+  // Any Lobby user with a WebGL base URL can open the museum wall display.
+  const canUseObserver = Boolean(observerUrl);
+
   const desktopCmd = useMemo(() => {
     if (!sessionId || !me) return "";
     return buildDesktopCommand(
@@ -274,7 +297,29 @@ export default function Enter({
     }
   }, [sessionId]);
 
-  const copy = async (kind: "invite" | "desktop" | "kiosk" | "share", text: string) => {
+  const observerLinkText = useMemo(() => {
+    if (observerUrl) return observerUrl;
+    if (!sessionId) return "";
+    try {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("session", sessionId);
+      url.searchParams.set("observer", "1");
+      return url.toString();
+    } catch {
+      return sessionId;
+    }
+  }, [observerUrl, sessionId]);
+
+  useEffect(() => {
+    if (!observerUrl && enterMode === "observer") setEnterMode("play");
+  }, [observerUrl, enterMode]);
+
+  const copy = async (
+    kind: "invite" | "desktop" | "kiosk" | "share" | "observer",
+    text: string,
+  ) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(kind);
@@ -451,7 +496,30 @@ export default function Enter({
     setDraft("");
   };
 
+  const openWebGlUrl = (url: string | null) => {
+    if (!url) return;
+    const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
+    if (!origin) {
+      window.open(url, "vellumRiftWebGL");
+      return;
+    }
+    launchWebGlWithAuthHandoff({
+      url,
+      accessToken: readDashboardAccessToken(),
+      email: readDashboardEmail() || user?.email || "",
+      webGlOrigin: origin,
+    });
+  };
+
   const launchWebGl = () => {
+    if (enterMode === "observer") {
+      if (!observerUrl) {
+        setShowDesktop(true);
+        return;
+      }
+      openWebGlUrl(observerUrl);
+      return;
+    }
     if (!webGlEmbedUrl) {
       setShowDesktop(true);
       return;
@@ -460,18 +528,7 @@ export default function Enter({
   };
 
   const openWebGlNewTab = () => {
-    if (!webGlUrl) return;
-    const origin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
-    if (!origin) {
-      window.open(webGlUrl, "vellumRiftWebGL");
-      return;
-    }
-    launchWebGlWithAuthHandoff({
-      url: webGlUrl,
-      accessToken: readDashboardAccessToken(),
-      email: readDashboardEmail() || user?.email || "",
-      webGlOrigin: origin,
-    });
+    openWebGlUrl(enterMode === "observer" ? observerUrl : webGlUrl);
   };
 
   if (!sessionId) {
@@ -531,14 +588,39 @@ export default function Enter({
           <button type="button" className="vr-btn vr-btn--ghost" onClick={onLeave}>
             Leave space
           </button>
+          {canUseObserver ? (
+            <div className="vr-enter__mode" role="group" aria-label="Enter mode">
+              <button
+                type="button"
+                className={`vr-enter__mode-btn${enterMode === "play" ? " is-active" : ""}`}
+                onClick={() => setEnterMode("play")}
+                aria-pressed={enterMode === "play"}
+              >
+                Play
+              </button>
+              <button
+                type="button"
+                className={`vr-enter__mode-btn${enterMode === "observer" ? " is-active" : ""}`}
+                onClick={() => setEnterMode("observer")}
+                aria-pressed={enterMode === "observer"}
+                title="Museum wall — auto camera, chat, radar"
+              >
+                Observer
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className="vr-btn vr-btn--primary"
             onClick={launchWebGl}
-            disabled={status !== "ready" || !me}
+            disabled={
+              status !== "ready" ||
+              !me ||
+              (enterMode === "observer" ? !observerUrl : !webGlEmbedUrl && !webGlUrl)
+            }
           >
-            <MaterialIcon name="view_in_ar" />
-            Enter 3D
+            <MaterialIcon name={enterMode === "observer" ? "tv" : "view_in_ar"} />
+            {enterMode === "observer" ? "Open display" : "Enter 3D"}
           </button>
         </div>
       </header>
@@ -624,6 +706,17 @@ export default function Enter({
               >
                 <MaterialIcon name="qr_code_2" />
                 {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
+              </button>
+            ) : null}
+            {canUseObserver && observerLinkText ? (
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void copy("observer", observerLinkText)}
+                title="Full-screen museum wall WebGL link"
+              >
+                <MaterialIcon name="tv" />
+                {copied === "observer" ? "Copied" : "Copy observer link"}
               </button>
             ) : null}
             <button
@@ -932,16 +1025,46 @@ export default function Enter({
           </div>
 
           <div className="vr-enter__launch-row">
+            {canUseObserver ? (
+              <div className="vr-enter__mode" role="group" aria-label="Enter mode">
+                <button
+                  type="button"
+                  className={`vr-enter__mode-btn${enterMode === "play" ? " is-active" : ""}`}
+                  onClick={() => setEnterMode("play")}
+                  aria-pressed={enterMode === "play"}
+                >
+                  Play
+                </button>
+                <button
+                  type="button"
+                  className={`vr-enter__mode-btn${enterMode === "observer" ? " is-active" : ""}`}
+                  onClick={() => setEnterMode("observer")}
+                  aria-pressed={enterMode === "observer"}
+                >
+                  Observer
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               className="vr-btn vr-btn--primary"
               onClick={launchWebGl}
-              disabled={status !== "ready" || !me}
+              disabled={
+                status !== "ready" ||
+                !me ||
+                (enterMode === "observer" ? !observerUrl : !webGlEmbedUrl && !webGlUrl)
+              }
             >
-              <MaterialIcon name="view_in_ar" />
-              {webGlEmbedUrl ? "Enter 3D" : "Launch options"}
+              <MaterialIcon name={enterMode === "observer" ? "tv" : "view_in_ar"} />
+              {enterMode === "observer"
+                ? observerUrl
+                  ? "Open display"
+                  : "Launch options"
+                : webGlEmbedUrl
+                  ? "Enter 3D"
+                  : "Launch options"}
             </button>
-            {webGlUrl ? (
+            {(enterMode === "observer" ? observerUrl : webGlUrl) ? (
               <button
                 type="button"
                 className="vr-btn vr-btn--outline"

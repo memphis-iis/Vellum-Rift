@@ -44,10 +44,39 @@ namespace VellumRift
 
         // --- Interaction (laser / Touch) ---
         /// <summary>Minimum control height in canvas units (~world-space readable / laser).</summary>
-        public const float MinHitHeightPx = 56f;
+        public const float MinHitHeightPx = 64f;
         public const float MinHitWidthPx = 160f;
         public const float LobbyPanelDistance = 2.2f;
         public const float LobbyWorldScale = 0.0024f;
+        /// <summary>Larger world canvas on Quest so lobby text stays about 1.3° tall.</summary>
+        public const float QuestLobbyWorldScale = 0.0022f;
+        /// <summary>
+        /// Side HUD scale. Compact on Quest 2 so panels stay peripheral without crowding FOV.
+        /// </summary>
+        public const float QuestHudWorldScale = 0.0024f;
+        /// <summary>Meters in front of the head for visor panels. Inside 1.5m crowds Quest 2.</summary>
+        public const float HudPanelDistance = 2.50f;
+        /// <summary>Keep the inner edge of a side panel at least this far off the view axis.</summary>
+        public const float HudCenterClearance = 0.62f;
+        /// <summary>
+        /// Extra meters between the eye line and each side panel's near edge so
+        /// upper/lower stacks (Chat vs How to Play, Session vs Logout) do not overlap.
+        /// </summary>
+        public const float HudSlotVerticalGap = 0.24f;
+        /// <summary>Quest 2 eye buffers are soft; extra dynamic pixels keep glyph edges crisp.</summary>
+        public const float QuestDynamicPixelsPerUnit = 24f;
+
+        /// <summary>World-space lobby scale — larger whenever an XR display is active.</summary>
+        public static float EffectiveLobbyWorldScale =>
+            InputControlSchema.IsXrActive() ? QuestLobbyWorldScale : LobbyWorldScale;
+
+        /// <summary>Side-panel scale used by <see cref="XrHudFollow"/>.</summary>
+        public static float EffectiveHudWorldScale =>
+            InputControlSchema.IsXrActive() ? QuestHudWorldScale : LobbyWorldScale;
+
+        /// <summary>CanvasScaler.dynamicPixelsPerUnit for world-space XR UI.</summary>
+        public static float EffectiveDynamicPixelsPerUnit =>
+            InputControlSchema.IsXrActive() ? QuestDynamicPixelsPerUnit : 10f;
 
         public static Color WithAlpha(Color c, float a)
         {

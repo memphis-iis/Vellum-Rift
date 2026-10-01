@@ -178,9 +178,52 @@ namespace VellumRift
 
             return new GetSessionResult
             {
-                State = JsonUtility.FromJson<GameState>(res.Body),
+                State = ParseGameState(res.Body),
                 NotFound = false,
             };
+        }
+
+        /// <summary>
+        /// JsonUtility cannot deserialize <see cref="List{T}"/> — API payloads use
+        /// a players array, so we route through a DTO then copy into GameState.
+        /// </summary>
+        [Serializable]
+        private class GameStateDto
+        {
+            public string sessionId;
+            public string label;
+            public string hostId;
+            public PlayerState[] players;
+            public string createdAt;
+            public string updatedAt;
+            public bool isActive;
+            public string activeModelId;
+            public string[] playlist;
+        }
+
+        public static GameState ParseGameState(string body)
+        {
+            if (string.IsNullOrEmpty(body))
+                return null;
+
+            GameStateDto dto = JsonUtility.FromJson<GameStateDto>(body);
+            if (dto == null)
+                return null;
+
+            var state = new GameState(dto.label ?? "")
+            {
+                sessionId = dto.sessionId ?? "",
+                hostId = dto.hostId ?? "",
+                createdAt = dto.createdAt ?? "",
+                updatedAt = dto.updatedAt ?? "",
+                isActive = dto.isActive,
+                activeModelId = dto.activeModelId ?? "",
+                playlist = dto.playlist ?? Array.Empty<string>(),
+                players = dto.players != null
+                    ? new System.Collections.Generic.List<PlayerState>(dto.players)
+                    : new System.Collections.Generic.List<PlayerState>(),
+            };
+            return state;
         }
 
         /// <summary>

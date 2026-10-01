@@ -36,19 +36,26 @@ namespace VellumRift
                 return;
 
             // Joined: in current, absent from previous (all of them on first poll).
-            foreach (var player in current.players)
+            if (current.players != null)
             {
-                if (previous == null || previous.GetPlayer(player.id) == null)
-                    joined.Add(player);
+                foreach (var player in current.players)
+                {
+                    if (player == null)
+                        continue;
+                    if (previous == null || previous.GetPlayer(player.id) == null)
+                        joined.Add(player);
+                }
             }
 
-            if (previous == null)
+            if (previous == null || previous.players == null)
                 return;
 
             // Left: in previous, absent from current.
             foreach (var player in previous.players)
             {
-                if (current.GetPlayer(player.id) == null)
+                if (player == null)
+                    continue;
+                if (current.players == null || current.GetPlayer(player.id) == null)
                     leftIds.Add(player.id);
             }
         }

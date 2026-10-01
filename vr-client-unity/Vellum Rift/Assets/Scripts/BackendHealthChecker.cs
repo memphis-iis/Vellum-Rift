@@ -100,7 +100,7 @@ public class BackendHealthChecker : MonoBehaviour
     private const float GAP_GUTTER   = 16f;     // gap-gutter between header and rows
     private const float GAP_UNIT     = 8f;      // gap-unit between rows / header elements
     private const float ROW_STATE_H  = 44f;
-    private const float ROW_DETAIL_H = 60f;
+    private const float ROW_DETAIL_H = 80f;
     private const float PANEL_RADIUS = 12f;     // rounded-xl
     private const float ROW_RADIUS   = 8f;      // rounded-lg
     private const float PILL_H       = 28f;
@@ -130,6 +130,7 @@ public class BackendHealthChecker : MonoBehaviour
     private Text sessionIdText;
     private Text ownerText;
     private Coroutine pulseCoroutine;
+    private string statusBaseLabel = "CHECKING";
 
     /// <summary>
     /// Override the health-check URL before this component's Start runs (e.g.
@@ -163,10 +164,34 @@ public class BackendHealthChecker : MonoBehaviour
             ownerText.text = ownerName;
     }
 
+    /// <summary>Sticky wrist MENU show/hide for the Space Status canvas.</summary>
+    public void SetHudVisible(bool visible)
+    {
+        if (canvasGO != null)
+            canvasGO.SetActive(visible);
+    }
+
     private void Awake()
     {
         if (!WebGlShellMode.UsesExternalShell)
             BuildStatusUI();
+    }
+
+    private void LateUpdate()
+    {
+        RefreshManuscriptStatusLine();
+    }
+
+    private void RefreshManuscriptStatusLine()
+    {
+        if (statusText == null || CurrentStatus != ConnectionStatus.Connected)
+            return;
+
+        Vector3 observer = Camera.main != null ? Camera.main.transform.position : transform.position;
+        if (ManuscriptPlaySpace.TryGetHudStatus(observer, out string extra))
+            statusText.text = $"{statusBaseLabel} · {extra}";
+        else
+            statusText.text = statusBaseLabel;
     }
 
     private void Start()
@@ -380,6 +405,7 @@ public class BackendHealthChecker : MonoBehaviour
 
     private void ApplyPill(Color accent, string label)
     {
+        statusBaseLabel = label;
         statusText.text = label;
         statusText.color = accent;
         statusDotImg.color = accent;
@@ -454,6 +480,11 @@ public class BackendHealthChecker : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920, 1080);
         scaler.matchWidthOrHeight = 0.5f;
         canvasGO.AddComponent<GraphicRaycaster>();
+
+        var hud = canvasGO.AddComponent<XrHudFollow>();
+        hud.slot = XrHudSlot.UpperLeft;
+        hud.widthPx = PANEL_WIDTH + SHADOW_SIDE * 2f;
+        hud.heightPx = PANEL_H;
 
         // Soft black drop shadow + subtle cyan hud-glow behind the card.
         BuildShadow();

@@ -2,7 +2,6 @@
 	"name": "VellumRift.PlayModeTests",
 	"rootNamespace": "VellumRift.Tests.PlayMode",
 	"references": [
-		"UnityEngine.TestRunner",
 		"Unity.InputSystem",
 		"Unity.InputSystem.TestFramework",
 		"Unity.XR.Interaction.Toolkit",

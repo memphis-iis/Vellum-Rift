@@ -70,11 +70,14 @@ describe("Kiosk public join (#145)", () => {
   let app: express.Express;
   let currentUser: typeof HOST | null;
   let savedMetadata: Record<string, unknown> | null;
+  /** When set, findAll returns these rows instead of a single sessionRow(). */
+  let listRows: Record<string, unknown>[] | null;
 
   beforeEach(() => {
     mocks.query.mockReset();
     resetRateLimits();
     savedMetadata = null;
+    listRows = null;
     currentUser = HOST;
     BLUEKEY_CONFIG.required = true;
 
@@ -84,6 +87,17 @@ describe("Kiosk public join (#145)", () => {
         const base = sessionRow();
         const meta = savedMetadata ?? (base.metadata as Record<string, unknown>);
         return { rows: [{ ...base, metadata: meta }] };
+      }
+      if (text.includes("FROM game_sessions ORDER BY updated_at")) {
+        const rows = listRows ?? [
+          {
+            ...sessionRow(),
+            metadata:
+              savedMetadata ??
+              (sessionRow().metadata as Record<string, unknown>),
+          },
+        ];
+        return { rows };
       }
       if (text.includes("UPDATE game_sessions")) {
         const metadataParam = params?.[3];
@@ -112,6 +126,61 @@ describe("Kiosk public join (#145)", () => {
 
   afterEach(() => {
     BLUEKEY_CONFIG.required = false;
+  });
+
+  it("lists only active event spaces with kiosk enabled", async () => {
+    listRows = [
+      sessionRow({
+        session_id: "event-open",
+        label: "Museum Demo",
+        metadata: {
+          playlist: [MODEL_A],
+          kioskEnabled: true,
+          kind: "event",
+          startsAt: "2026-09-29T15:00:00.000Z",
+        },
+        updated_at: "2026-09-29T16:00:00.000Z",
+      }),
+      sessionRow({
+        session_id: "event-no-kiosk",
+        label: "Private event",
+        metadata: { playlist: [MODEL_A], kind: "event" },
+        updated_at: "2026-09-29T15:30:00.000Z",
+      }),
+      sessionRow({
+        session_id: "explore-kiosk",
+        label: "Exploration",
+        metadata: { playlist: [MODEL_A], kioskEnabled: true },
+        updated_at: "2026-09-29T15:00:00.000Z",
+      }),
+      sessionRow({
+        session_id: "event-archived",
+        label: "Old event",
+        is_active: false,
+        metadata: { playlist: [MODEL_A], kioskEnabled: true, kind: "event" },
+        updated_at: "2026-09-28T12:00:00.000Z",
+      }),
+    ];
+
+    const res = await request(app).get("/api/kiosk/events");
+    expect(res.status).toBe(200);
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.events[0]).toMatchObject({
+      sessionId: "event-open",
+      label: "Museum Demo",
+      startsAt: "2026-09-29T15:00:00.000Z",
+    });
+  });
+
+  it("returns an empty events list when none qualify", async () => {
+    listRows = [
+      sessionRow({
+        metadata: { playlist: [MODEL_A], kioskEnabled: true },
+      }),
+    ];
+    const res = await request(app).get("/api/kiosk/events");
+    expect(res.status).toBe(200);
+    expect(res.body.events).toEqual([]);
   });
 
   it("status returns 403 when kiosk is off", async () => {

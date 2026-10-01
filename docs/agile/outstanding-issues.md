@@ -78,7 +78,7 @@ Still open related work: invite/completion **notifications** remain tracked as G
 | ID | Issue | Priority | Notes |
 |----|-------|----------|-------|
 | IMPL-020 | Local palette / Z-axis shader controls | MVP-blocking | SDD 003 |
-| IMPL-021 | Radar / session-awareness HUD (web + VR visor) | Foundational | |
+| IMPL-021 | Radar / session-awareness HUD (web + VR visor) | Foundational | **Partial** — visor HUD slots, Quest scale tokens, and shader-safety guards landed (#FTR-005); web minimap remains |
 | IMPL-022 | Replace 10 Hz HTTP polling with WebRTC presence | Foundational | Depends on IMPL-012–014 |
 
 ### F. Speech Stack
@@ -169,7 +169,14 @@ Roughly 10–15 days across provider, schema, queue, APIs, dashboard panel, and 
 **Description:** Visor HUD covering radar, chat, waypoints, summon, session controls.  
 **Priority:** Foundational  
 **Dependencies:** FTR-001, FTR-003, FTR-004.  
-**Status:** Not complete.
+**Status:** **Partial** — Quest side-slot visor HUDs (`XrHudFollow`), Quest-readable
+scale tokens and hit targets (`VrTheme`), and the procedural-visual shader path
+(`VellumShaders` + `Assets/Resources/Shaders/`) are in place and guarded by
+`QuestUxFixTests`. Visor radar, unified session controls, and full grammar of
+HUD surfaces remain open.
+
+Verification: [docs/qa/quest-museum-verify.md](../qa/quest-museum-verify.md) (Step 6
+is the on-headset smoke test).
 
 ### FTR-ADDENDUM: Mobile Interface
 

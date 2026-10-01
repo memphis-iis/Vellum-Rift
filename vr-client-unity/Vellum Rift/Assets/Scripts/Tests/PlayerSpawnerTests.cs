@@ -51,8 +51,11 @@ namespace VellumRift.Tests
             GameObject go = spawner.SpawnPlayer(Player("p1", "Alice"));
 
             Assert.That(go, Is.Not.Null);
-            // Default fallback is the wireframe book visual.
-            Assert.That(go.GetComponent<VellumRift.Environment.PlayerBookVisual>(), Is.Not.Null, "expected the book visual when no prefab is set");
+            // Default fallback is the pill avatar (cylinder + head).
+            Assert.That(go.GetComponent<VellumRift.Environment.PlayerBookVisual>(), Is.Not.Null,
+                "expected the pill avatar when no prefab is set");
+            Assert.That(go.transform.Find("AvatarGroup/Body"), Is.Not.Null);
+            Assert.That(go.transform.Find("AvatarGroup/Head"), Is.Not.Null);
             Assert.That(spawner.IsPlayerSpawned("p1"), Is.True);
             Assert.That(spawner.GetPlayerObject("p1"), Is.SameAs(go));
             Assert.That(spawner.SpawnedCount, Is.EqualTo(1));

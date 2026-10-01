@@ -35,7 +35,6 @@ namespace VellumRift
             if (canvasGO != null)
                 canvasGO.SetActive(true);
             visible = true;
-            PlaceInFrontOfCamera();
             EnsureEventSystem();
         }
 
@@ -59,24 +58,6 @@ namespace VellumRift
                 SetStatus("Working…");
         }
 
-        private void LateUpdate()
-        {
-            if (visible)
-                PlaceInFrontOfCamera();
-        }
-
-        private void PlaceInFrontOfCamera()
-        {
-            if (canvasGO == null)
-                return;
-            Camera cam = Camera.main;
-            if (cam == null)
-                return;
-            Transform t = canvasGO.transform;
-            t.position = cam.transform.position + cam.transform.forward * VrTheme.LobbyPanelDistance;
-            t.rotation = Quaternion.LookRotation(t.position - cam.transform.position, Vector3.up);
-        }
-
         private void EnsureBuilt()
         {
             if (canvasGO != null)
@@ -87,12 +68,19 @@ namespace VellumRift
             var canvas = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 100;
-            canvasGO.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = 10f;
+            canvasGO.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = VrTheme.EffectiveDynamicPixelsPerUnit;
             canvasGO.AddComponent<GraphicRaycaster>();
+
+            var hud = canvasGO.AddComponent<XrHudFollow>();
+            hud.followMode = XrHudFollowMode.Modal;
+            hud.widthPx = 920f;
+            hud.heightPx = 780f;
+            hud.onlyWhenXr = false;
+            hud.recenterChildren = true;
 
             RectTransform canvasRect = canvasGO.GetComponent<RectTransform>();
             canvasRect.sizeDelta = new Vector2(920f, 780f);
-            canvasGO.transform.localScale = Vector3.one * VrTheme.LobbyWorldScale;
+            canvasGO.transform.localScale = Vector3.one * VrTheme.EffectiveLobbyWorldScale;
 
             GameObject panelGO = CreateUIObject("Panel", canvasGO.transform);
             var panelImg = panelGO.AddComponent<Image>();

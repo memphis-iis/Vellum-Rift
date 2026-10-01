@@ -148,6 +148,12 @@ namespace VellumRift
             CanvasScaler cs = overlayCanvas.AddComponent<CanvasScaler>(); cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; cs.referenceResolution = new Vector2(1920, 1080);
             overlayCanvas.AddComponent<GraphicRaycaster>();
 
+            var hud = overlayCanvas.AddComponent<XrHudFollow>();
+            hud.followMode = XrHudFollowMode.Modal;
+            hud.widthPx = 480f;
+            hud.heightPx = 280f;
+            hud.recenterChildren = true;
+
             GameObject panel = new GameObject("Panel"); panel.transform.SetParent(overlayCanvas.transform, false);
             countdownPanel = panel.AddComponent<Image>(); countdownPanel.color = new Color(0, 0, 0, 0.85f);
             RectTransform pr = panel.GetComponent<RectTransform>(); pr.anchorMin = pr.anchorMax = new Vector2(0.5f, 0.5f); pr.sizeDelta = new Vector2(400, 250); pr.anchoredPosition = Vector2.zero;

@@ -47,6 +47,12 @@ namespace VellumRift.Environment
         [Tooltip("World scale of the plane (pixels-to-world).")]
         [Range(0.0001f, 0.002f)] public float planeScale = 0.0005f;
 
+        /// <summary>
+        /// Nearest the plane may sit to the camera (meters). Inside ~1.5 m the
+        /// plane crowds the Quest 2 lens and reads as a wall in front of the eyes.
+        /// </summary>
+        public const float MinPlaneDistance = 1.5f;
+
         [Header("Dynamic Follow")]
         [Tooltip("How strongly the plane re-faces the player's yaw. 0 = fixed; higher = snappier, lower = softer/laggier.")]
         [Range(0f, 20f)] public float followStrength = 8f;
@@ -143,6 +149,16 @@ namespace VellumRift.Environment
                 Debug.Log($"[HudPanelPlane] '{canvasName}': camera pos={cam.transform.position.ToString("F2")} rot={cam.transform.eulerAngles} | panel parent={( _canvas.transform.parent != null ? _canvas.transform.parent.name : "NULL" )} worldPos={_canvas.transform.position.ToString("F2")} worldRot={_canvas.transform.eulerAngles} scale={_canvas.transform.lossyScale.ToString("F3")} renderMode={_canvas.renderMode}");
             }
 
+            // XR safety (#FTR-005): a canvas parented to the camera is clipped into
+            // a slab that fills the whole Quest view. Never take over a HUD while a
+            // headset is presenting — side-slot canvases (XrHudFollow) own that case.
+            if (InputControlSchema.IsXrActive())
+            {
+                if (debugLogs && (int)(Time.unscaledTime) % 2 == 0)
+                    Debug.Log($"[HudPanelPlane] XR active — leaving '{canvasName}' under its own parent.");
+                return;
+            }
+
             // True camera-parented HUD: reparent the canvas under the Main
             // Camera so it inherits the camera's position/rotation exactly and
             // always floats at the same spot in the view.
@@ -152,7 +168,14 @@ namespace VellumRift.Environment
             }
 
             // Camera-local offset (meters from the camera), small and in front.
-            _canvas.transform.localPosition = panelPosition;
+            // Clamped outward: inside ~1.5 m a 1920px-wide plane crowds the Quest 2
+            // lens and reads as a wall in front of the eyes.
+            Vector3 offset = panelPosition;
+            if (offset.sqrMagnitude < 0.0001f)
+                offset = Vector3.forward * MinPlaneDistance;
+            else if (offset.magnitude < MinPlaneDistance)
+                offset = offset.normalized * MinPlaneDistance;
+            _canvas.transform.localPosition = offset;
 
             // Authored dramatic bank relative to the camera, PLUS a 180 degree
             // yaw flip. World-space canvas fronts face -Z; the 180 flip makes

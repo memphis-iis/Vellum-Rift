@@ -121,7 +121,9 @@ namespace VellumRift
         /// <summary>Find a player by ID, or null.</summary>
         public PlayerState GetPlayer(string playerId)
         {
-            return players.FirstOrDefault(p => p.id == playerId);
+            if (players == null || string.IsNullOrEmpty(playerId))
+                return null;
+            return players.FirstOrDefault(p => p != null && p.id == playerId);
         }
 
         // ---------------------------------------------------------------

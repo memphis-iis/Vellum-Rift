@@ -77,10 +77,12 @@ namespace VellumRift
         private const int KEY_FONT    = 14;
 
         private GameObject canvasGO;
+        private XrHudFollow _hudFollow;
         private RectTransform panelRect;
         private RectTransform shadowRect;
         private RectTransform contentRect;
         private Image pulseDot;
+        private Text coachText;
         private float lastPanelSpriteH = -1f;
         private bool isHost;
         private bool isVisible = true;
@@ -94,7 +96,8 @@ namespace VellumRift
             }
 
             BuildCanvas();
-            isVisible = startVisible;
+            // Quiet FOV on Quest; wrist MENU + first-run teach open the guide.
+            isVisible = InputControlSchema.IsXrActive() ? false : startVisible;
             ApplyVisibility();
             if (pulseDot != null) StartCoroutine(PulseDotRoutine(pulseDot));
         }
@@ -128,6 +131,16 @@ namespace VellumRift
             ApplyVisibility();
         }
 
+        /// <summary>One-line coach for first wrist teach (XR).</summary>
+        public void SetWristCoachVisible(bool show)
+        {
+            if (coachText == null)
+                return;
+            coachText.gameObject.SetActive(show);
+            if (show)
+                coachText.text = "Look at your left wrist anytime for Menu.";
+        }
+
         private void ApplyVisibility()
         {
             if (canvasGO != null)
@@ -154,6 +167,8 @@ namespace VellumRift
             canvasGO = new GameObject("ControlsGuideCanvas");
             canvasGO.transform.SetParent(transform, false);
             var canvas = canvasGO.AddComponent<Canvas>();
+            // Start screen-space; Upgrade to world-space when XR becomes active
+            // (InputControlSchema.IsXrActive is often false in Awake on Quest).
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 7500;
             var scaler = canvasGO.AddComponent<CanvasScaler>();
@@ -161,6 +176,11 @@ namespace VellumRift
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
             canvasGO.AddComponent<GraphicRaycaster>();
+
+            _hudFollow = canvasGO.AddComponent<XrHudFollow>();
+            _hudFollow.slot = XrHudSlot.UpperRight;
+            _hudFollow.widthPx = PANEL_WIDTH + SHADOW_SIDE * 2f;
+            _hudFollow.heightPx = 450f;
 
             BuildPanel();
         }
@@ -189,7 +209,7 @@ namespace VellumRift
             panelRect.anchorMin = new Vector2(1, 1);
             panelRect.anchorMax = new Vector2(1, 1);
             panelRect.pivot = new Vector2(1, 1);
-            panelRect.sizeDelta = new Vector2(PANEL_WIDTH, 200);
+            panelRect.sizeDelta = new Vector2(PANEL_WIDTH, 450f);
             panelRect.anchoredPosition = new Vector2(-16, -16);
 
             // Header strip.
@@ -204,6 +224,17 @@ namespace VellumRift
 
             // Gradient footer line.
             BuildFooter(panel.transform);
+
+            // First-run wrist coach (hidden by default).
+            coachText = CreateTextAt(panel.transform, "WristCoach", "", 13, TextAnchor.MiddleCenter);
+            coachText.color = VrTheme.Accent;
+            coachText.gameObject.SetActive(false);
+            var coachRt = coachText.GetComponent<RectTransform>();
+            coachRt.anchorMin = new Vector2(0f, 0f);
+            coachRt.anchorMax = new Vector2(1f, 0f);
+            coachRt.pivot = new Vector2(0.5f, 0f);
+            coachRt.sizeDelta = new Vector2(-16f, 28f);
+            coachRt.anchoredPosition = new Vector2(0f, 10f);
 
             RebuildRows();
         }
@@ -442,6 +473,17 @@ namespace VellumRift
             float rowsH = rowCount * ROW_HEIGHT + (rowCount - 1) * ROW_GAP;
             float panelH = HEADER_HEIGHT + CONTENT_PAD * 2 + rowsH + FOOTER_HEIGHT + 10f;
             panelRect.sizeDelta = new Vector2(PANEL_WIDTH, panelH);
+
+            if (_hudFollow != null)
+            {
+                float texW = PANEL_WIDTH + SHADOW_SIDE * 2f;
+                float texH = panelH + SHADOW_BOTTOM;
+                _hudFollow.widthPx = texW;
+                _hudFollow.heightPx = Mathf.Min(texH, 450f);
+                var canvasRt = canvasGO != null ? canvasGO.GetComponent<RectTransform>() : null;
+                if (canvasRt != null)
+                    canvasRt.sizeDelta = new Vector2(texW, texH);
+            }
 
             // Regenerate the glass card (rounded gradient + cyan rim) and its
             // soft shadow only when the size actually changes.

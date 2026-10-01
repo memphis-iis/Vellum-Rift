@@ -11,6 +11,8 @@ export function buildWebGlLaunchUrl(options: {
   kiosk?: boolean;
   /** Canvas-only mode for dashboard iframe embed */
   embed?: boolean;
+  /** Museum wall / Lobby preview — freecam director, no pose publish */
+  spectator?: boolean;
 }): string | null {
   const raw = (import.meta.env.VITE_WEBGL_BASE_URL ?? "").trim();
   if (!raw) return null;
@@ -28,5 +30,12 @@ export function buildWebGlLaunchUrl(options: {
   url.searchParams.set("backendUrl", API_BASE_URL);
   if (options.kiosk) url.searchParams.set("kiosk", "1");
   if (options.embed) url.searchParams.set("embed", "1");
+  if (options.spectator) {
+    url.searchParams.set("spectator", "1");
+    url.searchParams.set("playerName", "Gallery screen");
+    url.searchParams.set("isHost", "false");
+    // Unity owns chat + radar on the museum wall (not the HTML shell).
+    url.searchParams.set("unityHud", "1");
+  }
   return url.toString();
 }

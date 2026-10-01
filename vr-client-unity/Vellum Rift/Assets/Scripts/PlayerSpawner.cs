@@ -154,6 +154,35 @@ namespace VellumRift
             return playerObj;
         }
 
+        /// <summary>Stable-sorted list of spawned remote player transforms (excludes <paramref name="excludePlayerId"/>).</summary>
+        public void CollectFollowables(string excludePlayerId, List<Transform> into)
+        {
+            CollectFollowables(excludePlayerId, into, null);
+        }
+
+        /// <summary>
+        /// Stable-sorted remotes as transforms; optionally fills matching player ids in the same order.
+        /// </summary>
+        public void CollectFollowables(string excludePlayerId, List<Transform> into, List<string> ids)
+        {
+            if (into == null)
+                return;
+            into.Clear();
+            if (ids != null) ids.Clear();
+            var sorted = new List<string>(spawnedPlayers.Keys);
+            sorted.Sort(string.CompareOrdinal);
+            foreach (string id in sorted)
+            {
+                if (!string.IsNullOrEmpty(excludePlayerId) && id == excludePlayerId)
+                    continue;
+                if (spawnedPlayers.TryGetValue(id, out GameObject go) && go != null)
+                {
+                    into.Add(go.transform);
+                    if (ids != null) ids.Add(id);
+                }
+            }
+        }
+
         /// <summary>
         /// Check if a player is currently spawned.
         /// </summary>
@@ -199,9 +228,8 @@ namespace VellumRift
             if (playerPrefab != null)
                 return Instantiate(playerPrefab);
 
-            // Default player visual: the Vellum wireframe book + compass
-            // (port of the Three.js web visual). Procedurally built at runtime;
-            // no asset required. Swap via Inspector or SetPlayerPrefab.
+            // Default player visual: cyan cylinder + gold head pill.
+            // Procedurally built at runtime; no asset required.
             GameObject book = new GameObject("PlayerBookVisual");
             book.AddComponent<VellumRift.Environment.PlayerBookVisual>();
             return book;

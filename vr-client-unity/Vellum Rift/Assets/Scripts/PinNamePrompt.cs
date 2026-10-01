@@ -8,7 +8,8 @@ using UnityEngine.UI;
 namespace VellumRift
 {
     /// <summary>
-    /// Screen-space pin naming prompt for Unity HUD / VR WebGL builds (#163).
+    /// Pin naming prompt for Unity HUD / VR builds (#163 / #287).
+    /// Screen-space overlay on desktop; world-space facing HMD when XR is active.
     /// </summary>
     public class PinNamePrompt : MonoBehaviour
     {
@@ -17,11 +18,16 @@ namespace VellumRift
         public event Action<bool> FocusChanged;
 
         private Canvas canvas;
+        private RectTransform canvasRect;
         private InputField inputField;
         private Text titleText;
         private Action<string> onConfirm;
         private Action onCancel;
         private bool isRename;
+        private Vector3 worldAnchor;
+        private bool worldSpaceMode;
+        private XrHudFollow _hudFollow;
+        private readonly QuestSoftKeyboard softKeyboard = new QuestSoftKeyboard();
 
         public bool IsOpen => canvas != null && canvas.gameObject.activeSelf;
 
@@ -34,25 +40,39 @@ namespace VellumRift
         public void ShowForPlace(Vector3 worldPosition, Action<string> confirm, Action cancel)
         {
             isRename = false;
-            ShowInternal("Name this pin", "", confirm, cancel);
+            ShowInternal("Name this pin", "", worldPosition, confirm, cancel);
         }
 
         public void ShowForRename(string currentLabel, Action<string> confirm, Action cancel)
         {
             isRename = true;
-            ShowInternal("Rename pin", currentLabel ?? "", confirm, cancel);
+            Vector3 anchor = Camera.main != null
+                ? Camera.main.transform.position + Camera.main.transform.forward * 1.5f
+                : Vector3.zero;
+            ShowInternal("Rename pin", currentLabel ?? "", anchor, confirm, cancel);
         }
 
-        private void ShowInternal(string title, string initial, Action<string> confirm, Action cancel)
+        /// <summary>Rename with an explicit world anchor (pin position) for XR (#287).</summary>
+        public void ShowForRename(string currentLabel, Vector3 worldPosition, Action<string> confirm, Action cancel)
+        {
+            isRename = true;
+            ShowInternal("Rename pin", currentLabel ?? "", worldPosition, confirm, cancel);
+        }
+
+        private void ShowInternal(string title, string initial, Vector3 worldPosition, Action<string> confirm, Action cancel)
         {
             onConfirm = confirm;
             onCancel = cancel;
+            worldAnchor = worldPosition + Vector3.up * 0.35f;
+            ConfigureCanvasMode();
             if (titleText != null) titleText.text = title;
             if (inputField != null)
             {
                 inputField.text = initial ?? "";
                 inputField.Select();
                 inputField.ActivateInputField();
+                if (softKeyboard.IsSupported)
+                    softKeyboard.Open(inputField.text, isRename ? "Rename pin" : "Name this pin");
             }
             canvas.gameObject.SetActive(true);
             FocusChanged?.Invoke(true);
@@ -60,20 +80,65 @@ namespace VellumRift
 
         public void Hide()
         {
+            softKeyboard.Close();
             if (canvas == null) return;
             canvas.gameObject.SetActive(false);
             onConfirm = null;
             onCancel = null;
+            worldSpaceMode = false;
             FocusChanged?.Invoke(false);
         }
 
         private void Update()
         {
-            if (!IsOpen || Keyboard.current == null) return;
+            if (!IsOpen) return;
+
+            if (softKeyboard.IsSupported)
+            {
+                bool finished = softKeyboard.Tick(out string live, out bool submitted, out bool canceled);
+                if (softKeyboard.IsOpen || finished)
+                    inputField.text = live;
+                if (finished)
+                {
+                    if (submitted)
+                        Confirm();
+                    else if (canceled)
+                    {
+                        onCancel?.Invoke();
+                        Hide();
+                    }
+                    return;
+                }
+            }
+
+            if (Keyboard.current == null) return;
             if (Keyboard.current.escapeKey.wasPressedThisFrame)
             {
+                softKeyboard.Close();
                 onCancel?.Invoke();
                 Hide();
+            }
+        }
+
+        private void ConfigureCanvasMode()
+        {
+            worldSpaceMode = InputControlSchema.IsXrActive();
+            if (worldSpaceMode)
+            {
+                if (_hudFollow != null)
+                    _hudFollow.enabled = true;
+            }
+            else
+            {
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.worldCamera = null;
+                canvas.transform.localPosition = Vector3.zero;
+                canvas.transform.localRotation = Quaternion.identity;
+                canvas.transform.localScale = Vector3.one;
+                if (canvasRect != null)
+                    canvasRect.sizeDelta = Vector2.zero;
+                if (_hudFollow != null)
+                    _hudFollow.enabled = false;
             }
         }
 
@@ -84,12 +149,20 @@ namespace VellumRift
             var canvasGo = new GameObject("PinNameCanvas");
             canvasGo.transform.SetParent(transform, false);
             canvas = canvasGo.AddComponent<Canvas>();
+            canvasRect = canvasGo.GetComponent<RectTransform>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 9000;
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
             canvasGo.AddComponent<GraphicRaycaster>();
+
+            _hudFollow = canvasGo.AddComponent<XrHudFollow>();
+            _hudFollow.followMode = XrHudFollowMode.Modal;
+            _hudFollow.widthPx = 420f;
+            _hudFollow.heightPx = 200f;
+            _hudFollow.recenterChildren = true;
+            _hudFollow.enabled = false;
 
             var panel = CreateUiObject("Panel", canvasGo.transform);
             var panelImg = panel.AddComponent<Image>();
@@ -118,6 +191,7 @@ namespace VellumRift
             fieldRect.sizeDelta = new Vector2(-32f, 44f);
 
             inputField = fieldGo.AddComponent<InputField>();
+            inputField.shouldHideMobileInput = true;
             var text = CreateText("Text", fieldGo.transform, "", 18, TextAnchor.MiddleLeft);
             var textRect = text.GetComponent<RectTransform>();
             textRect.anchorMin = Vector2.zero;

@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_BLUEKEY_SOFTWARE_ID?: string;
   readonly VITE_BLUEKEY_PORTAL_URL?: string;
   readonly VITE_BLUEKEY_ORIGIN?: string;
+  readonly VITE_BLUEKEY_API_BASE_URL?: string;
+  readonly VITE_BLUEKEY_ERROR_REPORTING_ENABLED?: string;
   readonly VITE_AUTH_REQUIRED?: string;
   readonly VITE_HOME_BG_VIDEO_URL?: string;
   readonly VITE_WEBGL_BASE_URL?: string;

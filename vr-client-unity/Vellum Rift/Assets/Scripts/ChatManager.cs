@@ -61,6 +61,9 @@ namespace VellumRift
         private RectTransform historyContent;
         private Image laserGlowImg;
         private Image pulseDot;
+        private GameObject inputAreaGO;
+        private RectTransform historyViewportRect;
+        private bool readOnly;
         private readonly List<RectTransform> messageEntries = new List<RectTransform>();
         private Coroutine pollCoroutine;
 
@@ -73,6 +76,7 @@ namespace VellumRift
 
         private bool isReady;
         private bool wasFocused;
+        private readonly QuestSoftKeyboard softKeyboard = new QuestSoftKeyboard();
 
         /// <summary>Raised when the chat input gains (true) or loses (false) keyboard focus.</summary>
         public event Action<bool> FocusChanged;
@@ -106,10 +110,19 @@ namespace VellumRift
         // Layout (canvas reference pixels)
         // ---------------------------------------------------------------
         private const float PANEL_WIDTH   = 448f;   // max-w-md
-        private const float PANEL_HEIGHT  = 500f;   // h-[500px]
+        private const float PANEL_HEIGHT  = 480f;
         private const float HEADER_HEIGHT = 44f;
-        private const float INPUT_HEIGHT  = 56f;    // p-element-gap + h-8 input + p-element-gap
+        /// <summary>
+        /// Input row height. Must fit a <see cref="VrTheme.MinHitHeightPx"/> target
+        /// plus padding: the previous 56 px row left the send button a ~3 degree
+        /// speck for the Quest Touch laser (#FTR-005).
+        /// </summary>
+        private const float INPUT_ROW_HEIGHT = VrTheme.MinHitHeightPx + 16f; // 80 px
         private const float ELEMENT_GAP   = 12f;    // p-element-gap
+        /// <summary>Visible paper-plane glyph size.</summary>
+        private const float SendIconSize  = 30f;
+        /// <summary>Square hit area around the glyph — the Quest-readable target.</summary>
+        private static readonly float SendHitSize = Mathf.Max(SendIconSize, VrTheme.MinHitHeightPx);
         private const float PANEL_RADIUS  = 8f;     // rounded-lg
         private const float DOT_SIZE      = 8f;
         private const int   AUTHOR_FONT    = 12;
@@ -126,7 +139,7 @@ namespace VellumRift
 
         private void Awake()
         {
-            if (WebGlShellMode.UsesExternalShell)
+            if (WebGlShellMode.UsesExternalShell && !SpectatorMode.IsActive)
             {
                 enabled = false;
                 return;
@@ -155,6 +168,7 @@ namespace VellumRift
 
         private void OnDisable()
         {
+            softKeyboard.Close();
             if (pollCoroutine != null)
             {
                 StopCoroutine(pollCoroutine);
@@ -164,6 +178,7 @@ namespace VellumRift
 
         private void OnDestroy()
         {
+            softKeyboard.Close();
             if (canvasGO != null)
             {
                 Destroy(canvasGO);
@@ -173,7 +188,7 @@ namespace VellumRift
 
         private void Update()
         {
-            if (inputField == null) return;
+            if (inputField == null || readOnly) return;
 
             // Track focus transitions so gameplay input can be gated while typing.
             bool focused = inputField.isFocused;
@@ -181,11 +196,38 @@ namespace VellumRift
             {
                 wasFocused = focused;
                 FocusChanged?.Invoke(focused);
+                if (focused)
+                    OpenQuestKeyboard();
+                else
+                    softKeyboard.Close();
             }
 
             // Laser-glow underline (0 1px 0 #ffdb9d) while the input has focus.
             if (laserGlowImg != null)
                 laserGlowImg.enabled = focused;
+
+            // Soft keyboard (Quest / mobile): mirror text and handle Done / Cancel.
+            if (softKeyboard.IsSupported)
+            {
+                bool finished = softKeyboard.Tick(out string live, out bool submitted, out bool canceled);
+                if (softKeyboard.IsOpen || finished)
+                    inputField.text = live;
+                if (finished)
+                {
+                    if (submitted)
+                    {
+                        SubmitChat();
+                        if (inputField != null && inputField.isFocused)
+                            OpenQuestKeyboard();
+                    }
+                    else if (canceled)
+                    {
+                        inputField.DeactivateInputField();
+                        if (EventSystem.current != null)
+                            EventSystem.current.SetSelectedGameObject(null);
+                    }
+                }
+            }
 
             if (Keyboard.current == null) return;
 
@@ -196,6 +238,7 @@ namespace VellumRift
             {
                 if (escapePressed)
                 {
+                    softKeyboard.Close();
                     // Escape exits the chat box without sending.
                     inputField.DeactivateInputField();
                     if (EventSystem.current != null)
@@ -211,6 +254,13 @@ namespace VellumRift
             }
         }
 
+        private void OpenQuestKeyboard()
+        {
+            if (inputField == null || !softKeyboard.IsSupported)
+                return;
+            softKeyboard.Open(inputField.text, "Chat message");
+        }
+
         // ---------------------------------------------------------------
         // Public API
         // ---------------------------------------------------------------
@@ -218,6 +268,39 @@ namespace VellumRift
         public void SetBaseUrl(string url)
         {
             if (!string.IsNullOrEmpty(url)) baseUrl = url.TrimEnd('/');
+        }
+
+        /// <summary>Sticky wrist MENU show/hide for the chat canvas.</summary>
+        public void SetHudVisible(bool visible)
+        {
+            if (canvasGO != null)
+                canvasGO.SetActive(visible);
+        }
+
+        /// <summary>
+        /// Museum observer: hide the composer and keep history + bubbles read-only.
+        /// </summary>
+        public void SetReadOnly(bool value)
+        {
+            readOnly = value;
+            ApplyReadOnlyUi();
+        }
+
+        public bool IsReadOnly => readOnly;
+
+        private void ApplyReadOnlyUi()
+        {
+            if (inputAreaGO != null)
+                inputAreaGO.SetActive(!readOnly);
+            if (historyViewportRect != null)
+            {
+                // Expand history to the bottom when the input row is hidden.
+                historyViewportRect.offsetMin = new Vector2(
+                    historyViewportRect.offsetMin.x,
+                    readOnly ? 8f : INPUT_ROW_HEIGHT);
+            }
+            if (readOnly && inputField != null && inputField.isFocused)
+                inputField.DeactivateInputField();
         }
 
         public void SetPlayerSpawner(PlayerSpawner spawner)
@@ -286,6 +369,7 @@ namespace VellumRift
 
         private void SubmitChat()
         {
+            if (readOnly) return;
             string text = inputField != null ? inputField.text : "";
             if (string.IsNullOrWhiteSpace(text)) return;
             if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(localPlayerId)) return;
@@ -614,6 +698,11 @@ namespace VellumRift
             scaler.matchWidthOrHeight = 0.5f;
             canvasGO.AddComponent<GraphicRaycaster>();
 
+            var hud = canvasGO.AddComponent<XrHudFollow>();
+            hud.slot = XrHudSlot.LowerRight;
+            hud.widthPx = PANEL_WIDTH;
+            hud.heightPx = PANEL_HEIGHT;
+
             // Panel — glass chat card anchored to the lower-right corner.
             GameObject panel = CreateUIObject("Panel", canvasGO.transform);
             var panelImg = panel.AddComponent<Image>();
@@ -634,18 +723,18 @@ namespace VellumRift
             // History scroll area (flex-1 between the header and the input bar).
             GameObject viewport = CreateUIObject("HistoryViewport", panel.transform);
             viewport.AddComponent<RectMask2D>();
-            RectTransform vRect = viewport.GetComponent<RectTransform>();
-            vRect.anchorMin = Vector2.zero;
-            vRect.anchorMax = Vector2.one;
-            vRect.offsetMin = new Vector2(ELEMENT_GAP, INPUT_HEIGHT);
-            vRect.offsetMax = new Vector2(-ELEMENT_GAP, -(HEADER_HEIGHT));
+            historyViewportRect = viewport.GetComponent<RectTransform>();
+            historyViewportRect.anchorMin = Vector2.zero;
+            historyViewportRect.anchorMax = Vector2.one;
+            historyViewportRect.offsetMin = new Vector2(ELEMENT_GAP, INPUT_ROW_HEIGHT);
+            historyViewportRect.offsetMax = new Vector2(-ELEMENT_GAP, -(HEADER_HEIGHT));
 
             historyScroll = viewport.AddComponent<ScrollRect>();
             historyScroll.horizontal = false;
             historyScroll.vertical = true;
             historyScroll.movementType = ScrollRect.MovementType.Clamped;
             historyScroll.scrollSensitivity = 20f;
-            historyScroll.viewport = vRect;
+            historyScroll.viewport = historyViewportRect;
 
             // Content is bottom-anchored so messages stack up from the bottom
             // (justify-end) exactly like the HTML flex column.
@@ -735,6 +824,7 @@ namespace VellumRift
         {
             // Input bar (bg-surface-container-low/50, border-t white/5).
             GameObject inputArea = CreateUIObject("InputArea", panel);
+            inputAreaGO = inputArea;
             var areaImg = inputArea.AddComponent<Image>();
             areaImg.color = COLOR_SURFACE_LOW;
             areaImg.raycastTarget = false;
@@ -742,7 +832,7 @@ namespace VellumRift
             aRect.anchorMin = new Vector2(0, 0);
             aRect.anchorMax = new Vector2(1, 0);
             aRect.pivot = new Vector2(0.5f, 0);
-            aRect.sizeDelta = new Vector2(0, INPUT_HEIGHT);
+            aRect.sizeDelta = new Vector2(0, INPUT_ROW_HEIGHT);
             aRect.anchoredPosition = Vector2.zero;
 
             // Top border (border-t border-white/5).
@@ -786,14 +876,17 @@ namespace VellumRift
             inputImg.color = Color.clear;
             inputField = inputGO.AddComponent<InputField>();
             inputField.lineType = InputField.LineType.SingleLine;
+            inputField.shouldHideMobileInput = true;
             // uGUI fires onSubmit on Enter while the field is focused — this is
             // the reliable send path under the new Input System.
             inputField.onSubmit.AddListener(_ => SubmitChat());
             RectTransform inputRect = inputGO.GetComponent<RectTransform>();
             inputRect.anchorMin = new Vector2(0, 0.5f);
             inputRect.anchorMax = new Vector2(1, 0.5f);
-            inputRect.offsetMin = new Vector2(ELEMENT_GAP + 30, -16);
-            inputRect.offsetMax = new Vector2(-(ELEMENT_GAP + 40), 16);
+            // Quest 2: the field is a full MinHitHeightPx tall and stops short of
+            // the padded send-button hit area, so nothing overlaps the raycast.
+            inputRect.offsetMin = new Vector2(ELEMENT_GAP + 30, -VrTheme.MinHitHeightPx * 0.5f);
+            inputRect.offsetMax = new Vector2(-(ELEMENT_GAP + SendHitSize + 6f), VrTheme.MinHitHeightPx * 0.5f);
 
             Text inputText = CreateText("Text", inputGO.transform, "", BODY_FONT, TextAnchor.MiddleLeft, COLOR_ON_SURFACE);
             inputText.supportRichText = false;
@@ -805,7 +898,9 @@ namespace VellumRift
             iTextRect.offsetMax = new Vector2(-2, 0);
             inputField.textComponent = inputText;
 
-            Text placeholder = CreateText("Placeholder", inputGO.transform, "Type a message (press ENTER)…", BODY_FONT, TextAnchor.MiddleLeft, new Color(0.784f, 0.773f, 0.792f, 0.5f));
+            Text placeholder = CreateText("Placeholder", inputGO.transform,
+                softKeyboard.IsSupported ? "Tap to type…" : "Type a message (press ENTER)…",
+                BODY_FONT, TextAnchor.MiddleLeft, new Color(0.784f, 0.773f, 0.792f, 0.5f));
             placeholder.horizontalOverflow = HorizontalWrapMode.Overflow;
             RectTransform phRect = placeholder.GetComponent<RectTransform>();
             phRect.anchorMin = Vector2.zero;
@@ -814,11 +909,33 @@ namespace VellumRift
             phRect.offsetMax = new Vector2(-2, 0);
             inputField.placeholder = placeholder;
 
-            // Send button — paper-plane icon.
+            // Send button — paper-plane icon. The glyph keeps its 30 px design size,
+            // but the button rect is padded out to VrTheme.MinHitHeightPx with an
+            // invisible (still raycastable) Image so the Touch laser can hit it on
+            // Quest. Button tint feedback stays on the glyph via targetGraphic.
             GameObject sendGO = CreateUIObject("SendButton", inputArea.transform);
-            var sendImg = sendGO.AddComponent<Image>();
+            var sendHitImg = sendGO.AddComponent<Image>();
+            sendHitImg.color = new Color(1f, 1f, 1f, 0f); // invisible padded hit area
+            sendHitImg.raycastTarget = true;
+            RectTransform sRect = sendGO.GetComponent<RectTransform>();
+            sRect.anchorMin = new Vector2(1, 0.5f);
+            sRect.anchorMax = new Vector2(1, 0.5f);
+            sRect.pivot = new Vector2(0.5f, 0.5f);
+            sRect.sizeDelta = new Vector2(SendHitSize, SendHitSize);
+            sRect.anchoredPosition = new Vector2(-(ELEMENT_GAP + SendHitSize * 0.5f), 0);
+
+            GameObject sendIconGO = CreateUIObject("SendIcon", sendGO.transform);
+            var sendImg = sendIconGO.AddComponent<Image>();
             sendImg.sprite = CreateSendIconSprite(COLOR_ON_SURFACE_VAR);
             sendImg.color = Color.white;
+            sendImg.raycastTarget = false;
+            RectTransform sendIconRect = sendIconGO.GetComponent<RectTransform>();
+            sendIconRect.anchorMin = new Vector2(0.5f, 0.5f);
+            sendIconRect.anchorMax = new Vector2(0.5f, 0.5f);
+            sendIconRect.pivot = new Vector2(0.5f, 0.5f);
+            sendIconRect.sizeDelta = new Vector2(SendIconSize, SendIconSize);
+            sendIconRect.anchoredPosition = Vector2.zero;
+
             var sendBtn = sendGO.AddComponent<Button>();
             sendBtn.transition = Selectable.Transition.ColorTint;
             sendBtn.targetGraphic = sendImg;
@@ -833,12 +950,6 @@ namespace VellumRift
                 fadeDuration = 0.1f
             };
             sendBtn.onClick.AddListener(SubmitChat);
-            RectTransform sRect = sendGO.GetComponent<RectTransform>();
-            sRect.anchorMin = new Vector2(1, 0.5f);
-            sRect.anchorMax = new Vector2(1, 0.5f);
-            sRect.pivot = new Vector2(0.5f, 0.5f);
-            sRect.sizeDelta = new Vector2(30, 30);
-            sRect.anchoredPosition = new Vector2(-(ELEMENT_GAP + 15), 0);
         }
 
         // ---------------------------------------------------------------

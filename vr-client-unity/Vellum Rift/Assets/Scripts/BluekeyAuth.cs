@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -15,8 +16,8 @@ namespace VellumRift
     ///   2. CLI/env <c>-accessToken=</c> / <c>VELLUM_ACCESS_TOKEN</c> (desktop / testing)
     ///   3. Bluekey portal popup fallback
     ///
-    /// Editor/standalone/Quest-bound builds: world-space Login lobby —
-    /// Bluekey for anyone with an IIS account, plus guest Space ID (kiosk).
+    /// Quest / Editor / standalone: public Event list via GET /api/kiosk/events,
+    /// then kiosk token mint — no Bluekey lobby. Auto-joins when exactly one event is open.
     /// Tokens always land in <see cref="ApiAuth"/> via <see cref="SetToken"/>.
     /// </summary>
     public class BluekeyAuth : MonoBehaviour
@@ -46,6 +47,8 @@ namespace VellumRift
         private bool handoffWaitStarted;
         private bool guestBusy;
         private BluekeyLoginLobby loginLobby;
+        private MuseumEventPicker eventPicker;
+        private bool museumEventsEntry;
 
         private const string JsonTokenField = "accessToken";
         private const string JsonEmailField = "email";
@@ -76,8 +79,10 @@ namespace VellumRift
                 StartCoroutine(WaitForHandoffThenPopup());
             }
 #else
-            showLobbyUi = true;
-            ShowLoginLobby();
+            // Quest / Editor / standalone museum entry: list public events (no Bluekey lobby).
+            museumEventsEntry = true;
+            showLobbyUi = false;
+            StartCoroutine(MuseumEventsEntryCoroutine());
 #endif
         }
 
@@ -102,6 +107,7 @@ namespace VellumRift
             statusText = "";
             guestBusy = false;
             HideLoginLobby();
+            HideEventPicker();
 
             foreach (var client in FindObjectsByType<GameStateApiClient>(FindObjectsSortMode.None))
                 client.SetAuthToken(AccessToken);
@@ -119,8 +125,16 @@ namespace VellumRift
             foreach (var client in FindObjectsByType<GameStateApiClient>(FindObjectsSortMode.None))
                 client.SetAuthToken("");
 #if !UNITY_WEBGL || UNITY_EDITOR
-            showLobbyUi = true;
-            ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
+            if (museumEventsEntry)
+            {
+                showLobbyUi = false;
+                StartCoroutine(MuseumEventsEntryCoroutine());
+            }
+            else
+            {
+                showLobbyUi = true;
+                ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
+            }
 #endif
         }
 
@@ -220,6 +234,116 @@ namespace VellumRift
                 loginLobby.Hide();
         }
 
+        private void HideEventPicker()
+        {
+            if (eventPicker != null)
+                eventPicker.Hide();
+        }
+
+        private void EnsureEventPicker()
+        {
+            if (eventPicker == null)
+                eventPicker = GetComponent<MuseumEventPicker>() ?? gameObject.AddComponent<MuseumEventPicker>();
+
+            eventPicker.OnJoinEvent -= HandleGuestJoin;
+            eventPicker.OnRefreshRequested -= HandleEventsRefresh;
+            eventPicker.OnJoinEvent += HandleGuestJoin;
+            eventPicker.OnRefreshRequested += HandleEventsRefresh;
+        }
+
+        private void HandleEventsRefresh()
+        {
+            if (!guestBusy)
+                StartCoroutine(MuseumEventsEntryCoroutine());
+        }
+
+        private IEnumerator MuseumEventsEntryCoroutine()
+        {
+            if (IsAuthenticated)
+                yield break;
+
+            EnsureEventPicker();
+            eventPicker.Show("Loading public events…");
+            eventPicker.SetBusy(true);
+
+            string backend = ResolveBackendUrlForLobby();
+            string url = $"{backend}/api/kiosk/events";
+
+            using (var req = UnityWebRequest.Get(url))
+            {
+                req.SetRequestHeader("Accept", "application/json");
+                yield return req.SendWebRequest();
+                eventPicker.SetBusy(false);
+
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    eventPicker.SetEvents(Array.Empty<MuseumEventPicker.EventRow>(),
+                        $"Could not reach the exhibit API ({req.responseCode}). Tap Refresh.");
+                    yield break;
+                }
+
+                var events = ParseKioskEvents(req.downloadHandler.text);
+                if (events.Count == 1)
+                {
+                    eventPicker.SetStatus($"Joining {events[0].Label}…");
+                    eventPicker.SetBusy(true);
+                    yield return GuestJoinCoroutine(events[0].SessionId);
+                    yield break;
+                }
+
+                eventPicker.SetEvents(
+                    events,
+                    "No public events — ask staff to mark a Space as Event and turn Kiosk on.");
+            }
+        }
+
+        private static List<MuseumEventPicker.EventRow> ParseKioskEvents(string json)
+        {
+            var rows = new List<MuseumEventPicker.EventRow>();
+            var root = SimpleJson.ParseObject(json);
+            if (root == null || !root.TryGetValue("events", out string eventsRaw) || string.IsNullOrEmpty(eventsRaw))
+                return rows;
+
+            var arr = SimpleJson.ParseObjectArray(eventsRaw);
+            if (arr == null)
+                return rows;
+
+            foreach (var obj in arr)
+            {
+                if (obj == null)
+                    continue;
+                obj.TryGetValue("sessionId", out string sessionId);
+                if (string.IsNullOrEmpty(sessionId))
+                    continue;
+                obj.TryGetValue("label", out string label);
+                obj.TryGetValue("startsAt", out string startsAt);
+                obj.TryGetValue("endsAt", out string endsAt);
+                rows.Add(new MuseumEventPicker.EventRow
+                {
+                    SessionId = sessionId,
+                    Label = UnquoteJson(label),
+                    StartsAt = UnquoteJsonNull(startsAt),
+                    EndsAt = UnquoteJsonNull(endsAt),
+                });
+            }
+            return rows;
+        }
+
+        private static string UnquoteJson(string raw)
+        {
+            if (string.IsNullOrEmpty(raw) || raw == "null")
+                return "";
+            if (raw.Length >= 2 && raw[0] == '"' && raw[raw.Length - 1] == '"')
+                return raw.Substring(1, raw.Length - 2);
+            return raw;
+        }
+
+        private static string UnquoteJsonNull(string raw)
+        {
+            string v = UnquoteJson(raw);
+            return string.IsNullOrEmpty(v) ? null : v;
+        }
+
         private void HandleSignInWithBluekey()
         {
             OpenBluekeyInBrowser();
@@ -268,8 +392,10 @@ namespace VellumRift
 
             guestBusy = true;
             loginLobby?.SetBusy(true);
+            eventPicker?.SetBusy(true);
             statusText = "Joining exhibit…";
             loginLobby?.SetStatus(statusText);
+            eventPicker?.SetStatus(statusText);
 
             string backend = ResolveBackendUrlForLobby();
             string statusUrl = $"{backend}/api/kiosk/{Uri.EscapeDataString(spaceId)}/status";
@@ -328,7 +454,9 @@ namespace VellumRift
 
                 PendingJoinSessionId = spaceId;
                 guestBusy = false;
-                SetToken(token, "");
+                SetToken(token, "Guest");
+                if (string.IsNullOrEmpty(UserDisplayName))
+                    UserDisplayName = "Guest";
                 Debug.Log($"[BluekeyAuth] Guest kiosk join for space {spaceId}");
             }
         }
@@ -337,7 +465,12 @@ namespace VellumRift
         {
             guestBusy = false;
             statusText = message;
+            loginLobby?.SetBusy(false);
             loginLobby?.SetStatus(message);
+            eventPicker?.SetBusy(false);
+            eventPicker?.SetStatus(message);
+            if (museumEventsEntry && eventPicker != null && !eventPicker.IsVisible)
+                eventPicker.Show(message);
         }
 
         private string ResolveBackendUrlForLobby()
@@ -474,6 +607,8 @@ namespace VellumRift
         // IMGUI fallback if world-space lobby is unavailable (e.g. after Logout hid canvases incorrectly).
         private void OnGUI()
         {
+            if (museumEventsEntry)
+                return;
             if (KioskMode.IsActive || IsAuthenticated || !showLobbyUi)
                 return;
             if (loginLobby != null && loginLobby.IsVisible)

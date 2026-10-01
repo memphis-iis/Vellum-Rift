@@ -7,8 +7,9 @@
         android:icon="@mipmap/app_icon"
         android:usesCleartextTraffic="true"
         tools:replace="android:usesCleartextTraffic">
-        <activity android:name="com.unity3d.player.UnityPlayerActivity"
-                  android:theme="@style/UnityThemeSelector"
+        <!-- Must match Player Settings → Android Application Entry = GameActivity -->
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+                  android:theme="@style/BaseUnityGameActivityTheme"
                   android:screenOrientation="landscape"
                   android:launchMode="singleTask"
                   android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
@@ -18,6 +19,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="com.oculus.intent.category.VR" />
             </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.app.lib_name" android:value="game" />
             <meta-data android:name="com.oculus.supportedDevices" android:value="quest|quest2|questpro|quest3" />
         </activity>
     </application>

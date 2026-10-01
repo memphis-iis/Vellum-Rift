@@ -24,6 +24,13 @@ import {
   parseSessionKind,
   writeSessionEvent,
 } from "../lib/sessionEvent.js";
+import {
+  expireStaleLasers,
+  markIdleDisconnected,
+  pruneStaleArtifacts,
+  pruneStalePlayers,
+  touchPlayerLaser,
+} from "../lib/sessionPresence.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -203,6 +210,16 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:sessionId", async (req: Request, res: Response) => {
   const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
   if (!state) return;
+
+  // Museum / long-lived spaces accumulate guests that never leave cleanly.
+  const prunedPlayers = pruneStalePlayers(state);
+  const prunedArtifacts = pruneStaleArtifacts(state);
+  const expiredLasers = expireStaleLasers(state);
+  const idleFlipped = markIdleDisconnected(state);
+  if (prunedPlayers > 0 || prunedArtifacts > 0 || expiredLasers > 0 || idleFlipped > 0) {
+    await repo.save(state);
+  }
+
   res.json(state.toJSON());
 });
 
@@ -916,6 +933,9 @@ router.patch("/:sessionId/laser", async (req: Request, res: Response) => {
     if (active && origin && direction) {
       player.laserOrigin = { x: origin.x, y: origin.y, z: origin.z };
       player.laserDirection = { dx: direction.dx, dy: direction.dy, dz: direction.dz };
+      touchPlayerLaser(player);
+    } else if (!active) {
+      player.lastLaserAt = undefined;
     }
 
     await repo.save(state);
@@ -934,6 +954,9 @@ router.get("/:sessionId/lasers", async (req: Request, res: Response) => {
   try {
     const state = await repo.findById(param(req, "sessionId"));
     if (!state) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const expired = expireStaleLasers(state);
+    if (expired > 0) await repo.save(state);
 
     const lasers = state.players
       .filter((p) => p.laserActive && p.isConnected)
