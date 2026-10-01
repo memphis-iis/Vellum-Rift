@@ -1,5 +1,7 @@
 # Deploy: Vellum Rift test platform on iis.memphis.edu
 
+For offline LAN parties (no internet / closed router), see [../lan-party/](../lan-party/) — do not reuse that profile on this host.
+
 Public endpoints (LIVE since 2026-08-06; dashboard path added 2026-08-27):
 
 - API:       `https://iis.memphis.edu/apis/vellumrift/` (Caddy → **ramiel** :4100)
