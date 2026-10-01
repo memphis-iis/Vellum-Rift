@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using VellumRift.Control;
@@ -15,12 +16,15 @@ namespace VellumRift
         public const float MaxWristDistance = 0.55f;
         public const float LookAngleDegrees = 22f;
         public const float DebounceSeconds = 0.6f;
+        public const float FirstTeachAutoDismissSeconds = 6f;
+        private const float PadScaleMultiplier = 1.6f;
 
         private Transform wrist;
         private Transform padRoot;
         private Text padLabel;
         private Renderer padRenderer;
         private Material padMat;
+        private CanvasGroup padLabelGroup;
         private ControlsGuide guide;
         private ChatManager chat;
         private BackendHealthChecker status;
@@ -28,6 +32,8 @@ namespace VellumRift
         private bool wasArmed;
         private float debounceUntil;
         private bool wired;
+        private Coroutine firstTeachDismissRoutine;
+        private bool firstTeachAutoOpenActive;
 
         public bool IsStickyOpen => stickyOn;
 
@@ -63,11 +69,26 @@ namespace VellumRift
                 return;
             }
 
+            firstTeachAutoOpenActive = true;
             SetSticky(true);
             PlayerPrefs.SetInt(TaughtPrefsKey, 1);
             PlayerPrefs.Save();
             if (guide != null)
                 guide.SetWristCoachVisible(true);
+            firstTeachDismissRoutine = StartCoroutine(AutoDismissFirstTeachSticky());
+        }
+
+        /// <summary>Cancel pending first-teach auto-dismiss (manual wrist toggle).</summary>
+        public void CancelFirstTeachAutoDismiss()
+        {
+            firstTeachAutoOpenActive = false;
+            if (firstTeachDismissRoutine != null)
+            {
+                StopCoroutine(firstTeachDismissRoutine);
+                firstTeachDismissRoutine = null;
+            }
+            if (padLabelGroup != null)
+                padLabelGroup.alpha = 1f;
         }
 
         public static bool IsWristRaised(Vector3 headPos, Vector3 wristPos)
@@ -118,10 +139,12 @@ namespace VellumRift
                 cam.transform.position, cam.transform.forward, padRoot.position);
             bool armed = raised && looking;
 
+            UpdatePadBillboard(cam, raised, looking);
             UpdatePadVisual(raised, looking);
 
             if (armed && !wasArmed && Time.unscaledTime >= debounceUntil)
             {
+                CancelFirstTeachAutoDismiss();
                 SetSticky(!stickyOn);
                 debounceUntil = Time.unscaledTime + DebounceSeconds;
             }
@@ -129,9 +152,37 @@ namespace VellumRift
             wasArmed = armed;
         }
 
+        private IEnumerator AutoDismissFirstTeachSticky()
+        {
+            float end = Time.unscaledTime + FirstTeachAutoDismissSeconds;
+            const float fadeSeconds = 0.45f;
+            while (Time.unscaledTime < end)
+            {
+                if (!firstTeachAutoOpenActive || !stickyOn)
+                    yield break;
+
+                float remaining = end - Time.unscaledTime;
+                if (padLabelGroup != null && remaining <= fadeSeconds)
+                    padLabelGroup.alpha = Mathf.Clamp01(remaining / fadeSeconds);
+                yield return null;
+            }
+
+            if (firstTeachAutoOpenActive && stickyOn)
+            {
+                firstTeachAutoOpenActive = false;
+                SetSticky(false);
+            }
+
+            firstTeachDismissRoutine = null;
+            if (padLabelGroup != null)
+                padLabelGroup.alpha = 1f;
+        }
+
         private void SetSticky(bool on)
         {
             stickyOn = on;
+            if (!on)
+                firstTeachAutoOpenActive = false;
             if (guide != null)
             {
                 guide.gameObject.SetActive(true);
@@ -164,14 +215,15 @@ namespace VellumRift
             padRoot.localPosition = new Vector3(0f, 0.02f, 0.04f);
             padRoot.localRotation = Quaternion.Euler(-70f, 0f, 0f);
             padRoot.localScale = Vector3.one;
+            // Default restored after billboard toward HMD when raised-not-looking.
 
             var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             plate.name = "Pad";
             plate.transform.SetParent(padRoot, false);
-            plate.transform.localScale = new Vector3(0.05f, 0.008f, 0.035f);
+            plate.transform.localScale = new Vector3(0.05f, 0.008f, 0.035f) * PadScaleMultiplier;
             Object.Destroy(plate.GetComponent<Collider>());
             padRenderer = plate.GetComponent<Renderer>();
-            padMat = VellumShaders.TryCreateLineMaterial(VrTheme.Accent);
+            padMat = VellumShaders.TryCreateLineMaterial(new Color(0.05f, 0.05f, 0.08f, 0.95f));
             if (padMat != null && padRenderer != null)
             {
                 padRenderer.sharedMaterial = padMat;
@@ -184,16 +236,18 @@ namespace VellumRift
             labelGo.transform.SetParent(padRoot, false);
             labelGo.transform.localPosition = new Vector3(0f, 0.006f, 0f);
             labelGo.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
-            labelGo.transform.localScale = Vector3.one * 0.0012f;
+            labelGo.transform.localScale = Vector3.one * (0.0012f * PadScaleMultiplier);
             var canvas = labelGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            padLabelGroup = labelGo.AddComponent<CanvasGroup>();
             var rt = labelGo.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(80f, 28f);
+            rt.sizeDelta = new Vector2(120f, 40f);
             padLabel = labelGo.AddComponent<Text>();
             padLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            padLabel.fontSize = 22;
+            padLabel.fontSize = 34;
+            padLabel.fontStyle = FontStyle.Bold;
             padLabel.alignment = TextAnchor.MiddleCenter;
-            padLabel.color = Color.white;
+            padLabel.color = new Color(1f, 0.98f, 0.92f);
             padLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             padLabel.verticalOverflow = VerticalWrapMode.Overflow;
             padLabel.raycastTarget = false;
@@ -206,18 +260,47 @@ namespace VellumRift
                 padLabel.text = stickyOn ? "CLOSE" : "MENU";
         }
 
+        private void UpdatePadBillboard(Camera cam, bool raised, bool looking)
+        {
+            if (padRoot == null)
+                return;
+
+            if (!raised || looking)
+            {
+                padRoot.localRotation = Quaternion.Euler(-70f, 0f, 0f);
+                return;
+            }
+
+            Vector3 toHead = cam.transform.position - padRoot.position;
+            toHead.y = 0f;
+            if (toHead.sqrMagnitude < 0.0001f)
+                return;
+            padRoot.rotation = Quaternion.LookRotation(-toHead.normalized, Vector3.up);
+        }
+
         private void UpdatePadVisual(bool raised, bool looking)
         {
             if (padMat == null)
                 return;
-            Color c = VrTheme.Accent;
+            Color accent = VrTheme.Accent;
+            Color c = new Color(0.08f, 0.08f, 0.12f, 0.95f);
             if (looking)
-                c = Color.Lerp(c, Color.white, 0.45f);
+                c = Color.Lerp(c, accent, 0.85f);
             else if (raised)
-                c = Color.Lerp(c, Color.white, 0.2f + 0.1f * Mathf.Sin(Time.unscaledTime * 6f));
+            {
+                float pulse = 0.35f + 0.25f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 7f));
+                c = Color.Lerp(c, accent, pulse);
+            }
             else
-                c.a = 0.55f;
+                c.a = 0.5f;
             VellumShaders.ApplyTint(padMat, c);
+
+            if (padLabel != null)
+            {
+                padLabel.color = looking || raised
+                    ? Color.white
+                    : new Color(1f, 1f, 1f, 0.65f);
+            }
         }
 
         private static Transform FindLeftController()

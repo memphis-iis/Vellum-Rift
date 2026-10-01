@@ -103,7 +103,7 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 5. Confirm manuscript playlist; run a **30-second Quest + one laptop** smoke test.
 6. If you have a wall display or projector, open the **observer / spectator link** so peer observers can watch the same view during rotations ([museum-guest-entry.md](museum-guest-entry.md)).
 7. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
-8. Remind staff: **chat is off** on this profile; Quest guests press **left Y** (**Call for help** in ControlsGuide); HUD button is backup. Wrist **ControlsGuide** still works ([#293](https://github.com/memphis-iis/Vellum-Rift/issues/293), [#310](https://github.com/memphis-iis/Vellum-Rift/issues/310)).
+8. Remind staff: **chat is off** on this profile; Quest guests use **left Y** only for **Call for help** (see wrist **MENU** → ControlsGuide). There is **no on-screen help button or log out in VR** — staff handle exit at the headset ([#312](https://github.com/memphis-iis/Vellum-Rift/issues/312)).
 
 ### How students join
 

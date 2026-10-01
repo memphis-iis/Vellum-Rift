@@ -62,5 +62,20 @@ namespace VellumRift.Tests
         {
             Assert.That(WristHudGesture.TaughtPrefsKey, Is.EqualTo("vellum.xrMenuTaught"));
         }
+
+        [Test]
+        public void FirstTeachAutoDismiss_IsSixSecondsUnscaled()
+        {
+            Assert.That(WristHudGesture.FirstTeachAutoDismissSeconds, Is.EqualTo(6f).Within(0.01f));
+        }
+
+        [Test]
+        public void CancelFirstTeachAutoDismiss_StopsPendingDismiss()
+        {
+            var go = new GameObject("WristHud");
+            var wrist = go.AddComponent<WristHudGesture>();
+            wrist.CancelFirstTeachAutoDismiss();
+            Object.DestroyImmediate(go);
+        }
     }
 }

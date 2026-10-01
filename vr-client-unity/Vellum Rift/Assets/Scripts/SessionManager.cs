@@ -423,11 +423,13 @@ namespace VellumRift
             if (helpRequestButton != null)
             {
                 if (spectator || IsHost)
-                    helpRequestButton.gameObject.SetActive(false);
+                    helpRequestButton.enabled = false;
                 else
                 {
-                    helpRequestButton.gameObject.SetActive(true);
+                    helpRequestButton.enabled = true;
                     helpRequestButton.Initialize(apiClient, SessionId, LocalPlayerId);
+                    bool showHelpHud = !InputControlSchema.IsXrActive();
+                    helpRequestButton.SetHudVisible(showHelpHud);
                 }
             }
             if (chatManager != null)
@@ -449,8 +451,13 @@ namespace VellumRift
             if (spectator && healthChecker != null)
                 healthChecker.gameObject.SetActive(false);
 
-            if (spectator && logoutButton != null)
-                logoutButton.gameObject.SetActive(false);
+            if (logoutButton != null)
+            {
+                if (spectator)
+                    logoutButton.enabled = false;
+                else if (InputControlSchema.IsXrActive())
+                    logoutButton.SetHudVisible(false);
+            }
 
             // Multiplayer sync: poller fetches state, controller spawns/updates visuals.
             if (gameStatePoller != null)
@@ -867,7 +874,7 @@ namespace VellumRift
 
             // Guest Call for help: Quest L-Y (#310); HUD button uses the same handler (#294).
             if (xr && playerController.XrHelpTriggered && helpRequestButton != null &&
-                helpRequestButton.isActiveAndEnabled)
+                helpRequestButton.enabled)
             {
                 helpRequestButton.RequestHelpFromInput();
             }
