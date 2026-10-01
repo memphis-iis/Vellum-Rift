@@ -14,6 +14,7 @@ import {
 import { MaterialIcon } from "./MaterialIcon";
 import { PinsPanel } from "./PinsPanel";
 import { SpaceChatPanel } from "./SpaceChatPanel";
+import { CHAT_ENABLED } from "../auth/config";
 
 type WebGlEmbedProps = {
   url: string;
@@ -225,6 +226,7 @@ export function WebGlEmbed({
           </aside>
         )}
 
+        {CHAT_ENABLED ? (
         <SpaceChatPanel
           className="vr-enter-3d__chat glass-panel"
           messages={messages}
@@ -236,6 +238,7 @@ export function WebGlEmbed({
           collapsible
           onUnreadChange={setChatUnread}
         />
+      ) : null}
 
         <div className="vr-enter-3d__fog" aria-hidden="true" />
 

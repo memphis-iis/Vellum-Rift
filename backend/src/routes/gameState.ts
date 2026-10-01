@@ -18,6 +18,7 @@ import {
   normalizeEmail,
   parseVisibility,
 } from "../lib/sessionAccess.js";
+import { isChatEnabled } from "../lib/chatEnabled.js";
 import { writeKioskEnabled } from "../lib/sessionKiosk.js";
 import {
   applyEventPatch,
@@ -300,7 +301,9 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   }
   // Announce joins through the same chat surface so every client (Unity and
   // dashboard) sees the newcomer in their text box without extra polling.
-  state.addSystemMessage(`${displayName} joined the session`);
+  if (isChatEnabled()) {
+    state.addSystemMessage(`${displayName} joined the session`);
+  }
   await repo.save(state);
   res.status(201).json(player);
 });
@@ -835,7 +838,9 @@ router.post("/:sessionId/players/:playerId/mute", async (req: Request, res: Resp
 
   player.chatMuted = true;
   state.updatedAt = new Date().toISOString();
-  state.addSystemMessage(`${player.displayName} was muted in chat`);
+  if (isChatEnabled()) {
+    state.addSystemMessage(`${player.displayName} was muted in chat`);
+  }
   await moderationRepo.recordEvent({
     sessionId: state.sessionId,
     action: "mute",
@@ -862,7 +867,9 @@ router.post("/:sessionId/players/:playerId/unmute", async (req: Request, res: Re
 
   player.chatMuted = false;
   state.updatedAt = new Date().toISOString();
-  state.addSystemMessage(`${player.displayName} was unmuted in chat`);
+  if (isChatEnabled()) {
+    state.addSystemMessage(`${player.displayName} was unmuted in chat`);
+  }
   await moderationRepo.recordEvent({
     sessionId: state.sessionId,
     action: "unmute",
@@ -1106,6 +1113,10 @@ router.delete("/:sessionId/summon", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.get("/:sessionId/chat", async (req: Request, res: Response) => {
   try {
+    if (!isChatEnabled()) {
+      res.json({ messages: [] });
+      return;
+    }
     const state = await repo.findById(param(req, "sessionId"));
     if (!state) { res.status(404).json({ error: "Session not found" }); return; }
 
@@ -1122,6 +1133,10 @@ router.get("/:sessionId/chat", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------
 router.post("/:sessionId/chat", async (req: Request, res: Response) => {
   try {
+    if (!isChatEnabled()) {
+      res.status(403).json({ error: "Chat is disabled on this server" });
+      return;
+    }
     const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
     if (!state) return;
 

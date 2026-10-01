@@ -24,3 +24,9 @@ export const EMAIL_STORAGE_KEY = "vellum_rift_user_email";
 export const VELLUM_LOGO_URL = "https://iis.memphis.edu/static/bluekey/icons/vellumrift.png";
 export const MEMPHIS_PILLAR_URL =
   "https://www.memphis.edu/communications/brand/Images/pillar.png";
+
+/**
+ * Text chat in lobby / WebGL embed. Default on; set VITE_CHAT_ENABLED=false to hide.
+ * LAN party dashboard builds set this false; IIS leaves it unset.
+ */
+export const CHAT_ENABLED = import.meta.env.VITE_CHAT_ENABLED !== "false";

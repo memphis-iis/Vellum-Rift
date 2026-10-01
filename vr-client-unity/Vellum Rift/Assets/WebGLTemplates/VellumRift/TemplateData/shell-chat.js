@@ -2,6 +2,22 @@
  * Standalone WebGL shell chat (#159). Unity calls NotifyShellSession after join.
  */
 (function () {
+  function chatDisabled() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      var q = params.get("chat");
+      if (q === "0" || q === "false" || q === "off") return true;
+      if (window.VELLUM_CHAT_ENABLED === false || window.VELLUM_CHAT_ENABLED === "false") return true;
+    } catch (e) {}
+    return false;
+  }
+  if (chatDisabled()) {
+    var el = document.getElementById("vellum-chat");
+    if (el) el.style.display = "none";
+    document.body.classList.add("vellum-chat-disabled");
+    window.VellumShellChat = { notifySession: function () {}, dispose: function () {} };
+    return;
+  }
   var POLL_MS = 2000;
   var state = null;
   var timer = null;
