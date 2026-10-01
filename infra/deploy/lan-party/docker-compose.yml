@@ -1,0 +1,81 @@
+# Offline LAN party stack — Postgres + MinIO + backend.
+# Separate from infra/deploy/iis-memphis (do not run this on the Memphis host).
+#
+# Usage (from this directory, after copying .env.example → .env):
+#   docker compose up -d
+#
+# Backend image: GHCR when set, otherwise build from repo root Dockerfile.
+# Override: BACKEND_IMAGE=ghcr.io/memphis-iis/vellum-rift/backend:latest
+#
+# Alternative without containerized backend: use root `make infra-up` for
+# Postgres/MinIO and `npm run dev` in backend/ with this profile’s env vars
+# (point DATABASE_URL / S3_ENDPOINT at localhost ports).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vellum_rift}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - lan_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-vellum_rift}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - lan_minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >-
+      /bin/sh -c
+      "mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minioadmin}
+      && mc mb --ignore-existing local/${S3_BUCKET_NAME:-vellumrift-lan}
+      && mc anonymous set private local/${S3_BUCKET_NAME:-vellumrift-lan}"
+    restart: "no"
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/memphis-iis/vellum-rift/backend:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file: .env
+    environment:
+      # In-compose DB hostname (overrides LAN IP DATABASE_URL from .env if needed).
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-vellum_rift}
+      S3_ENDPOINT: http://minio:9000
+    # SFU is intentionally not started — LAN multiplayer uses HTTP polling.
+
+volumes:
+  lan_postgres_data:
+  lan_minio_data:
