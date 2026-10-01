@@ -1,0 +1,3 @@
+# Unity WebGL museum artifacts (copy build output here before compose up).
+webgl/*
+!webgl/.gitkeep
