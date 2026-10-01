@@ -269,6 +269,7 @@ namespace VellumRift
             public string id; public string displayName;
             public PositionData position; public RotationData rotation;
             public bool isHost; public bool isConnected;
+            public string joinedAt;
             public bool laserActive; public PositionData laserOrigin; public DirectionData laserDirection;
         }
         [Serializable] private class PositionData { public float x; public float y; public float z; }
@@ -287,7 +288,13 @@ namespace VellumRift
                 if (state?.players == null) return;
                 foreach (var p in state.players)
                 {
-                    if (p == null || !p.isConnected) continue;
+                    if (p == null) continue;
+                    if (!PresenceFilter.ShouldShowRemote(
+                            p.id,
+                            p.isConnected,
+                            p.joinedAt,
+                            localPlayerId))
+                        continue;
                     players.Add(new RemotePlayerData
                     {
                         id = p.id,
@@ -927,41 +934,28 @@ namespace VellumRift
             marker.name = $"LaserMarker_{id}";
             // Billboard quad: always faces the camera with a transparent
             // background so the glyph reads from any angle.
-            marker.transform.localScale = Vector3.one * 0.5f;
+            marker.transform.localScale = Vector3.one * 0.28f;
             Destroy(marker.GetComponent<Collider>());
             var bm = marker.AddComponent<VellumRift.Environment.BillboardMarker>();
-            bm.screenHeightPixels = 110f;
-            bm.minWorldScale = 0.25f;
-            bm.maxWorldScale = 40f;
-            var renderer = marker.GetComponent<Renderer>();
-            if (renderer != null)
+            bm.screenHeightPixels = 72f;
+            bm.minWorldScale = 0.12f;
+            bm.maxWorldScale = 0.55f;
+            bm.hideWithinMeters = 0.45f;
+            // Animated Vellum glyph (port of the WebGL ANIMATION_12 shader).
+            // BillboardMarker owns the material and the missing-shader guard, so a
+            // shader regression hides the marker instead of drawing a flat colored
+            // square across the headset view.
+            if (bm.ApplyMarkerGlyph(
+                    isHost ? COLOR_HOST : new Color(1f, 0.8f, 0.4f),
+                    COLOR_LASER,
+                    2.5f,
+                    3f,   // quad-local UV: 3 fits the glyph nicely
+                    1.2f))
             {
-                // Animated Vellum glyph shader (port of the WebGL ANIMATION_12
-                // shader) replacing the flat color primitive.
-                Shader shader = Resources.Load<Shader>("Shaders/AnimatedMarker");
-                if (shader == null)
-                {
-                    shader = Shader.Find("VellumRift/AnimatedMarker");
-                }
-                if (shader != null)
-                {
-                    var mat = new Material(shader);
-                    mat.SetColor("_Gold", isHost ? COLOR_HOST : new Color(1f, 0.8f, 0.4f));
-                    mat.SetColor("_Cyan", COLOR_LASER);
-                    mat.SetFloat("_Speed", 2.5f);
-                    mat.SetFloat("_UvScale", 3f); // quad-local UV: 3 fits the glyph nicely
-                    mat.SetFloat("_AlphaBoost", 1.2f);
-                    renderer.sharedMaterial = mat;
-                }
-                else
-                {
-                    renderer.material = new Material(Shader.Find("Unlit/Color"));
-                    renderer.material.color = isHost ? COLOR_HOST : COLOR_LASER;
-                }
-
                 // Per-marker animation seed so glyphs don't animate in lockstep.
                 marker.AddComponent<VellumRift.Environment.AnimatedMarkerDriver>();
             }
+
             return marker;
         }
 
@@ -1011,24 +1005,12 @@ namespace VellumRift
 
         private void CreateSphere()
         {
-            sphereObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphereObject.name = "SpatialSphere";
+            // Empty anchor only. A primitive sphere around the head draws as a
+            // solid wall on Quest when the default material survives a frame.
+            sphereObject = new GameObject("SpatialSphere");
             sphereObject.transform.SetParent(transform, false);
-            sphereObject.transform.localScale = Vector3.one * sphereRadius * 2f;
-            Destroy(sphereObject.GetComponent<Collider>());
-
-            var renderer = sphereObject.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                // The spherical radar surface is meant to be invisible — only the
-                // edge direction markers (arrows + labels) should be seen. A fully
-                // transparent color is forced and the renderer is disabled so the
-                // mesh can never cast a tint/haze or occlude anything behind it.
-                sphereColor = new Color(0f, 0f, 0f, 0f);
-                renderer.enabled = false;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-            }
+            sphereObject.transform.localScale = Vector3.one * sphereRadius;
+            sphereColor = new Color(0f, 0f, 0f, 0f);
         }
 
         private void CreateCanvas()
@@ -1041,6 +1023,14 @@ namespace VellumRift
             canvasGO.AddComponent<CanvasScaler>();
             canvasGO.AddComponent<GraphicRaycaster>();
             canvasRect = canvas.GetComponent<RectTransform>();
+
+            // Edge pills live in this canvas. On Quest it becomes a transparent
+            // visor; children keep the viewport layout, so do not recenter them.
+            var hud = canvasGO.AddComponent<XrHudFollow>();
+            hud.followMode = XrHudFollowMode.CameraViewport;
+            hud.widthPx = 960f;
+            hud.heightPx = 540f;
+            hud.recenterChildren = false;
         }
 
         private static GameObject CreateUIObject(string name, Transform parent)

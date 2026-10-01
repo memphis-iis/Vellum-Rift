@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using VellumRift;
 
 namespace VellumRift.Control
 {
@@ -33,6 +34,8 @@ namespace VellumRift.Control
     {
         // Prevents the camera from flipping upside down
         private const float MaxPitchDegrees = 89f;
+        private const float XrSnapDegrees = 45f;
+        private const float XrSnapDeadzone = 0.55f;
         private readonly Transform body;
 
         // Runtime adjustable movement settings
@@ -42,6 +45,7 @@ namespace VellumRift.Control
 
         // Tracks the current up/down look angle to accurately enforce clamps
         private float accumulatedPitch;
+        private float prevXrYawStick;
 
         public FreeFlyMover(Transform body, float moveSpeed, float yawSpeed, float lookSensitivity)
         {
@@ -62,13 +66,18 @@ namespace VellumRift.Control
             {
                 if (InputControlSchema.IsXrActive())
                 {
-                    // In VR, project movement onto horizontal plane relative to camera yaw
+                    // Stick: horizontal head-relative. Grip thrust: along camera forward.
                     Camera cam = Camera.main;
                     Transform refTransform = cam != null ? cam.transform : body;
                     Vector3 forward = Vector3.ProjectOnPlane(refTransform.forward, Vector3.up).normalized;
                     Vector3 right = Vector3.ProjectOnPlane(refTransform.right, Vector3.up).normalized;
-                    Vector3 worldMove = (forward * intent.Move.z + right * intent.Move.x + Vector3.up * intent.Move.y).normalized;
-                    body.position += worldMove * MoveSpeed * deltaTime;
+                    Vector3 worldMove = forward * intent.Move.z + right * intent.Move.x;
+                    if (Mathf.Abs(intent.Move.y) > 0.01f && cam != null)
+                        worldMove += cam.transform.forward * intent.Move.y;
+                    if (worldMove.sqrMagnitude > 0.0001f)
+                        worldMove.Normalize();
+                    float boundary = ManuscriptPlaySpace.GetMoveSpeedMultiplier(body.position);
+                    body.position += worldMove * MoveSpeed * boundary * deltaTime;
                 }
                 else
                 {
@@ -89,10 +98,22 @@ namespace VellumRift.Control
                 body.Rotate(Vector3.right, newPitch - accumulatedPitch, Space.Self);
                 accumulatedPitch = newPitch;
             }
+            else if (InputControlSchema.IsXrActive())
+            {
+                // 45° snap on right-stick deadzone edge (#288) — not continuous.
+                float stick = intent.Yaw;
+                if (Mathf.Abs(prevXrYawStick) < XrSnapDeadzone && Mathf.Abs(stick) >= XrSnapDeadzone)
+                    body.Rotate(Vector3.up, Mathf.Sign(stick) * XrSnapDegrees, Space.World);
+                prevXrYawStick = stick;
+            }
             else if (intent.Yaw != 0f)
             {
-                // Keyboard / Touch thumbstick turning: Only active when mouse-look is not being held
+                // Keyboard / gamepad turning: Only active when mouse-look is not being held
                 body.Rotate(Vector3.up, intent.Yaw * YawSpeed * deltaTime, Space.World);
+            }
+            else
+            {
+                prevXrYawStick = 0f;
             }
         }
     }
@@ -102,6 +123,8 @@ namespace VellumRift.Control
     /// </summary>
     public class PlayerController : MonoBehaviour
     {
+        private const float XrMoveStickDeadzone = 0.12f;
+
         [Header("Translation")]
         [SerializeField, Tooltip("World units per second.")]
         private float moveSpeed = 5f;
@@ -150,6 +173,8 @@ namespace VellumRift.Control
         private InputAction laserAction;      // Left mouse button (hold for laser)
         private InputAction waypointAction;   // F key (place waypoint)
         private InputAction summonAction;     // G key (host summon)
+        private InputAction xrRenameAction;   // Right primary — rename pin while aiming (#287)
+        private InputAction xrDeleteAction;   // Right secondary — delete pin while aiming (#287)
 
         /// <summary>True while left mouse button is held (laser pointer).</summary>
         public bool LaserPressed { get; private set; }
@@ -161,6 +186,10 @@ namespace VellumRift.Control
         public bool WaypointTriggered { get; private set; }
         /// <summary>True on the frame Q key is pressed (host summon).</summary>
         public bool SummonTriggered { get; private set; }
+        /// <summary>XR: Right primary pressed this frame (rename when aiming at pin).</summary>
+        public bool XrRenameTriggered { get; private set; }
+        /// <summary>XR: Right secondary pressed this frame (delete when aiming at pin).</summary>
+        public bool XrDeleteTriggered { get; private set; }
 
         private void Awake()
         {
@@ -184,9 +213,7 @@ namespace VellumRift.Control
                 .With("Negative", "<Keyboard>/leftCtrl");
             verticalAction.AddCompositeBinding("1DAxis")
                 .With("Negative", "<Keyboard>/x");
-            // XR Jetpack vertical lift via Primary/Grip (separate composites per source)
-            verticalAction.AddCompositeBinding("1DAxis")
-                .With("Positive", "<XRController>{RightHand}/primaryButton");
+            // XR Jetpack: left grip only → look-thrust (FreeFlyMover). Right A is pin rename.
             verticalAction.AddCompositeBinding("1DAxis")
                 .With("Positive", "<XRController>{LeftHand}/gripButton");
             // Gamepad elevation via triggers
@@ -227,6 +254,12 @@ namespace VellumRift.Control
             summonAction.AddBinding("<XRController>{RightHand}/secondaryButton");
             summonAction.AddBinding("<Gamepad>/buttonNorth");
 
+            // XR pin rename / delete (#287) — SessionManager gates on laser aim.
+            xrRenameAction = new InputAction("XrRenamePin", InputActionType.Button);
+            xrRenameAction.AddBinding("<XRController>{RightHand}/primaryButton");
+            xrDeleteAction = new InputAction("XrDeletePin", InputActionType.Button);
+            xrDeleteAction.AddBinding("<XRController>{RightHand}/secondaryButton");
+
             // Initialize the default free fly mover
             mover = new FreeFlyMover(transform, moveSpeed, yawSpeed, lookSensitivity);
         }
@@ -241,6 +274,8 @@ namespace VellumRift.Control
             laserAction.Enable();
             waypointAction.Enable();
             summonAction.Enable();
+            xrRenameAction.Enable();
+            xrDeleteAction.Enable();
         }
 
         private void OnDisable()
@@ -253,6 +288,8 @@ namespace VellumRift.Control
             laserAction.Disable();
             waypointAction.Disable();
             summonAction.Disable();
+            xrRenameAction.Disable();
+            xrDeleteAction.Disable();
         }
 
         private void OnDestroy()
@@ -265,6 +302,8 @@ namespace VellumRift.Control
             laserAction.Dispose();
             waypointAction.Dispose();
             summonAction.Dispose();
+            xrRenameAction.Dispose();
+            xrDeleteAction.Dispose();
         }
 
         private void Update()
@@ -287,6 +326,8 @@ namespace VellumRift.Control
                 LeftClicked = laserAction.WasPressedThisFrame();
                 WaypointTriggered = waypointAction.WasPressedThisFrame();
                 SummonTriggered = summonAction.WasPressedThisFrame();
+                XrRenameTriggered = xrRenameAction.WasPressedThisFrame();
+                XrDeleteTriggered = xrDeleteAction.WasPressedThisFrame();
 
                 // Process the movement calculations every frame
                 mover.Tick(ReadIntent(), Time.deltaTime);
@@ -298,16 +339,41 @@ namespace VellumRift.Control
                 LeftClicked = false;
                 WaypointTriggered = false;
                 SummonTriggered = false;
+                XrRenameTriggered = false;
+                XrDeleteTriggered = false;
             }
+        }
+
+        private static Vector2 ApplyRadialDeadzone(Vector2 stick, float deadzone)
+        {
+            float mag = stick.magnitude;
+            if (mag < deadzone)
+                return Vector2.zero;
+            float scaled = (mag - deadzone) / (1f - deadzone);
+            return stick.normalized * scaled;
+        }
+
+        private static float ApplyAxisDeadzone(float value, float deadzone)
+        {
+            if (Mathf.Abs(value) < deadzone)
+                return 0f;
+            return Mathf.Sign(value) * (Mathf.Abs(value) - deadzone) / (1f - deadzone);
         }
 
         private MovementIntent ReadIntent()
         {
-            Vector2 planar = moveAction.ReadValue<Vector2>(); 
+            Vector2 planar = moveAction.ReadValue<Vector2>();
+            float yaw = yawAction.ReadValue<float>();
+            if (InputControlSchema.IsXrActive())
+            {
+                planar = ApplyRadialDeadzone(planar, XrMoveStickDeadzone);
+                yaw = ApplyAxisDeadzone(yaw, XrMoveStickDeadzone);
+            }
+
             return new MovementIntent
             {
                 Move       = new Vector3(planar.x, verticalAction.ReadValue<float>(), planar.y),
-                Yaw        = yawAction.ReadValue<float>(),
+                Yaw        = yaw,
                 LookActive = lookHoldAction.IsPressed(),
                 Look       = lookAction.ReadValue<Vector2>()
             };

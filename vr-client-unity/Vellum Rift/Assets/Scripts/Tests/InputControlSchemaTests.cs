@@ -27,8 +27,9 @@ namespace VellumRift.Tests
         {
             var rows = InputControlSchema.GuideRows(ControlSchema.XR);
             Assert.That(rows.Length, Is.GreaterThanOrEqualTo(4));
-            Assert.That(string.Join(" ", System.Array.ConvertAll(rows, r => r.Binding)),
-                Does.Contain("L-STICK").And.Contain("R-STICK").And.Contain("R-TRIGGER"));
+            string bindings = string.Join(" ", System.Array.ConvertAll(rows, r => r.Binding));
+            Assert.That(bindings, Does.Contain("L-STICK").And.Contain("R-STICK").And.Contain("R-TRIGGER"));
+            Assert.That(bindings, Does.Contain("L-A"));
         }
 
         [Test]

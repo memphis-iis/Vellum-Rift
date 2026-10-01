@@ -61,16 +61,24 @@ namespace VellumRift
             scaler.matchWidthOrHeight = 0f; // match width for consistent horizontal padding.
             canvasGO.AddComponent<GraphicRaycaster>();
 
+            float hitW = Mathf.Max(buttonWidth, VrTheme.MinHitWidthPx);
+            float hitH = Mathf.Max(buttonHeight, VrTheme.MinHitHeightPx);
+
+            var hud = canvasGO.AddComponent<XrHudFollow>();
+            hud.slot = XrHudSlot.LowerLeft;
+            hud.widthPx = hitW;
+            hud.heightPx = hitH;
+
             // Button background — dark pill with cyan border.
             var bg = CreateUIObject("Bg", canvasGO.transform);
             var bgImg = bg.AddComponent<Image>();
-            bgImg.sprite = CreateRoundedRectSprite((int)buttonWidth, (int)buttonHeight, 18f, COLOR_SURFACE_LOWEST, 1f, COLOR_CYAN);
+            bgImg.sprite = CreateRoundedRectSprite((int)hitW, (int)hitH, 18f, COLOR_SURFACE_LOWEST, 1f, COLOR_CYAN);
             bgImg.raycastTarget = false;
             var bgRect = bg.GetComponent<RectTransform>();
             bgRect.anchorMin = new Vector2(0, 0);
             bgRect.anchorMax = new Vector2(0, 0);
             bgRect.pivot = new Vector2(0, 0);
-            bgRect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
+            bgRect.sizeDelta = new Vector2(hitW, hitH);
             bgRect.anchoredPosition = new Vector2(padding, padding);
 
             // Button component.
@@ -88,7 +96,7 @@ namespace VellumRift
             button.onClick.AddListener(OnLogoutClicked);
 
             // Label text.
-            var label = CreateText("Label", bg.transform, "LOG OUT", 12, TextAnchor.MiddleCenter, COLOR_ON_SURFACE);
+            var label = CreateText("Label", bg.transform, "LOG OUT", 18, TextAnchor.MiddleCenter, COLOR_ON_SURFACE);
             label.fontStyle = FontStyle.Bold;
             var labelRect = label.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;

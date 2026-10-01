@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
+import { touchPlayerSeen } from "../lib/sessionPresence.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
@@ -31,6 +32,10 @@ export interface PlayerState {
   bluekeyEmail?: string | null;
   /** Session-scoped chat mute (#137). */
   chatMuted?: boolean;
+  /** Last position/laser heartbeat — used by sessionPresence prune. */
+  lastSeenAt?: string;
+  /** Last laser PATCH while held — lasers expire without fresh heartbeats. */
+  lastLaserAt?: string;
 }
 
 export type SessionVisibility = "public" | "private";
@@ -247,6 +252,7 @@ export class GameState {
     if (!player) return false;
 
     player.position = { ...position };
+    touchPlayerSeen(player);
     this._touch();
     return true;
   }
@@ -260,6 +266,7 @@ export class GameState {
     if (!player) return false;
 
     player.rotation = { ...rotation };
+    touchPlayerSeen(player);
     this._touch();
     return true;
   }
@@ -279,12 +286,16 @@ export class GameState {
     return true;
   }
 
-  /** Mark a player as connected / disconnected without removing them. */
+  /** Mark a player as connected / disconnected. */
   setConnected(playerId: string, connected: boolean): boolean {
     const player = this.getPlayer(playerId);
     if (!player) return false;
 
     player.isConnected = connected;
+    if (!connected) {
+      player.laserActive = false;
+      player.lastLaserAt = undefined;
+    }
     this._touch();
     return true;
   }

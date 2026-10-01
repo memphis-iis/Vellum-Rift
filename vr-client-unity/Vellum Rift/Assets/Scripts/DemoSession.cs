@@ -276,6 +276,17 @@ namespace VellumRift
                 if (bluekeyAuth != null && !string.IsNullOrEmpty(bluekeyAuth.AccessToken))
                     apiClient.SetAuthToken(bluekeyAuth.AccessToken);
 
+                // Museum / guest kiosk path (#187): Space ID chosen before auth completes.
+                if (string.IsNullOrEmpty(sessionIdOverride))
+                {
+                    string pendingGuest = BluekeyAuth.ConsumePendingJoinSessionId();
+                    if (!string.IsNullOrEmpty(pendingGuest))
+                    {
+                        sessionIdOverride = pendingGuest;
+                        Debug.Log($"[DemoSession] Using guest Space ID from museum/kiosk join: {sessionIdOverride}");
+                    }
+                }
+
                 ResolvePlayerDisplayName();
 
                 GameState session = await JoinOrCreateSession();

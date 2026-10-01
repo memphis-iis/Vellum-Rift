@@ -16,14 +16,15 @@ public static class ModelIdResolver
     ///   1. <c>-modelId=</c> CLI
     ///   2. <c>VELLUM_MODEL_ID</c> env
     ///   3. <paramref name="pageQueryModelId"/> (<c>?modelId=</c>)
-    ///   4. <paramref name="inspectorDefault"/> (empty in production builds)
+    ///   4. <paramref name="inspectorDefault"/> when <paramref name="allowInspectorDefault"/> is true
     /// </summary>
     public static string ResolveOverride(
         string inspectorDefault,
         Func<string, string> getCliArg,
         Func<string, string> getEnvVar,
         string pageQueryModelId = null,
-        Action<string> log = null)
+        Action<string> log = null,
+        bool allowInspectorDefault = true)
     {
         log ??= _ => { };
 
@@ -47,6 +48,9 @@ public static class ModelIdResolver
             log("Model id override set via page query (?modelId=).");
             return page;
         }
+
+        if (!allowInspectorDefault)
+            return "";
 
         return Clean(inspectorDefault) ?? "";
     }

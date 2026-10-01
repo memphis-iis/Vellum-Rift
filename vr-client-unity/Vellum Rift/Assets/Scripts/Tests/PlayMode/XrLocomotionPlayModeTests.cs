@@ -21,7 +21,7 @@ namespace VellumRift.Tests.PlayMode
         public override void Setup()
         {
             base.Setup();
-            player = VellumRift.Tests.XrRigHierarchyTests.BuildHybridRig();
+            player = HybridRigTestBuilder.BuildHybridRig();
             player.transform.position = Vector3.zero;
         }
 

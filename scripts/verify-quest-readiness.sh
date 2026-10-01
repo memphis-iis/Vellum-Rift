@@ -147,6 +147,36 @@ else
 fi
 
 # ---------------------------------------------------------
+# Check 5: XR Plug-in Management (Android OpenXR loader)
+# ---------------------------------------------------------
+echo -e "\n${BLUE}${BOLD}5. Checking XR Plug-in Management (Android OpenXR)...${NC}"
+XR_GENERAL="${UNITY_DIR}/Assets/XR/XRGeneralSettingsPerBuildTarget.asset"
+OPENXR_SETTINGS="${UNITY_DIR}/Assets/XR/Settings/OpenXR Package Settings.asset"
+if [ ! -f "${XR_GENERAL}" ]; then
+  fail "XRGeneralSettingsPerBuildTarget.asset missing" "Create XR Management settings with Android → OpenXR loader assigned."
+else
+  if grep -q 'Keys:[[:space:]]*$' "${XR_GENERAL}" || grep -q 'Values: \[\]' "${XR_GENERAL}"; then
+    fail "XRGeneralSettingsPerBuildTarget has no build-target loaders" "Assign OpenXR loader for Android in Project Settings → XR Plug-in Management."
+  elif grep -q 'guid: 14498631c215ee64885e8b573c861d73' "${XR_GENERAL}"; then
+    pass "Android/Standalone XR loaders reference OpenXRLoader"
+  else
+    fail "OpenXRLoader not referenced in XRGeneralSettingsPerBuildTarget" "Add OpenXR to Android providers in XR Plug-in Management."
+  fi
+fi
+if [ -f "${OPENXR_SETTINGS}" ]; then
+  if grep -A2 'm_Name: MetaQuestFeature Android' "${OPENXR_SETTINGS}" | grep -q 'm_enabled: 1'; then
+    pass "Meta Quest Support feature enabled for Android"
+  else
+    fail "MetaQuestFeature Android is disabled" "Enable Meta Quest Support under OpenXR → Android features."
+  fi
+  if grep -A2 'm_Name: OculusTouchControllerProfile Android' "${OPENXR_SETTINGS}" | grep -q 'm_enabled: 1'; then
+    pass "Oculus Touch Controller Profile enabled for Android"
+  else
+    fail "OculusTouchControllerProfile Android is disabled" "Enable Oculus Touch Controller Profile under OpenXR → Android features."
+  fi
+fi
+
+# ---------------------------------------------------------
 # Summary & Exit
 # ---------------------------------------------------------
 echo -e "\n${BOLD}======================================================${NC}"

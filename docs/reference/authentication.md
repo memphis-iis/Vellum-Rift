@@ -53,6 +53,7 @@ Policy: only liveness/health endpoints and the scoped kiosk mint surface are ano
 |--------------|--------|-----------|
 | `GET /health` | **Public** | Load balancer / ops liveness |
 | `GET /api/health` | **Public** | Same (includes coarse game-state stats) |
+| `GET /api/kiosk/events` | **Public** | Active Event spaces with kiosk on (Quest museum picker) |
 | `GET /api/kiosk/:sessionId/status` | **Public** | Museum QR discovery when host enabled kiosk (#145) |
 | `POST /api/kiosk/:sessionId/token` | **Public** | Rate-limited mint of short-lived kiosk JWT (#145) |
 | `/api/game-state/*` | **Protected** (Bluekey **or** kiosk JWT) | Session presence, chat, summon, lasers, artifacts |
@@ -75,6 +76,8 @@ Museum guests join **without** Bluekey. Do **not** set `AUTH_REQUIRED=false` for
 4. Guest uses that Bearer on `/api/game-state` and `/api/models` (middleware: `requireAuthOrKiosk`). Guests **cannot** mutate playlist, visibility, allowlist, moderation, or upload.
 5. Model downloads for kiosk tokens are limited to the session playlist. Token mint is rate-limited per IP+session (`KIOSK_RATE_LIMIT`, `KIOSK_RATE_WINDOW_MS`).
 
+Quest APK: client calls `GET /api/kiosk/events` (active Event + kiosk-on spaces). One match → auto mint + join; several → world-space picker; none → empty state + Refresh. No Bluekey UI on that path.
+
 Smoke path: host enables **Kiosk on** → **Copy kiosk link** → open link in a private window → nametag → Join → Enter 3D space (WebGL handoff uses the kiosk token).
 
 Non-kiosk sessions still require Bluekey as before.
@@ -89,6 +92,23 @@ Non-kiosk sessions still require Bluekey as before.
 SFU health (`GET /health`) and packet contract discovery (`GET /v1/contracts/packets`) stay public. Session join/signal/leave require auth when SFU `AUTH_REQUIRED=true`.
 
 Wire new routers in `backend/src/index.ts` under the protected section unless there is an explicit, documented reason to leave them public.
+
+---
+
+## Automated error reporting (#289)
+
+Vellum posts hard failures to Bluekey’s **public** error intake (same contract as Undertaker Mobile). No Bearer token is sent on this call.
+
+| Client | When | Kill switch |
+|--------|------|-------------|
+| Unity (`BluekeyErrorReporter`) | `LogType.Error` / `Exception` | Env `VELLUM_BLUEKEY_ERROR_REPORTING=false` (or `BLUEKEY_ERROR_REPORTING_ENABLED`) |
+| Dashboard (`bluekeyErrorReporter.ts`) | `window.onerror`, `unhandledrejection` | `VITE_BLUEKEY_ERROR_REPORTING_ENABLED=false` |
+
+- **Endpoint:** `POST {BLUEKEY_API}/public/errors/submit` (default `https://iis.memphis.edu/apis/bluekey`)
+- **`appId`:** Unity uses `BluekeyAuth.SoftwareId`; dashboard uses `VITE_BLUEKEY_SOFTWARE_ID`
+- Client scrubbing removes Bearer tokens, query tokens, and emails; 60s dedupe per message+source
+
+Requires a real Bluekey software UUID (not a placeholder) for submissions to attribute correctly in Bluekey admin.
 
 ---
 

@@ -71,6 +71,16 @@ namespace VellumRift
                 return;
             }
 
+            // Production /api/models requires Bluekey or kiosk Bearer (#285).
+            // Bare glTFast URI loads get 401 JSON and fail opaquely — refuse that path.
+            if (RequiresBearerAuth(modelUrl) && string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogError(
+                    "[RemoteModelLoader] Missing Bluekey/kiosk Bearer for /api/models — " +
+                    "sign in or complete guest mint before loading. Skipping unauthenticated glTFast download.");
+                return;
+            }
+
             loadInProgress = true;
             ShowEmptyState(true);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -130,6 +140,7 @@ namespace VellumRift
                     // laser pointer) stop on the actual manuscript surface,
                     // not a bounding box. glTFast does not add colliders.
                     AttachMeshColliders(parent);
+                    EnsureQuestReadableMaterials(parent);
 
                     // Register the manuscript with the spatial indicator system
                     // so an edge-direction pointer tracks it while off-screen.
@@ -191,6 +202,30 @@ namespace VellumRift
             Debug.Log("[RemoteModelLoader] Cleared manuscript mesh");
         }
 
+        /// <summary>World AABB of the loaded manuscript, or false if nothing is loaded.</summary>
+        public bool TryGetWorldBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (!IsLoaded)
+                return false;
+
+            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+            bool any = false;
+            foreach (var r in renderers)
+            {
+                if (r == null || r.gameObject == emptyStateGo || !r.enabled)
+                    continue;
+                if (!any)
+                {
+                    bounds = r.bounds;
+                    any = true;
+                }
+                else
+                    bounds.Encapsulate(r.bounds);
+            }
+            return any;
+        }
+
         private void EnsureEmptyState()
         {
             if (emptyStateGo != null) return;
@@ -208,16 +243,17 @@ namespace VellumRift
             {
                 // Existing Vellum surface tone (#1B1B23) — not a retheme.
                 var color = new Color(27f / 255f, 27f / 255f, 35f / 255f, 1f);
-                var shader = Shader.Find("Universal Render Pipeline/Unlit")
-                             ?? Shader.Find("Unlit/Color")
-                             ?? Shader.Find("Sprites/Default");
-                if (shader != null)
+                Shader shader = VellumShaders.ResolveLine();
+                if (shader == null)
+                {
+                    // Hide rather than leave a default-material disc in the view.
+                    renderer.enabled = false;
+                    Debug.LogWarning("[RemoteModelLoader] No empty-state shader resolved — prop hidden.");
+                }
+                else
                 {
                     var mat = new Material(shader);
-                    if (mat.HasProperty("_BaseColor"))
-                        mat.SetColor("_BaseColor", color);
-                    else if (mat.HasProperty("_Color"))
-                        mat.SetColor("_Color", color);
+                    VellumShaders.ApplyTint(mat, color);
                     renderer.sharedMaterial = mat;
                 }
             }
@@ -229,6 +265,15 @@ namespace VellumRift
             EnsureEmptyState();
             if (emptyStateGo != null)
                 emptyStateGo.SetActive(show);
+        }
+
+        /// <summary>
+        /// True when the URL targets the auth-gated models API (#285).
+        /// </summary>
+        public static bool RequiresBearerAuth(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            return url.IndexOf("/api/models/", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         /// <summary>
@@ -247,7 +292,13 @@ namespace VellumRift
                 if (request.result == UnityEngine.Networking.UnityWebRequest.Result.ProtocolError ||
                     request.result == UnityEngine.Networking.UnityWebRequest.Result.ConnectionError)
                 {
-                    Debug.LogError($"[RemoteModelLoader] Auth download failed ({request.responseCode}): {request.error}");
+                    string contentType = request.GetResponseHeader("Content-Type") ?? "";
+                    string body = request.downloadHandler?.text ?? "";
+                    if (body.Length > 180)
+                        body = body.Substring(0, 180) + "…";
+                    Debug.LogError(
+                        $"[RemoteModelLoader] Auth download failed ({request.responseCode}): {request.error}" +
+                        $" | Content-Type={contentType} | body={body}");
                     return null;
                 }
                 return request.downloadHandler?.data;
@@ -258,7 +309,7 @@ namespace VellumRift
         /// Request quest LoD tier on Quest / Android VR platforms (#195).
         /// Appends ?tier=quest or &tier=quest to model URLs when running under Android/Quest.
         /// </summary>
-        private static string AppendLodTierIfNeeded(string url)
+        internal static string AppendLodTierIfNeeded(string url)
         {
             if (string.IsNullOrEmpty(url)) return url;
 #if UNITY_ANDROID
@@ -294,6 +345,118 @@ namespace VellumRift
             }
 
             Debug.Log($"[RemoteModelLoader] Added {added} MeshCollider(s) for surface-accurate raycasts");
+        }
+
+        /// <summary>
+        /// Quest / player builds can strip glTFast URP keyword variants → magenta.
+        /// Rematerialize broken (or all Android) renderers onto URP Unlit/Lit,
+        /// copying base color + main texture so the manuscript stays readable.
+        /// </summary>
+        public static int EnsureQuestReadableMaterials(Transform root)
+        {
+            if (root == null)
+                return 0;
+
+            Shader fallback = Shader.Find("Universal Render Pipeline/Unlit")
+                              ?? Shader.Find("Universal Render Pipeline/Lit")
+                              ?? Shader.Find("Unlit/Texture")
+                              ?? Shader.Find("Unlit/Color");
+            if (fallback == null)
+            {
+                Debug.LogWarning("[RemoteModelLoader] No URP/Unlit fallback shader — cannot rematerialize");
+                return 0;
+            }
+
+            bool forceAll =
+#if UNITY_ANDROID && !UNITY_EDITOR
+                true;
+#else
+                false;
+#endif
+            int fixedCount = 0;
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var shared = renderer.sharedMaterials;
+                if (shared == null || shared.Length == 0)
+                    continue;
+
+                Material[] next = null;
+                for (int i = 0; i < shared.Length; i++)
+                {
+                    Material src = shared[i];
+                    if (!forceAll && !IsBrokenOrMissingShader(src))
+                        continue;
+
+                    if (next == null)
+                    {
+                        next = new Material[shared.Length];
+                        for (int j = 0; j < shared.Length; j++)
+                            next[j] = shared[j];
+                    }
+
+                    next[i] = BuildReadableMaterial(src, fallback);
+                    fixedCount++;
+                }
+
+                if (next != null)
+                    renderer.sharedMaterials = next;
+            }
+
+            if (fixedCount > 0)
+                Debug.Log($"[RemoteModelLoader] Rematerialized {fixedCount} material slot(s) for Quest readability");
+            return fixedCount;
+        }
+
+        /// <summary>True when Unity substituted the error/magenta shader.</summary>
+        public static bool IsBrokenOrMissingShader(Material mat)
+        {
+            if (mat == null || mat.shader == null)
+                return true;
+            string name = mat.shader.name ?? "";
+            return name.IndexOf("InternalErrorShader", StringComparison.OrdinalIgnoreCase) >= 0
+                   || name.IndexOf("Hidden/InternalError", StringComparison.OrdinalIgnoreCase) >= 0
+                   || !mat.shader.isSupported;
+        }
+
+        private static Material BuildReadableMaterial(Material src, Shader shader)
+        {
+            var mat = new Material(shader);
+            Color color = Color.white;
+            Texture tex = null;
+
+            if (src != null)
+            {
+                if (src.HasProperty("_BaseColor"))
+                    color = src.GetColor("_BaseColor");
+                else if (src.HasProperty("_Color"))
+                    color = src.GetColor("_Color");
+                else
+                    color = src.color;
+
+                if (src.HasProperty("_BaseMap"))
+                    tex = src.GetTexture("_BaseMap");
+                else if (src.HasProperty("_MainTex"))
+                    tex = src.GetTexture("_MainTex");
+                else
+                    tex = src.mainTexture;
+            }
+
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", color);
+            else if (mat.HasProperty("_Color"))
+                mat.SetColor("_Color", color);
+
+            if (tex != null)
+            {
+                if (mat.HasProperty("_BaseMap"))
+                    mat.SetTexture("_BaseMap", tex);
+                else if (mat.HasProperty("_MainTex"))
+                    mat.SetTexture("_MainTex", tex);
+                else
+                    mat.mainTexture = tex;
+            }
+
+            return mat;
         }
 
         /// <summary>

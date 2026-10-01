@@ -8,6 +8,10 @@ export const BLUEKEY_ORIGIN =
 
 export const BLUEKEY_SOFTWARE_ID = import.meta.env.VITE_BLUEKEY_SOFTWARE_ID ?? "";
 
+/** Bluekey API root for public error intake (#289). */
+export const BLUEKEY_API_BASE_URL =
+  import.meta.env.VITE_BLUEKEY_API_BASE_URL ?? "https://iis.memphis.edu/apis/bluekey";
+
 /**
  * When true, the dashboard requires a Bluekey session (no local skip).
  * Default false so `pnpm dashboard:dev` works without an IdP.

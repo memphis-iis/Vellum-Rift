@@ -95,6 +95,7 @@ namespace VellumRift
         {
             // Museum gallery plate (floor/fog/spawn ring) — existing Vellum palette only.
             var gallery = VellumRift.Environment.GalleryEnvironment.EnsureExists();
+            VellumRift.Environment.GalleryEnvironment.ApplyCameraVoid(Camera.main);
 
             if (apiClient == null) apiClient = gameObject.AddComponent<GameStateApiClient>();
             if (bluekeyAuth == null) bluekeyAuth = GetComponent<BluekeyAuth>() ?? gameObject.AddComponent<BluekeyAuth>();
@@ -103,10 +104,14 @@ namespace VellumRift
             if (laserPointer == null) laserPointer = GetComponent<LaserPointer>() ?? gameObject.AddComponent<LaserPointer>();
             if (summonManager == null) summonManager = GetComponent<SummonManager>() ?? gameObject.AddComponent<SummonManager>();
             if (artifactManager == null) artifactManager = GetComponent<ArtifactManager>() ?? gameObject.AddComponent<ArtifactManager>();
-            if (!WebGlShellMode.UsesExternalShell)
+            if (!WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive)
             {
                 if (chatManager == null) chatManager = GetComponent<ChatManager>() ?? gameObject.AddComponent<ChatManager>();
-                if (chatManager != null) chatManager.FocusChanged += HandleChatFocusChanged;
+                if (chatManager != null && !SpectatorMode.IsActive)
+                    chatManager.FocusChanged += HandleChatFocusChanged;
+            }
+            if (!WebGlShellMode.UsesExternalShell)
+            {
                 if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
             }
             // Create model host at scene root so it doesn't move with the player
@@ -132,6 +137,8 @@ namespace VellumRift
             if (gameStatePoller == null) gameStatePoller = GetComponent<GameStatePoller>() ?? gameObject.AddComponent<GameStatePoller>();
             if (multiplayerController == null) multiplayerController = GetComponent<MultiplayerController>() ?? gameObject.AddComponent<MultiplayerController>();
             if (playerController == null) playerController = FindObjectOfType<VellumRift.Control.PlayerController>();
+            if (playerController != null)
+                VellumRift.Control.HybridRigBuilder.EnsureOnPlayer(playerController.transform);
             if (pinNamePrompt == null) pinNamePrompt = GetComponent<PinNamePrompt>() ?? gameObject.AddComponent<PinNamePrompt>();
             pinNamePrompt.FocusChanged += HandlePinNameFocusChanged;
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -258,8 +265,8 @@ namespace VellumRift
                 launchHost = SessionIdResolver.ResolveIsHost(
                     GetCliArg, System.Environment.GetEnvironmentVariable);
 #endif
-                // Kiosk guests never adopt host — dashboard owns host ops.
-                bool joinAsHost = !KioskMode.IsActive
+                // Kiosk guests and wall spectators never adopt host.
+                bool joinAsHost = !KioskMode.IsActive && !SpectatorMode.IsActive
                     && (createdSession || adoptHost || (launchHost == true));
                 var player = await apiClient.AddPlayer(SessionId, resolvedPlayerName, isHost: joinAsHost);
                 if (player == null)
@@ -274,10 +281,21 @@ namespace VellumRift
                 // Step 3: Initialize all feature components
                 InitializeFeatures(backendUrl, resolvedPlayerName);
 
+                // Stand back from the manuscript — SampleScene Player starts at origin.
+                PlaceLocalPlayerAtSpawn();
+
                 // Step 4: Load manuscript from session activeModelId (or launch override).
                 await ApplyActiveModelAsync(session.activeModelId);
 
+                // After mesh bounds are known, push spawn out if the book is huge.
+                AdjustSpawnForModelBounds();
+                RefreshManuscriptPlaySpace();
+                PlaceLocalPlayerAtSpawn();
+
                 IsReady = true;
+
+                if (SpectatorMode.IsActive)
+                    StartWallCameraDirector();
 
 #if UNITY_WEBGL && !UNITY_EDITOR
                 if (createdSession) { UpdateUrlWithSession(SessionId); }
@@ -313,6 +331,9 @@ namespace VellumRift
 
         private string ResolvePlayerName()
         {
+            if (SpectatorMode.IsActive)
+                return SpectatorMode.DisplayName;
+
             string pagePlayer = "";
 #if UNITY_WEBGL
             pagePlayer = BackendUrlResolver.FromQueryStringParam(
@@ -338,26 +359,51 @@ namespace VellumRift
 
         private void InitializeFeatures(string backendUrl, string resolvedPlayerName)
         {
+            bool spectator = SpectatorMode.IsActive;
+
             if (positionSender != null)
             {
-                positionSender.SetBaseUrl(backendUrl);
-                positionSender.Initialize(SessionId, LocalPlayerId);
+                if (spectator)
+                {
+                    positionSender.gameObject.SetActive(false);
+                    Debug.Log("[SessionManager] Spectator — position sender disabled");
+                }
+                else
+                {
+                    positionSender.SetBaseUrl(backendUrl);
+                    positionSender.Initialize(SessionId, LocalPlayerId);
+                }
             }
             if (spatialIndicatorSystem != null)
             {
-                spatialIndicatorSystem.SetBaseUrl(backendUrl);
-                spatialIndicatorSystem.SetPlayerSpawner(playerSpawner);
-                spatialIndicatorSystem.Initialize(SessionId, LocalPlayerId);
+                if (spectator)
+                    spatialIndicatorSystem.gameObject.SetActive(false);
+                else
+                {
+                    spatialIndicatorSystem.SetBaseUrl(backendUrl);
+                    spatialIndicatorSystem.SetPlayerSpawner(playerSpawner);
+                    spatialIndicatorSystem.Initialize(SessionId, LocalPlayerId);
+                }
             }
             if (laserPointer != null)
             {
-                laserPointer.SetBaseUrl(backendUrl);
-                laserPointer.Initialize(SessionId, LocalPlayerId, LocalPlayerId, IsHost);
+                if (spectator)
+                    laserPointer.gameObject.SetActive(false);
+                else
+                {
+                    laserPointer.SetBaseUrl(backendUrl);
+                    laserPointer.Initialize(SessionId, LocalPlayerId, LocalPlayerId, IsHost);
+                }
             }
             if (summonManager != null)
             {
-                summonManager.SetBaseUrl(backendUrl);
-                summonManager.Initialize(SessionId, LocalPlayerId, IsHost);
+                if (spectator)
+                    summonManager.gameObject.SetActive(false);
+                else
+                {
+                    summonManager.SetBaseUrl(backendUrl);
+                    summonManager.Initialize(SessionId, LocalPlayerId, IsHost);
+                }
             }
             if (artifactManager != null)
             {
@@ -366,21 +412,32 @@ namespace VellumRift
             }
             if (controlsGuide != null)
             {
-                controlsGuide.SetHost(IsHost);
+                if (spectator)
+                    controlsGuide.gameObject.SetActive(false);
+                else
+                    controlsGuide.SetHost(IsHost);
             }
             if (chatManager != null)
             {
                 chatManager.SetBaseUrl(backendUrl);
-                // Anchor the local chat bubble to the player object, never the
-                // Main Camera, so it sits over the player's head — out of the
-                // forward view — instead of gluing to the camera.
                 Transform localAnchor = playerController != null
                     ? playerController.transform
                     : (GameObject.Find("Player") != null
                         ? GameObject.Find("Player").transform
                         : transform);
                 chatManager.Initialize(SessionId, LocalPlayerId, resolvedPlayerName, localAnchor);
+                if (spectator)
+                {
+                    chatManager.SetReadOnly(true);
+                    chatManager.SetHudVisible(true);
+                }
             }
+
+            if (spectator && healthChecker != null)
+                healthChecker.gameObject.SetActive(false);
+
+            if (spectator && logoutButton != null)
+                logoutButton.gameObject.SetActive(false);
 
             // Multiplayer sync: poller fetches state, controller spawns/updates visuals.
             if (gameStatePoller != null)
@@ -396,6 +453,94 @@ namespace VellumRift
                 multiplayerController.SetGameStatePoller(gameStatePoller);
                 multiplayerController.SetApiClient(apiClient);
                 multiplayerController.Initialize(SessionId, LocalPlayerId);
+            }
+
+            if (!spectator)
+                SetupWristMenuHud();
+        }
+
+        /// <summary>
+        /// Left-wrist MENU pad + sticky Chat/Status/Guide (Quest). Retries until Hybrid Rig exists.
+        /// </summary>
+        private void SetupWristMenuHud()
+        {
+            if (WebGlShellMode.UsesExternalShell)
+                return;
+            if (!InputControlSchema.IsXrActive())
+                return;
+
+            // Quiet FOV until teach / sticky open (wrist retry may take a few frames).
+            if (chatManager != null)
+                chatManager.SetHudVisible(false);
+            if (healthChecker != null)
+                healthChecker.SetHudVisible(false);
+            if (controlsGuide != null)
+                controlsGuide.SetVisible(false);
+
+            var wrist = WristHudGesture.EnsureOnLeftController();
+            if (wrist != null)
+            {
+                wrist.TryFirstRunTeach();
+                return;
+            }
+
+            StartCoroutine(RetryWristMenuHud());
+        }
+
+        private System.Collections.IEnumerator RetryWristMenuHud()
+        {
+            for (int i = 0; i < 90; i++)
+            {
+                yield return null;
+                var wrist = WristHudGesture.EnsureOnLeftController();
+                if (wrist != null)
+                {
+                    wrist.TryFirstRunTeach();
+                    yield break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Put the local free-fly / XR body on the gallery spawn ring looking at
+        /// the manuscript, instead of the SampleScene origin (inside the book).
+        /// </summary>
+        private void PlaceLocalPlayerAtSpawn()
+        {
+            if (playerController == null)
+                playerController = FindObjectOfType<VellumRift.Control.PlayerController>();
+            if (playerController == null)
+                return;
+
+            var gallery = VellumRift.Environment.GalleryEnvironment.Instance
+                          ?? VellumRift.Environment.GalleryEnvironment.EnsureExists();
+            int slot = 0;
+            if (!string.IsNullOrEmpty(LocalPlayerId))
+                slot = Mathf.Abs(LocalPlayerId.GetHashCode()) % gallery.SpawnSlotCount;
+
+            var (pos, rot) = gallery.GetSpawnSlot(slot);
+            playerController.transform.SetPositionAndRotation(pos, rot);
+            Debug.Log($"[SessionManager] Local player spawn slot {slot} at {pos} (radius={gallery.SpawnRadius:F1}m)");
+        }
+
+        /// <summary>
+        /// If the loaded manuscript is larger than the default ring, push spawn
+        /// points outside its bounding sphere so guests are not inside the mesh.
+        /// </summary>
+        private void AdjustSpawnForModelBounds()
+        {
+            if (modelLoader == null || !modelLoader.TryGetWorldBounds(out Bounds bounds))
+                return;
+
+            var gallery = VellumRift.Environment.GalleryEnvironment.Instance
+                          ?? VellumRift.Environment.GalleryEnvironment.EnsureExists();
+            float needed = bounds.extents.magnitude + 4f;
+            if (needed > gallery.SpawnRadius)
+            {
+                gallery.SetSpawnRadius(needed);
+                if (playerSpawner != null)
+                    playerSpawner.SetSpawnPoints(gallery.GetSpawnPointTransforms());
+                Debug.Log($"[SessionManager] Spawn radius → {needed:F1}m for manuscript bounds {bounds.size}");
             }
         }
 
@@ -416,6 +561,7 @@ namespace VellumRift
             {
                 modelLoader.Clear();
                 _loadedModelId = "";
+                ManuscriptPlaySpace.Clear();
                 Debug.Log("[SessionManager] No activeModelId — manuscript cleared");
                 return;
             }
@@ -423,10 +569,56 @@ namespace VellumRift
             modelLoader.allowInsecureHttp = allowInsecureHttp;
             modelLoader.modelUrl = $"{_backendUrl.TrimEnd('/')}/api/models/{desired}";
             modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
+            if (string.IsNullOrEmpty(modelLoader.authToken))
+            {
+                Debug.LogError(
+                    "[SessionManager] Cannot load manuscript — not authenticated (missing Bluekey/kiosk token). " +
+                    "Sign in or join as guest first (#285).");
+                return;
+            }
             Debug.Log($"[SessionManager] Loading manuscript model {desired}");
             await modelLoader.Load();
             if (modelLoader.IsLoaded)
+            {
                 _loadedModelId = desired;
+                AdjustSpawnForModelBounds();
+                RefreshManuscriptPlaySpace();
+            }
+        }
+
+        private void StartWallCameraDirector()
+        {
+            Camera cam = Camera.main;
+            if (cam == null)
+                return;
+            var director = WallCameraDirector.Ensure(
+                cam.transform,
+                playerSpawner,
+                modelLoader,
+                artifactManager,
+                LocalPlayerId,
+                _backendUrl,
+                SessionId);
+            SpectatorRadar.Ensure(
+                cam.transform,
+                playerSpawner,
+                artifactManager,
+                modelLoader,
+                director,
+                LocalPlayerId);
+            Debug.Log("[SessionManager] Wall camera director + radar started (spectator)");
+        }
+
+        private void RefreshManuscriptPlaySpace()
+        {
+            if (modelLoader != null && modelLoader.TryGetWorldBounds(out Bounds bounds))
+            {
+                var gallery = VellumRift.Environment.GalleryEnvironment.Instance
+                              ?? VellumRift.Environment.GalleryEnvironment.EnsureExists();
+                ManuscriptPlaySpace.Configure(bounds, gallerySpawnRadius: gallery.SpawnRadius);
+            }
+            else
+                ManuscriptPlaySpace.Clear();
         }
 
         private void HandleGameStateReceived(GameState state)
@@ -564,39 +756,69 @@ namespace VellumRift
             Camera cam = Camera.main;
             bool overUI = EventSystem.current != null &&
                           EventSystem.current.IsPointerOverGameObject();
+            bool xr = InputControlSchema.IsXrActive();
 
             bool renameHandled = false;
+            bool deleteHandled = false;
 
-            // Left-click an owned pin to rename (takes priority over laser on that click).
-            if (playerController.LeftClicked && !overUI)
+            if (xr)
             {
-                if (cam != null && artifactManager != null)
+                // Controller-native pin loop (#287): aim with laser ray.
+                if (laserPointer != null && laserPointer.TryGetAimRay(out Ray aimRay))
                 {
-                    Vector2 mousePos = Mouse.current?.position.ReadValue() ?? Vector2.zero;
-                    if (artifactManager.TrySelectOwnedWaypointAtScreenPoint(
-                            cam, mousePos, out string artifactId, out string currentLabel))
+                    bool renamePressed = playerController.XrRenameTriggered;
+                    bool deletePressed = playerController.XrDeleteTriggered;
+
+                    if (renamePressed && artifactManager != null &&
+                        artifactManager.TrySelectOwnedWaypointAlongRay(
+                            aimRay, 50f, out string artifactId, out string currentLabel))
                     {
                         GameObject go = artifactManager.GetWaypointObject(artifactId);
-                        Vector3 pos = go != null ? go.transform.position : cam.transform.position;
+                        Vector3 pos = go != null ? go.transform.position : aimRay.GetPoint(3f);
                         BeginRenamePin(artifactId, currentLabel, pos);
                         renameHandled = true;
+                    }
+
+                    if (deletePressed && artifactManager != null &&
+                        artifactManager.TryDeleteWaypointAlongRay(aimRay, 50f))
+                    {
+                        deleteHandled = true;
+                    }
+                }
+            }
+            else
+            {
+                // Left-click an owned pin to rename (takes priority over laser on that click).
+                if (playerController.LeftClicked && !overUI)
+                {
+                    if (cam != null && artifactManager != null)
+                    {
+                        Vector2 mousePos = Mouse.current?.position.ReadValue() ?? Vector2.zero;
+                        if (artifactManager.TrySelectOwnedWaypointAtScreenPoint(
+                                cam, mousePos, out string artifactId, out string currentLabel))
+                        {
+                            GameObject go = artifactManager.GetWaypointObject(artifactId);
+                            Vector3 pos = go != null ? go.transform.position : cam.transform.position;
+                            BeginRenamePin(artifactId, currentLabel, pos);
+                            renameHandled = true;
+                        }
+                    }
+                }
+
+                // Shift+right-click deletes an owned pin.
+                if (playerController.RightClicked &&
+                    Keyboard.current != null &&
+                    Keyboard.current.leftShiftKey.isPressed)
+                {
+                    if (cam != null && artifactManager != null)
+                    {
+                        Vector2 mousePos = Mouse.current?.position.ReadValue() ?? Vector2.zero;
+                        artifactManager.TryDeleteWaypointAtScreenPoint(cam, mousePos);
                     }
                 }
             }
 
-            // Shift+right-click deletes an owned pin.
-            if (playerController.RightClicked &&
-                Keyboard.current != null &&
-                Keyboard.current.leftShiftKey.isPressed)
-            {
-                if (cam != null && artifactManager != null)
-                {
-                    Vector2 mousePos = Mouse.current?.position.ReadValue() ?? Vector2.zero;
-                    artifactManager.TryDeleteWaypointAtScreenPoint(cam, mousePos);
-                }
-            }
-
-            // Laser pointer: left mouse button hold.
+            // Laser pointer: left mouse button hold / XR right trigger.
             // Suppress the laser while the pointer is over UI (e.g. the chat
             // input box) so clicking into the field doesn't also fire a beam.
             if (laserPointer != null)
@@ -611,15 +833,21 @@ namespace VellumRift
                 }
             }
 
-            // Waypoint: F key press — name before POST (#163).
-            if (playerController.WaypointTriggered && artifactManager != null && cam != null)
+            // Waypoint: F / Left primary — name before POST (#163 / #287).
+            if (playerController.WaypointTriggered && artifactManager != null)
             {
-                Vector3 pos = cam.transform.position + cam.transform.forward * 3f;
+                Vector3 pos;
+                if (xr && laserPointer != null && laserPointer.TryGetAim(out _, out _, out Vector3 hitPoint))
+                    pos = hitPoint;
+                else if (cam != null)
+                    pos = cam.transform.position + cam.transform.forward * 3f;
+                else
+                    pos = transform.position + transform.forward * 3f;
                 BeginPlacePin(pos);
             }
 
-            // Summon: G key press (host only)
-            if (playerController.SummonTriggered && summonManager != null)
+            // Summon: G / Right secondary (host only) — XR delete on pin takes priority.
+            if (!deleteHandled && playerController.SummonTriggered && summonManager != null)
             {
                 summonManager.TriggerSummon();
             }
@@ -639,23 +867,55 @@ namespace VellumRift
         private void LateUpdate()
         {
             if (!IsReady) return;
+            EnsureDesktopView();
+        }
+
+        /// <summary>
+        /// Desktop/WebGL free-fly: parent Main Camera under the Player so WASD
+        /// moves the view. Quest / XR: never body-lock the HMD (#286).
+        /// </summary>
+        private void EnsureDesktopView()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            VellumRift.Control.HybridRigBuilder.EnsureXrCameraNotBodyLocked();
+            Camera xrCam = Camera.main;
+            if (xrCam != null)
+                VellumRift.Environment.GalleryEnvironment.ApplyCameraVoid(xrCam);
+            return;
+#else
+            if (InputControlSchema.IsXrActive())
+            {
+                VellumRift.Control.HybridRigBuilder.EnsureXrCameraNotBodyLocked();
+                return;
+            }
+
+            if (playerController == null)
+                playerController = FindObjectOfType<VellumRift.Control.PlayerController>();
+            if (playerController == null)
+                return;
 
             Camera cam = Camera.main;
-            if (cam != null)
+            if (cam == null)
+                return;
+
+            VellumRift.Environment.GalleryEnvironment.ApplyCameraVoid(cam);
+
+            if (cam.transform.parent != null
+                && cam.transform.parent.name == VellumRift.Control.HybridRigBuilder.OffsetName)
+                return;
+
+            if (cam.transform.parent != playerController.transform)
             {
-                Vector3 behind = transform.position - transform.forward * 8f + Vector3.up * 1.5f;
-                cam.transform.position = behind;
-                cam.transform.LookAt(transform.position + transform.forward * 10f);
+                cam.transform.SetParent(playerController.transform, worldPositionStays: false);
+                cam.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+                cam.transform.localRotation = Quaternion.identity;
+                Debug.Log("[SessionManager] Parented Main Camera under Player for desktop free-fly");
             }
+#endif
         }
 
-        private void OnDestroy()
-        {
-            if (chatManager != null) chatManager.FocusChanged -= HandleChatFocusChanged;
-            if (pinNamePrompt != null) pinNamePrompt.FocusChanged -= HandlePinNameFocusChanged;
-            if (gameStatePoller != null)
-                gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
-        }
+        /// <summary>Body-lock camera is desktop only; XR skips (#286).</summary>
+        public static bool ShouldApplyChaseCam(bool xrActive) => !xrActive;
 
         private void BeginPlacePin(Vector3 position)
         {
@@ -703,7 +963,12 @@ namespace VellumRift
             if (pinNamePrompt == null) return;
             pinNamePrompt.ShowForRename(
                 currentLabel,
-                label => artifactManager.UpdateWaypointLabel(artifactId, label),
+                position,
+                label =>
+                {
+                    artifactManager.UpdateWaypointLabel(artifactId, label);
+                    _pendingRenameArtifactId = null;
+                },
                 () => _pendingRenameArtifactId = null);
         }
 
@@ -770,16 +1035,26 @@ namespace VellumRift
 
         private void OnApplicationQuit()
         {
-            // If we're still in a session when the app closes (e.g. user closed
-            // the window immediately after clicking LOG OUT before the async
-            // Logout() task finished), try to end the session so stale player
-            // entries don't persist on the server.  Fire-and-forget — the process
-            // is dying anyway, but the request may still reach the backend.
+            // Leave as this player — do NOT EndSession (that would archive the
+            // museum Space for everyone). Fire-and-forget RemovePlayer.
             if (IsReady && !string.IsNullOrEmpty(SessionId) && apiClient != null)
             {
-                _ = apiClient.EndSession(SessionId);
-                Debug.Log("[SessionManager] OnApplicationQuit — ending session on server.");
+                _ = LeaveSession();
+                Debug.Log("[SessionManager] OnApplicationQuit — leaving session (not ending it).");
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (chatManager != null) chatManager.FocusChanged -= HandleChatFocusChanged;
+            if (pinNamePrompt != null) pinNamePrompt.FocusChanged -= HandlePinNameFocusChanged;
+            if (gameStatePoller != null)
+                gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
+
+            // Editor Stop Play / scene unload — remove this guest so Museum Demo
+            // does not fill with "Guest" cubes.
+            if (IsReady && !string.IsNullOrEmpty(LocalPlayerId) && apiClient != null)
+                _ = LeaveSession();
         }
 
         private string ResolveBackendUrl()

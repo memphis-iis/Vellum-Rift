@@ -49,28 +49,9 @@ namespace VellumRift
             ApplyBanner();
             SetStatus("Loading spaces…");
             canvasGO.SetActive(true);
-            PlaceInFrontOfCamera();
             EnsureEventSystem();
             _ = RefreshListAsync();
             return pending.Task;
-        }
-
-        private void LateUpdate()
-        {
-            if (visible && canvasGO != null && canvasGO.activeSelf)
-                PlaceInFrontOfCamera();
-        }
-
-        private void PlaceInFrontOfCamera()
-        {
-            if (canvasGO == null)
-                return;
-            Camera cam = Camera.main;
-            if (cam == null)
-                return;
-            Transform t = canvasGO.transform;
-            t.position = cam.transform.position + cam.transform.forward * VrTheme.LobbyPanelDistance;
-            t.rotation = Quaternion.LookRotation(t.position - cam.transform.position, Vector3.up);
         }
 
         private void EnsureBuilt()
@@ -83,11 +64,19 @@ namespace VellumRift
             var canvas = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 110;
-            canvasGO.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = 10f;
+            canvasGO.AddComponent<CanvasScaler>().dynamicPixelsPerUnit = VrTheme.EffectiveDynamicPixelsPerUnit;
             canvasGO.AddComponent<GraphicRaycaster>();
+
+            var hud = canvasGO.AddComponent<XrHudFollow>();
+            hud.followMode = XrHudFollowMode.Modal;
+            hud.widthPx = 920f;
+            hud.heightPx = 760f;
+            hud.onlyWhenXr = false;
+            hud.recenterChildren = true;
+
             var canvasRect = canvasGO.GetComponent<RectTransform>();
             canvasRect.sizeDelta = new Vector2(920f, 760f);
-            canvasGO.transform.localScale = Vector3.one * VrTheme.LobbyWorldScale;
+            canvasGO.transform.localScale = Vector3.one * VrTheme.EffectiveLobbyWorldScale;
 
             GameObject panel = CreateUIObject("Panel", canvasGO.transform);
             panel.AddComponent<Image>().color = VrTheme.GlassPanel;

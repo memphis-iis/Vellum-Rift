@@ -21,12 +21,28 @@ namespace VellumRift.Environment
         [SerializeField] private Color fogColor = VrTheme.GalleryVoid;
         [SerializeField] private float fogDensity = 0.035f;
 
-        [Header("Spawn ring (for PlayerSpawner defaults)")]
-        [SerializeField] private float spawnRadius = 4.5f;
+        [Header("Spawn ring (for local player + PlayerSpawner)")]
+        [Tooltip("Meters from manuscript origin. Manuscripts at ~0.01 scale are ~10–15m across — keep outside that.")]
+        [SerializeField] private float spawnRadius = 14f;
         [SerializeField] private int spawnSlotCount = 8;
 
         public float SpawnRadius => spawnRadius;
         public int SpawnSlotCount => Mathf.Max(1, spawnSlotCount);
+
+        /// <summary>Rebuild spawn ring if radius changes after model bounds are known.</summary>
+        public void SetSpawnRadius(float meters)
+        {
+            float next = Mathf.Max(4f, meters);
+            if (Mathf.Approximately(next, spawnRadius) && spawnRoot != null)
+                return;
+            spawnRadius = next;
+            if (spawnRoot != null)
+            {
+                Destroy(spawnRoot.gameObject);
+                spawnRoot = null;
+            }
+            BuildSpawnRing();
+        }
 
         private GameObject floorGo;
         private Transform spawnRoot;
@@ -95,16 +111,19 @@ namespace VellumRift.Environment
             var renderer = floorGo.GetComponent<Renderer>();
             if (renderer != null)
             {
-                var shader = Shader.Find("Universal Render Pipeline/Unlit")
-                             ?? Shader.Find("Unlit/Color")
-                             ?? Shader.Find("Sprites/Default");
-                if (shader != null)
+                // Project-owned shader first: legacy Unlit/Color is stripped from
+                // Quest builds, and a 40 m plane on Unity's default material reads
+                // as a bright slab across the whole view.
+                Shader shader = VellumShaders.ResolveLine();
+                if (shader == null)
+                {
+                    renderer.enabled = false;
+                    Debug.LogWarning("[GalleryEnvironment] No floor shader resolved — gallery plate hidden.");
+                }
+                else
                 {
                     var mat = new Material(shader);
-                    if (mat.HasProperty("_BaseColor"))
-                        mat.SetColor("_BaseColor", floorColor);
-                    else if (mat.HasProperty("_Color"))
-                        mat.SetColor("_Color", floorColor);
+                    VellumShaders.ApplyTint(mat, floorColor);
                     renderer.sharedMaterial = mat;
                 }
             }
@@ -141,17 +160,38 @@ namespace VellumRift.Environment
 
         private void ApplyFog()
         {
+            // Kill SampleScene skybox / horizon so the gallery reads as a void plate.
+            RenderSettings.skybox = null;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = fogColor;
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Fog keyword variants strip easily on Quest and pink glTFast mats.
+            RenderSettings.fog = false;
+#else
             if (!enableFog)
             {
                 RenderSettings.fog = false;
-                return;
             }
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = fogColor;
-            RenderSettings.fogDensity = fogDensity;
-            if (Camera.main != null)
-                Camera.main.backgroundColor = fogColor;
+            else
+            {
+                RenderSettings.fog = true;
+                RenderSettings.fogMode = FogMode.ExponentialSquared;
+                RenderSettings.fogColor = fogColor;
+                RenderSettings.fogDensity = fogDensity;
+            }
+#endif
+
+            ApplyCameraVoid(Camera.main);
+        }
+
+        /// <summary>Solid void clear — no default skybox band on the horizon.</summary>
+        public static void ApplyCameraVoid(Camera cam)
+        {
+            if (cam == null)
+                return;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = VrTheme.GalleryVoid;
         }
     }
 }

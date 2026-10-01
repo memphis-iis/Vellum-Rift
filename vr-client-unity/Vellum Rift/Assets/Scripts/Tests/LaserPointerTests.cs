@@ -1,6 +1,7 @@
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using VellumRift.Control;
 
 namespace VellumRift.Tests
 {
@@ -66,6 +67,50 @@ namespace VellumRift.Tests
             laser.Initialize("space-1", "player-1", "user-1", isHost: false);
             Assert.DoesNotThrow(() => laser.ActivateLaser());
             Assert.DoesNotThrow(() => laser.DeactivateLaser());
+        }
+
+        [Test]
+        public void TryGetAim_UsesLaserAimForward_NotGripUp()
+        {
+            var grip = new GameObject("Right Controller");
+            grip.transform.position = new Vector3(1f, 0.5f, 0f);
+            grip.transform.rotation = Quaternion.identity;
+
+            var aim = new GameObject(HybridRigBuilder.LaserAimName);
+            aim.transform.SetParent(grip.transform, false);
+            aim.transform.localRotation = Quaternion.Euler(HybridRigBuilder.RightHandAimLocalEuler);
+
+            SetPrivateField(laser, "controllerTransform", grip.transform);
+            SetPrivateField(laser, "aimTransform", aim.transform);
+
+            Vector3 expectedDir = aim.transform.forward;
+            Assert.That(laser.TryGetAim(out Vector3 origin, out Vector3 dir, out Vector3 hit), Is.True);
+            Assert.That(origin, Is.EqualTo(aim.transform.position));
+            Assert.That(Vector3.Dot(dir.normalized, expectedDir.normalized), Is.GreaterThan(0.99f));
+            // Euler(90,0,0) maps aim +Z onto grip -Y (gun-forward when handle is upright).
+            Assert.That(Vector3.Dot(dir.normalized, -grip.transform.up), Is.GreaterThan(0.99f));
+            Assert.That(laser.TryGetAimRay(out Ray ray), Is.True);
+            Assert.That(ray.origin, Is.EqualTo(origin));
+
+            Object.DestroyImmediate(grip);
+        }
+
+        [Test]
+        public void ResolveAimDirection_PrefersAimTransform()
+        {
+            var grip = new GameObject("Grip");
+            var aim = new GameObject("Aim");
+            aim.transform.SetParent(grip.transform, false);
+            aim.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+
+            Vector3 dir = LaserPointer.ResolveAimDirection(aim.transform, grip.transform);
+            Assert.That(dir.x, Is.GreaterThan(0.9f));
+        }
+
+        private static void SetPrivateField(object target, string name, object value)
+        {
+            FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            field.SetValue(target, value);
         }
     }
 }

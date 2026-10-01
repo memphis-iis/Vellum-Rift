@@ -23,6 +23,7 @@ mkdir -p "$(dirname "$OUT")"
 
 echo "Building Android Quest APK → $OUT"
 "$UNITY" -batchmode -nographics -quit \
+  -buildTarget Android \
   -projectPath "$PROJ" \
   -executeMethod VellumRift.Editor.CIBuild.BuildAndroid \
   -customBuildPath "$OUT" \

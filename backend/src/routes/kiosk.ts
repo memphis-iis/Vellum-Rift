@@ -10,6 +10,7 @@ import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { mintKioskToken } from "../lib/kioskJwt.js";
 import { checkRateLimit } from "../lib/kioskRateLimit.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { readSessionEvent } from "../lib/sessionEvent.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -23,6 +24,47 @@ function clientIp(req: Request): string {
   }
   return req.socket.remoteAddress ?? "unknown";
 }
+
+/**
+ * GET /api/kiosk/events — list active Event spaces with kiosk on (Quest museum picker).
+ * Must be registered before /:sessionId routes.
+ */
+router.get("/events", async (req: Request, res: Response) => {
+  try {
+    const limit = checkRateLimit(`kiosk-events:${clientIp(req)}`, 60, 60_000);
+    if (!limit.allowed) {
+      res.setHeader("Retry-After", String(limit.retryAfterSec));
+      res.status(429).json({
+        error: "Too many event list requests. Try again shortly.",
+        retryAfterSec: limit.retryAfterSec,
+      });
+      return;
+    }
+
+    const sessions = await repo.findAll();
+    const events = sessions
+      .filter((s) => {
+        if (!s.isActive) return false;
+        if (!readKioskEnabled(s.metadata)) return false;
+        return readSessionEvent(s.metadata).kind === "event";
+      })
+      .map((s) => {
+        const ev = readSessionEvent(s.metadata);
+        return {
+          sessionId: s.sessionId,
+          label: s.label,
+          startsAt: ev.startsAt,
+          endsAt: ev.endsAt,
+          updatedAt: s.updatedAt,
+        };
+      });
+
+    res.json({ events });
+  } catch (err) {
+    console.error("GET /api/kiosk/events failed:", err);
+    res.status(500).json({ error: "Failed to list public events" });
+  }
+});
 
 // GET /api/kiosk/:sessionId/status — discover whether public join is open
 router.get("/:sessionId/status", async (req: Request, res: Response) => {

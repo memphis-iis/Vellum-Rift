@@ -42,6 +42,11 @@ namespace VellumRift
 
         public static bool IsXrActive()
         {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Quest standalone: treat as XR even before the display subsystem
+            // reports running (bootstrap race). Prevents desktop camera lock.
+            return true;
+#else
             var displays = new List<XRDisplaySubsystem>();
             SubsystemManager.GetSubsystems(displays);
             for (int i = 0; i < displays.Count; i++)
@@ -52,6 +57,7 @@ namespace VellumRift
 #pragma warning disable CS0618
             return XRSettings.enabled || XRSettings.isDeviceActive;
 #pragma warning restore CS0618
+#endif
         }
 
         public static string SchemaLabel(ControlSchema schema)
@@ -75,10 +81,13 @@ namespace VellumRift
                     return new[]
                     {
                         new BindingRow("Move", "L-STICK"),
-                        new BindingRow("Turn / Snap", "R-STICK"),
-                        new BindingRow("Jetpack Lift", "GRIP / A"),
+                        new BindingRow("Turn / Snap", "R-STICK snap"),
+                        new BindingRow("Jetpack", "L-GRIP (look direction)"),
                         new BindingRow("Laser Pointer", "R-TRIGGER"),
-                        new BindingRow("Select / Pin", "R-TRIGGER"),
+                        new BindingRow("Place Pin", "L-A"),
+                        new BindingRow("Rename Pin", "AIM + R-A"),
+                        new BindingRow("Delete Pin", "AIM + R-B"),
+                        new BindingRow("Menu", "LOOK AT L-WRIST"),
                     };
                 case ControlSchema.Gamepad:
                     return new[]
