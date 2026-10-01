@@ -87,6 +87,7 @@ namespace VellumRift
                         new BindingRow("Place Pin", "L-A"),
                         new BindingRow("Rename Pin", "AIM + R-A"),
                         new BindingRow("Delete Pin", "AIM + R-B"),
+                        new BindingRow("Call for help", HelpRequestBindings.XrGuideLabel),
                         new BindingRow("Menu", "LOOK AT L-WRIST"),
                     };
                 case ControlSchema.Gamepad:

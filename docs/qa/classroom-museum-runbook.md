@@ -103,13 +103,13 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 5. Confirm manuscript playlist; run a **30-second Quest + one laptop** smoke test.
 6. If you have a wall display or projector, open the **observer / spectator link** so peer observers can watch the same view during rotations ([museum-guest-entry.md](museum-guest-entry.md)).
 7. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
-8. Remind staff: **chat is off** on this profile; guests use **Call for help** and the in-world **ControlsGuide** (wrist / help gesture) still works ([#293](https://github.com/memphis-iis/Vellum-Rift/issues/293)).
+8. Remind staff: **chat is off** on this profile; Quest guests press **left Y** (**Call for help** in ControlsGuide); HUD button is backup. Wrist **ControlsGuide** still works ([#293](https://github.com/memphis-iis/Vellum-Rift/issues/293), [#310](https://github.com/memphis-iis/Vellum-Rift/issues/310)).
 
 ### How students join
 
 | Station | Steps |
 |---------|--------|
-| **Quest** | Launch LAN APK → pick the **exhibit event** → enter Space (see [museum-guest-entry.md](museum-guest-entry.md)). |
+| **Quest** | Launch LAN APK → pick the **exhibit event** → enter Space (see [museum-guest-entry.md](museum-guest-entry.md)). Teach **left Y = Call for help** once per rotation. |
 | **Laptop** | Kiosk URL or QR → nametag → **Enter 3D** (WebGL). Optional **observer** URL on wall display or projector for **peer** viewing. |
 
 Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-only features.
@@ -171,7 +171,7 @@ Use a **visible timer** (projector or phone) for fairness. Signal **one minute l
 |---------|----------------|-----|
 | Quest shows **no events** | Kiosk off or Space not **Event** | Host enables kiosk + Event flag ([lan-party-runbook.md](lan-party-runbook.md) §7) |
 | Laptop/WebGL **cannot reach API** | Wrong IP in build | Rebuild with LAN `VITE_*` / `VELLUM_BUILD_BACKEND_URL` |
-| Student **stuck in VR** | Guardian or menu confusion | Spotter guides; guest taps **Call for help**; host acknowledges |
+| Student **stuck in VR** | Guardian or menu confusion | Spotter guides; guest presses **left Y** (Call for help); host acknowledges |
 | **Call for help** silent | Host not on Enter tab | Open Enter for that session on host laptop |
 | Two Quests **collide** | Rectangles too close | Pause rotation; widen tape spacing |
 | Upload/manuscript missing | Volume not copied | Re-ingest on LAN or restore MinIO/Postgres volume from prep |

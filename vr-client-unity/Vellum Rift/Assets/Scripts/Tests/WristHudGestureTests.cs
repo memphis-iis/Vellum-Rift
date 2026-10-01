@@ -54,6 +54,7 @@ namespace VellumRift.Tests
             Assert.That(joined, Does.Not.Contain("Jetpack Lift=GRIP / A"));
             Assert.That(joined, Does.Contain("Rename Pin=AIM + R-A"),
                 "Right A must stay pin rename, not jetpack");
+            Assert.That(joined, Does.Contain($"Call for help={HelpRequestBindings.XrGuideLabel}"));
         }
 
         [Test]

@@ -865,6 +865,13 @@ namespace VellumRift
                 summonManager.TriggerSummon();
             }
 
+            // Guest Call for help: Quest L-Y (#310); HUD button uses the same handler (#294).
+            if (xr && playerController.XrHelpTriggered && helpRequestButton != null &&
+                helpRequestButton.isActiveAndEnabled)
+            {
+                helpRequestButton.RequestHelpFromInput();
+            }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Debug: Shift+Q toggles a fake test player so you can verify
             // indicators, nameplates, and multiplayer sync without a second client.
