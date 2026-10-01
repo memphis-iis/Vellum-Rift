@@ -44,7 +44,7 @@ Related QA:
 
 ## 2. Prep (while internet is available)
 
-Do this on a machine that can reach GitHub, GHCR (if using prebuilt backend image), and any manuscript sources.
+Do this on a machine that can reach GitHub, GHCR (if using prebuilt backend image), Docker Hub (`pgsty/silo`, `pgsty/mc`), and any manuscript sources.
 
 ### 2.1 Clone and profile env
 

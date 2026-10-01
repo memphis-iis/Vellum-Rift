@@ -18,7 +18,7 @@ Browser (WebGL at /vellumrift/)
 
 ramiel (test server):
   vellumrift-backend (node:20, :4100 exposed) ─▶ vellumrift-postgres (db vellum_rift)
-                                           ─▶ vellumrift-minio (:9100/9101, bucket vellumrift)
+                                           ─▶ vellumrift-minio / Silo (:9100/9101, bucket vellumrift)
 ```
 
 Notes:
@@ -85,7 +85,9 @@ Containers (all on `vellumrift-net`, backend also on `hasura_traefik_proxy`):
 |---|---|---|---|
 | `vellumrift-backend` | `vellumrift-base:latest` (node:20 + fonts) | host `4100`→`4000` | volume-mounts `~/vellumrift/backend` (pnpm-deploy artifact) |
 | `vellumrift-postgres` | postgres:16-alpine | internal | db `vellum_rift`, role `vellumrift` |
-| `vellumrift-minio` | minio/minio | host `9100`→9000, `9101`→9001 | volume `vellumrift-minio-data`, bucket + user `vellumrift` |
+| `vellumrift-minio` | `pgsty/silo` (MinIO-compatible) | host `9100`→9000, `9101`→9001 | volume `vellumrift-minio-data`, bucket + user `vellumrift` |
+
+**Silo migration (ramiel):** Upstream MinIO OSS images on Docker Hub are unreliable/EOL; use `pgsty/silo:RELEASE.2026-09-16T00-00-00Z` (or newer pinned `RELEASE.*` tag) with the same `server /data --console-address ":9001"` command and `MINIO_*` env. Recreate the container against the existing `vellumrift-minio-data` volume — no bucket reformat. This compose directory does **not** define MinIO; operators update the standalone container on ramiel.
 
 Redeploy (after building the artifact on a healthy host):
 

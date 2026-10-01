@@ -1,4 +1,4 @@
-# Offline LAN party stack — Postgres + MinIO + backend.
+# Offline LAN party stack — Postgres + Silo (S3/MinIO-compatible) + backend.
 # Separate from infra/deploy/iis-memphis (do not run this on the Memphis host).
 #
 # Usage (from this directory, after copying .env.example → .env):
@@ -30,7 +30,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -48,7 +48,7 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
     depends_on:
       minio:
         condition: service_healthy

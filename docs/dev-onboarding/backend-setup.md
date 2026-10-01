@@ -6,7 +6,7 @@ This document outlines the local setup instructions for engineers working on the
 
 - Node.js: v20.x or higher, preferably current LTS
 - Package manager: `pnpm` or `npm` workspaces coordinated from the repository root
-- Docker and Compose: required for local PostgreSQL and S3-compatible storage
+- Docker and Compose: required for local PostgreSQL and S3-compatible storage ([Silo](https://github.com/pgsty/silo) / `pgsty/silo`, MinIO-compatible)
 - Git LFS: required before pulling large manuscript fixtures or design assets
 
 ## Step-By-Step Environment Initialization
@@ -46,7 +46,7 @@ This creates:
 
 ### 4. Start Core Infrastructure
 
-Bring up PostgreSQL, MinIO, and the bucket bootstrap job.
+Bring up PostgreSQL, Silo (S3/MinIO-compatible object storage), and the bucket bootstrap job.
 
 ```bash
 pnpm infra:up
