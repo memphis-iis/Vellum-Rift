@@ -57,3 +57,5 @@ Remote guests appear as **cyan cylinder + gold head** pills (not wireframe books
 - [ ] Observer shows chat history + radar; camera biases to lasers / orbits pins
 
 See also: [space-vocabulary.md](space-vocabulary.md), Lobby kiosk controls in the dashboard.
+
+For an **offline LAN party** (no WAN, chat off, local-dev host): [lan-party-runbook.md](lan-party-runbook.md).

@@ -79,6 +79,8 @@ Expected behavior:
 - Stopping a client (best-effort quit hook, or calling `LeaveSession()` from
   a button) removes its cube from the other client within a poll interval.
 
+For a full **offline LAN party** checklist (compose profile, Quest/WebGL LAN builds, chat off, help requests), see [lan-party-runbook.md](lan-party-runbook.md).
+
 ## LAN / remote backend
 
 The backend URL resolution order is: `-backendUrl=` CLI flag, then
