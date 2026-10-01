@@ -9,7 +9,7 @@ Full ops checklist: [docs/qa/lan-party-runbook.md](../../../docs/qa/lan-party-ru
 
 ## What this is
 
-- Postgres + MinIO + backend on one LAN machine
+- Postgres + **Silo** (`pgsty/silo`, MinIO-compatible S3) + backend on one LAN machine
 - `AUTH_REQUIRED` unset/false (no Bluekey IdP)
 - Kiosk JWT secret set so museum/guest join still works
 - `CHAT_ENABLED=false` / `VITE_CHAT_ENABLED=false` in the example (IIS leaves these unset)
@@ -45,9 +45,13 @@ Full ops checklist: [docs/qa/lan-party-runbook.md](../../../docs/qa/lan-party-ru
 
 ### Without the backend container
 
-Use root `make infra-up` for Postgres/MinIO and run `npm run dev` in `backend/`
+Use root `make infra-up` for Postgres/Silo and run `npm run dev` in `backend/`
 with the same chat/kiosk env vars (use `localhost` for `DATABASE_URL` / `S3_ENDPOINT`
 on the server process; clients still use the LAN IP for the API).
+
+## Object storage (Silo)
+
+Compose runs **[Silo](https://github.com/pgsty/silo)** (`pgsty/silo`) instead of Docker Hub `minio/minio`. Silo is a maintained MinIO fork with the same S3 API, `MINIO_*` credentials, and on-disk layout — existing `lan_minio_data` volumes keep working after an image swap. Bucket bootstrap uses `pgsty/mc` (MinIO Client).
 
 ## Image override
 

@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\onboard-all.ps1
 
 Useful local endpoints:
 
-- MinIO console: `http://localhost:9001`
+- S3 console (Silo / MinIO-compatible): `http://localhost:9001`
 - Mailpit: `http://localhost:8025`
 - Adminer: `http://localhost:8081`
 - Dashboard dev server: `http://localhost:5173`
