@@ -11,6 +11,7 @@ Related QA:
 
 - [museum-guest-entry.md](museum-guest-entry.md) — kiosk QR, guest join, observer wall display
 - [multiplayer-demo-runbook.md](multiplayer-demo-runbook.md) — session polling architecture and client backend URL resolution
+- **Classroom museum (elementary/middle, Quest + laptops):** [classroom-museum-runbook.md](classroom-museum-runbook.md), [classroom-museum-presenter-script.md](classroom-museum-presenter-script.md)
 
 ## 1. Topology and ports
 

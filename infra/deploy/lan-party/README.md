@@ -5,7 +5,7 @@ Do **not** apply this env or compose on the Memphis / IIS host.
 
 For production/test on `iis.memphis.edu`, see [../iis-memphis/README.md](../iis-memphis/README.md).
 
-Full ops checklist: [docs/qa/lan-party-runbook.md](../../../docs/qa/lan-party-runbook.md).
+Full ops checklist: [docs/qa/lan-party-runbook.md](../../../docs/qa/lan-party-runbook.md). Elementary/middle **classroom museum** visits: [docs/qa/classroom-museum-runbook.md](../../../docs/qa/classroom-museum-runbook.md).
 
 ## What this is
 
