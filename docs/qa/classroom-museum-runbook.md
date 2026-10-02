@@ -4,7 +4,7 @@
 
 **Scenario:** one **offline LAN server**, student/staff **laptops**, **2–3 Meta Quest 2** headsets, classroom with tables, taped play boundaries, and **no internet on show day** after prep.
 
-Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md).
+Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md). Scored guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md) ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314)).
 
 ---
 
