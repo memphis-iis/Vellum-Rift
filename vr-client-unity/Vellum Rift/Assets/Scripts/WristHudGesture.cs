@@ -6,7 +6,7 @@ using VellumRift.Control;
 namespace VellumRift
 {
     /// <summary>
-    /// Left-wrist MENU pad: raise + look toggles sticky Chat / Session / How to Play.
+    /// Left-wrist MENU pad: raise + look toggles the shared SessionHudStack (#315).
     /// Norman/Krug: pad reads MENU or CLOSE; first XR join auto-teaches once.
     /// </summary>
     public sealed class WristHudGesture : MonoBehaviour
@@ -26,8 +26,7 @@ namespace VellumRift
         private Material padMat;
         private CanvasGroup padLabelGroup;
         private ControlsGuide guide;
-        private ChatManager chat;
-        private BackendHealthChecker status;
+        private SessionHudStack hudStack;
         private bool stickyOn;
         private bool wasArmed;
         private float debounceUntil;
@@ -183,25 +182,24 @@ namespace VellumRift
             stickyOn = on;
             if (!on)
                 firstTeachAutoOpenActive = false;
-            if (guide != null)
+            ResolveHudRefs();
+            if (hudStack != null)
+                hudStack.SetSticky(on);
+            else if (guide != null)
             {
+                // Fallback if stack not yet created (early teach race).
                 guide.gameObject.SetActive(true);
                 guide.SetVisible(on);
                 if (!on)
                     guide.SetWristCoachVisible(false);
             }
-            if (chat != null)
-                chat.SetHudVisible(on);
-            if (status != null)
-                status.SetHudVisible(on);
             RefreshPadLabel();
         }
 
         private void ResolveHudRefs()
         {
             if (guide == null) guide = FindFirstObjectByType<ControlsGuide>();
-            if (chat == null) chat = FindFirstObjectByType<ChatManager>();
-            if (status == null) status = FindFirstObjectByType<BackendHealthChecker>();
+            if (hudStack == null) hudStack = FindFirstObjectByType<SessionHudStack>();
         }
 
         private void BuildPad()

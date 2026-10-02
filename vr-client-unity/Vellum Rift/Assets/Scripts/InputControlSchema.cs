@@ -88,7 +88,7 @@ namespace VellumRift
                         new BindingRow("Rename Pin", "AIM + R-A"),
                         new BindingRow("Delete Pin", "AIM + R-B"),
                         new BindingRow("Call for help", HelpRequestBindings.XrGuideLabel),
-                        new BindingRow("Menu", "LOOK AT L-WRIST"),
+                        new BindingRow("Toggle menu", "LOOK AT L-WRIST"),
                     };
                 case ControlSchema.Gamepad:
                     return new[]
@@ -98,6 +98,7 @@ namespace VellumRift
                         new BindingRow("Move Up / Down", "LT / RT"),
                         new BindingRow("Laser Pointer", "RB"),
                         new BindingRow("Place Marker", "A"),
+                        new BindingRow("Toggle menu", "H"),
                     };
                 default:
                     return new[]
@@ -108,6 +109,7 @@ namespace VellumRift
                         new BindingRow("Turn Left / Right", "Z / E"),
                         new BindingRow("Use Laser", "L-CLK"),
                         new BindingRow("Drop a Pin", "F"),
+                        new BindingRow("Toggle menu", "H"),
                     };
             }
         }

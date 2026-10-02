@@ -49,12 +49,22 @@ namespace VellumRift.Tests
         {
             var rows = InputControlSchema.GuideRows(ControlSchema.XR);
             string joined = string.Join(" | ", System.Array.ConvertAll(rows, r => $"{r.Action}={r.Binding}"));
-            Assert.That(joined, Does.Contain("Menu=LOOK AT L-WRIST"));
+            Assert.That(joined, Does.Contain("Toggle menu=LOOK AT L-WRIST"));
             Assert.That(joined, Does.Contain("Jetpack=L-GRIP (look direction)"));
             Assert.That(joined, Does.Not.Contain("Jetpack Lift=GRIP / A"));
             Assert.That(joined, Does.Contain("Rename Pin=AIM + R-A"),
                 "Right A must stay pin rename, not jetpack");
             Assert.That(joined, Does.Contain($"Call for help={HelpRequestBindings.XrGuideLabel}"));
+            Assert.That(System.Array.Exists(rows, r => r.Action == "Menu"), Is.False,
+                "Guide copy renamed to Toggle menu (#315)");
+        }
+
+        [Test]
+        public void GuideRows_Keyboard_IncludesToggleMenuH()
+        {
+            var rows = InputControlSchema.GuideRows(ControlSchema.KeyboardMouse);
+            string joined = string.Join(" | ", System.Array.ConvertAll(rows, r => $"{r.Action}={r.Binding}"));
+            Assert.That(joined, Does.Contain("Toggle menu=H"));
         }
 
         [Test]

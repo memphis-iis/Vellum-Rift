@@ -52,7 +52,7 @@
 
 **Code:** `XrHudFollow` side slots; `ControlsGuide` hidden on XR at Awake; `BackendHealthChecker.SetHudVisible`.
 
-**Mismatch:** Desktop **H** toggles **How to Play only** (`ControlsGuide`, `KeyCode.H` / `hKey`) — not the full sticky stack. See [#315](https://github.com/memphis-iis/Vellum-Rift/issues/315).
+**Mismatch (historical):** Desktop **H** formerly toggled **How to Play only**. **Fixed in #315:** `SessionHudStack` — H and wrist MENU toggle the same panel set.
 
 ---
 
@@ -104,7 +104,7 @@
 
 | Guest type | Score | Notes |
 |------------|-------|-------|
-| Elementary | **Friction** | Raise left wrist + look at **MENU** pad → sticky Chat + Space Status + How to Play; **CLOSE** to dismiss (`WristHudGesture`). Motor + gaze skill varies by age; first-run teach helps. |
+| Elementary | **Friction** | Raise left wrist + look at **MENU** pad → sticky MENU stack (How to Play + Space Status + Chat if enabled); **CLOSE** to dismiss (`WristHudGesture` → `SessionHudStack`). Desktop/WebGL Unity HUD: **H** toggles the same stack (#315). Motor + gaze skill varies by age; first-run teach helps. |
 | General museum | **Pass** | Documented in quest verify + [vr-ux-playmode-verify.md](vr-ux-playmode-verify.md). |
 
 **Not in sticky stack today:** Help, Logout ([#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
