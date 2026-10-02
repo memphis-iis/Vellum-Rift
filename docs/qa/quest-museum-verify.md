@@ -89,8 +89,9 @@ Then walk the flow below **while watching for untextured geometry**:
 - [ ] Place a pin at your own feet → pin/label must **not** cover the visor
 - [ ] Chat: laser-select the input → **Quest system keyboard** opens; Done sends; Cancel dismisses
 - [ ] Pin name / rename: system keyboard opens; Done confirms label
-- [ ] **First XR join:** sticky Menu (Chat + Space Status + How to Play) opens once with coach “Look at your left wrist anytime for Menu.”
+- [ ] **First XR join:** sticky Menu (How to Play + Space Status + Chat if enabled) opens once with coach “Look at your left wrist anytime for Menu.”
 - [ ] **Wrist MENU:** raise left wrist + look at the pad labeled **MENU** → HUD sticks open; pad flips to **CLOSE**; look again dismisses
+- [ ] **Desktop H parity (#315):** with Unity HUD, **H** toggles the same MENU stack as wrist (guide + status + chat-if-enabled)
 - [ ] Later joins (after teach): FOV starts quiet; wrist opens/closes the same sticky HUD
 - [ ] **Jetpack:** left grip thrusts along **look direction** (not world-up); Right A only renames when aiming a pin
 - [ ] Chat and How to Play sit on the **right without overlapping** when Menu is open; Session status and Logout similarly separated on the left

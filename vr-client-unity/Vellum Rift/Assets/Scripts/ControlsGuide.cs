@@ -32,9 +32,11 @@ namespace VellumRift
         [SerializeField] private bool showHostOnly = false; // Guests see all rows (museum day)
 
         [Header("Dismiss")]
-        [Tooltip("Start visible; H toggles. Keep existing Vellum Material 3 theme.")]
+        [Tooltip("Start visible; H toggles the shared MENU stack (#315). Keep existing Vellum Material 3 theme.")]
         [SerializeField] private bool startVisible = true;
         [SerializeField] private KeyCode toggleKey = KeyCode.H;
+
+        private SessionHudStack hudStack;
 
         // ---------------------------------------------------------------
         // Material 3 palette (Vellum Rift HUD design tokens)
@@ -122,7 +124,14 @@ namespace VellumRift
                 pressed = true;
 #endif
             if (pressed)
-                SetVisible(!isVisible);
+            {
+                if (hudStack == null)
+                    hudStack = FindFirstObjectByType<SessionHudStack>();
+                if (hudStack != null)
+                    hudStack.Toggle();
+                else
+                    SetVisible(!isVisible);
+            }
         }
 
         public void SetVisible(bool visible)
@@ -361,8 +370,20 @@ namespace VellumRift
             if (!showHostOnly || isHost)
                 rows = Append(rows, (IconKind.Summon, "Open Object Menu", schema == ControlSchema.XR ? "R-SEC" : "Q"));
 
-            rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
-            rows = Append(rows, (IconKind.Gamepad, "Hide guide", "H"));
+            if (ChatEnabled.IsEnabled())
+                rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
+
+            bool hasToggleMenu = false;
+            for (int i = 0; i < rows.Length; i++)
+            {
+                if (rows[i].action == "Toggle menu")
+                {
+                    hasToggleMenu = true;
+                    break;
+                }
+            }
+            if (!hasToggleMenu)
+                rows = Append(rows, (IconKind.Gamepad, "Toggle menu", "H"));
 
             // Build rows top-down inside the content area.
             for (int i = 0; i < rows.Length; i++)

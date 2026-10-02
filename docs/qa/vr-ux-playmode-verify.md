@@ -23,7 +23,7 @@ Editor/PlayMode and on-device checklist for dual-platform Desktop and Meta Quest
 - [ ] **Touch Locomotion:** Left Touch Thumbstick moves player along horizontal plane oriented to HMD yaw.
 - [ ] **Touch Turn:** Right Touch Thumbstick provides snap/smooth yaw rotation without tilting pitch.
 - [ ] **Jetpack:** Left Hand Grip thrusts along **look direction** (camera forward). Right Hand `A` is pin rename only.
-- [ ] **Wrist MENU:** Raise left wrist + look at pad → sticky Chat / Session / How to Play; pad reads **MENU** / **CLOSE**.
+- [ ] **Wrist MENU:** Raise left wrist + look at pad → sticky MENU stack (How to Play + Session status + Chat if enabled); pad reads **MENU** / **CLOSE**. Desktop: **H** toggles the same stack.
 - [ ] **Controller Laser:** Laser pointer ray anchors to Right Hand Controller transform rather than head camera.
 - [ ] **Trigger Action:** Squeezing Right Index Trigger activates laser beam and selects interactive elements.
 - [ ] **Controls Guide:** Displays `L-STICK`, `R-STICK snap`, `L-GRIP (look direction)`, `R-TRIGGER`, `LOOK AT L-WRIST`.

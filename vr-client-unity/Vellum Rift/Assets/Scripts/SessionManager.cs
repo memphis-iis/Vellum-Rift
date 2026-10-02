@@ -52,6 +52,7 @@ namespace VellumRift
         [SerializeField] private ChatManager chatManager;
         [SerializeField] private ControlsGuide controlsGuide;
         [SerializeField] private HelpRequestButton helpRequestButton;
+        [SerializeField] private SessionHudStack sessionHudStack;
         [SerializeField] private PlayerSpawner playerSpawner;
 
         [Header("Multiplayer Sync")]
@@ -116,6 +117,8 @@ namespace VellumRift
                 if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
                 if (helpRequestButton == null)
                     helpRequestButton = GetComponent<HelpRequestButton>() ?? gameObject.AddComponent<HelpRequestButton>();
+                if (sessionHudStack == null)
+                    sessionHudStack = SessionHudStack.FindOrCreate(gameObject);
             }
             // Create model host at scene root so it doesn't move with the player
             if (modelLoader == null)
@@ -128,6 +131,15 @@ namespace VellumRift
             if (modelLoader != null)
                 modelLoader.loadOnStart = false;
             if (healthChecker == null) healthChecker = GetComponent<BackendHealthChecker>() ?? gameObject.AddComponent<BackendHealthChecker>();
+            if (!WebGlShellMode.UsesExternalShell && sessionHudStack != null)
+            {
+                sessionHudStack.Bind(controlsGuide, healthChecker, chatManager);
+                // Desktop: guide starts visible — open the full MENU stack. XR: quiet FOV until wrist.
+                if (!InputControlSchema.IsXrActive())
+                    sessionHudStack.Open();
+                else
+                    sessionHudStack.Close();
+            }
             if (!WebGlShellMode.UsesExternalShell)
             {
                 if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
@@ -480,7 +492,7 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Left-wrist MENU pad + sticky Chat/Status/Guide (Quest). Retries until Hybrid Rig exists.
+        /// Left-wrist MENU pad + shared SessionHudStack (Quest). Retries until Hybrid Rig exists.
         /// </summary>
         private void SetupWristMenuHud()
         {
@@ -490,12 +502,10 @@ namespace VellumRift
                 return;
 
             // Quiet FOV until teach / sticky open (wrist retry may take a few frames).
-            if (chatManager != null)
-                chatManager.SetHudVisible(false);
-            if (healthChecker != null)
-                healthChecker.SetHudVisible(false);
-            if (controlsGuide != null)
-                controlsGuide.SetVisible(false);
+            if (sessionHudStack == null)
+                sessionHudStack = SessionHudStack.FindOrCreate(gameObject);
+            sessionHudStack.Bind(controlsGuide, healthChecker, chatManager);
+            sessionHudStack.Close();
 
             var wrist = WristHudGesture.EnsureOnLeftController();
             if (wrist != null)
