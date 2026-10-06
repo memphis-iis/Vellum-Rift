@@ -25,6 +25,7 @@ import {
   parseSessionKind,
   writeSessionEvent,
 } from "../lib/sessionEvent.js";
+import { applyRotationPatch } from "../lib/sessionRotation.js";
 import {
   expireStaleLasers,
   markIdleDisconnected,
@@ -272,9 +273,10 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName: rawName, isHost } = req.body as {
+  const { displayName: rawName, isHost, playerId: clientPlayerId } = req.body as {
     displayName?: string;
     isHost?: boolean;
+    playerId?: string;
   };
 
   const displayName = sanitizeDisplayName(rawName, kiosk);
@@ -283,29 +285,68 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  // Kiosk guests never become host. First joiner on a public session may
-  // adopt host; otherwise only the durable creator / current host identity.
+  // Durable creator / current host reclaiming the desk: always become host on
+  // join so Lobby Host tools (turn timer, etc.) appear even when a stale
+  // hostId row is still on the roster.
+  const reclaimHost = !kiosk && isSessionHost(req.user, state);
   const wantHost =
-    !kiosk &&
-    ((!state.hostId &&
-      (isSessionHost(req.user, state) || state.visibility === "public")) ||
-      (Boolean(isHost) && isSessionHost(req.user, state)));
+    reclaimHost ||
+    (!kiosk &&
+      ((!state.hostId &&
+        (isSessionHost(req.user, state) || state.visibility === "public")) ||
+        (Boolean(isHost) && isSessionHost(req.user, state))));
 
-  const player = state.addPlayer(displayName, wantHost);
-  player.bluekeySub = req.user?.sub ?? null;
-  player.bluekeyEmail = normalizeEmail(req.user?.email) || null;
-  player.chatMuted = false;
+  // Reconnect: same Bluekey identity, explicit playerId, or kiosk nametag match.
+  const requestedId =
+    typeof clientPlayerId === "string" && clientPlayerId.trim()
+      ? clientPlayerId.trim()
+      : null;
+  let existingId =
+    (requestedId && state.getPlayer(requestedId) ? requestedId : null) ||
+    resolveRequestPlayerId(state, req.user);
+
+  if (!existingId && kiosk) {
+    const match = state.players.find(
+      (p) =>
+        p &&
+        !p.bluekeySub &&
+        sanitizeDisplayName(p.displayName, true) === displayName,
+    );
+    if (match) existingId = match.id;
+  }
+
+  let player = existingId ? state.getPlayer(existingId) : undefined;
+  let rejoined = false;
+  if (player) {
+    rejoined = true;
+    player.displayName = displayName;
+    player.isConnected = true;
+    player.lastSeenAt = new Date().toISOString();
+    player.bluekeySub = req.user?.sub ?? player.bluekeySub ?? null;
+    player.bluekeyEmail =
+      normalizeEmail(req.user?.email) || player.bluekeyEmail || null;
+  } else {
+    player = state.addPlayer(displayName, wantHost);
+    player.bluekeySub = req.user?.sub ?? null;
+    player.bluekeyEmail = normalizeEmail(req.user?.email) || null;
+    player.chatMuted = false;
+  }
+
+  // Always transfer host flag so stale isHost:true ghosts can be pruned.
+  if (wantHost) {
+    state.setHost(player.id);
+  }
 
   if (player.isHost && req.user?.email) {
     state.metadata = { ...state.metadata, hostEmail: normalizeEmail(req.user.email) };
   }
   // Announce joins through the same chat surface so every client (Unity and
   // dashboard) sees the newcomer in their text box without extra polling.
-  if (isChatEnabled()) {
+  if (isChatEnabled() && !rejoined) {
     state.addSystemMessage(`${displayName} joined the session`);
   }
   await repo.save(state);
-  res.status(201).json(player);
+  res.status(rejoined ? 200 : 201).json(player);
 });
 
 // ---------------------------------------------------------------
@@ -398,6 +439,38 @@ router.patch("/:sessionId/event", async (req: Request, res: Response) => {
   }
 
   const patched = applyEventPatch(state.metadata, body);
+  if (!patched.ok) {
+    res.status(400).json({ error: patched.error });
+    return;
+  }
+
+  state.metadata = patched.metadata;
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/turn — Host museum turn timer
+// Body: { rotationMinutes: 5|8|10|12 }                     → start turn
+//       { experiencePhase: 'playing', rotationMinutes: N } → start turn
+//       { experiencePhase: 'ended' }                       → reset (admin)
+// End time is computed from the server clock.
+// NOTE: Do not use /:sessionId/rotation — that path updates player orientation.
+// ---------------------------------------------------------------
+router.patch("/:sessionId/turn", async (req: Request, res: Response) => {
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const body = (req.body ?? {}) as {
+    experiencePhase?: unknown;
+    rotationMinutes?: unknown;
+  };
+  const patched = applyRotationPatch(state.metadata, body);
   if (!patched.ok) {
     res.status(400).json({ error: patched.error });
     return;

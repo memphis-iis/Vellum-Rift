@@ -16,6 +16,25 @@ import { PinsPanel } from "./PinsPanel";
 import { SpaceChatPanel } from "./SpaceChatPanel";
 import { CHAT_ENABLED } from "../auth/config";
 
+/** Shared with the standalone WebGL template (shell-chrome.js) — #318. */
+const CHROME_HIDDEN_STORAGE_KEY = "vellum.chromeHidden";
+/** postMessage type sent by the embedded WebGL page when H is pressed inside the iframe. */
+const CHROME_TOGGLE_MESSAGE = "vellum:toggle-chrome";
+
+function readChromeHidden(): boolean {
+  try {
+    return sessionStorage.getItem(CHROME_HIDDEN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
 type WebGlEmbedProps = {
   url: string;
   sessionId: string;
@@ -56,6 +75,39 @@ export function WebGlEmbed({
   const [chatUnread, setChatUnread] = useState(0);
   const [pinModal, setPinModal] = useState<PinModalState>(null);
   const [pinDraft, setPinDraft] = useState("");
+  const [chromeHidden, setChromeHidden] = useState(readChromeHidden);
+
+  // #318 — H toggles all overlay chrome (persisted for the session).
+  useEffect(() => {
+    const toggle = () =>
+      setChromeHidden((prev) => {
+        const next = !prev;
+        try {
+          sessionStorage.setItem(CHROME_HIDDEN_STORAGE_KEY, next ? "1" : "0");
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "h" && e.key !== "H") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      if (isTypingTarget(e.target)) return;
+      toggle();
+    };
+    const webGlOrigin = webGlOriginFromBaseUrl(import.meta.env.VITE_WEBGL_BASE_URL ?? "");
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      if (webGlOrigin && e.origin !== webGlOrigin) return;
+      if ((e.data as { type?: string } | null)?.type === CHROME_TOGGLE_MESSAGE) toggle();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("message", onMessage);
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add("vr-immersive");
@@ -121,7 +173,7 @@ export function WebGlEmbed({
   };
 
   return (
-    <div className="vr-enter-3d">
+    <div className={`vr-enter-3d${chromeHidden ? " vr-enter-3d--chrome-hidden" : ""}`}>
       <iframe
         ref={iframeRef}
         className="vr-enter-3d__frame"
@@ -264,6 +316,11 @@ export function WebGlEmbed({
           <span>
             <kbd className="vr-enter-3d__key">F</kbd>
             Pin
+          </span>
+          <span className="vr-enter-3d__sep" aria-hidden="true" />
+          <span>
+            <kbd className="vr-enter-3d__key">H</kbd>
+            Hide UI
           </span>
         </div>
       </div>

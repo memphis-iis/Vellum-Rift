@@ -38,11 +38,19 @@ import {
 } from "../auth/launchWebGl";
 import { useSessionRoom } from "../hooks/useSessionRoom";
 import type { PlayerState } from "../api/gameState";
-import { patchSessionEvent } from "../api/sessions";
+import {
+  patchSessionEvent,
+  patchSessionRotation,
+  ROTATION_MINUTE_PRESETS,
+  type RotationMinutes,
+} from "../api/sessions";
 import {
   buildPrimaryShareUrl,
+  formatCountdown,
   formatEventWindow,
+  rotationSecondsRemaining,
   sessionEndsAt,
+  sessionExperiencePhase,
   sessionKind,
   sessionStartsAt,
 } from "../api/sessionEvent";
@@ -120,8 +128,18 @@ export default function Enter({
 }: EnterProps) {
   const { user } = useAuth();
   const displayName = displayNameFromEmail(user?.email ?? "Learner");
-  const { session, messages, me, status, error, sendMessage, retry, players, applySession } =
-    useSessionRoom(sessionId, displayName);
+  const {
+    session,
+    messages,
+    me,
+    status,
+    error,
+    sendMessage,
+    retry,
+    players,
+    applySession,
+    setPlaylistBusy: setRoomPlaylistBusy,
+  } = useSessionRoom(sessionId, displayName);
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | "observer" | null>(null);
@@ -162,6 +180,19 @@ export default function Enter({
   const primaryShareUrl = sessionId
     ? buildPrimaryShareUrl(sessionId, kioskEnabled)
     : "";
+  const experiencePhase = sessionExperiencePhase(session);
+  const [rotationNow, setRotationNow] = useState(() => Date.now());
+  const rotationSecondsLeft = rotationSecondsRemaining(session, rotationNow);
+  const rotationRunning = experiencePhase === "playing" && rotationSecondsLeft !== null;
+  const rotationExpired = rotationRunning && rotationSecondsLeft === 0;
+
+  // Tick once a second while a host turn is counting down (session poll refreshes the end time).
+  useEffect(() => {
+    if (!isHost || !rotationRunning) return;
+    setRotationNow(Date.now());
+    const timer = window.setInterval(() => setRotationNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isHost, rotationRunning, session?.rotationEndsAt]);
 
   useEffect(() => {
     setAddInviteToAllowlist(visibility === "private");
@@ -208,6 +239,7 @@ export default function Enter({
   const onSetActiveModel = async (modelId: string) => {
     if (!sessionId || !isHost || playlistBusy) return;
     setPlaylistBusy(true);
+    setRoomPlaylistBusy(true);
     setPlaylistError(null);
     try {
       const updated = await patchSessionActiveModel(sessionId, modelId);
@@ -216,12 +248,14 @@ export default function Enter({
       setPlaylistError(err instanceof Error ? err.message : "Failed to set active manuscript");
     } finally {
       setPlaylistBusy(false);
+      setRoomPlaylistBusy(false);
     }
   };
 
   const onRemoveFromPlaylist = async (modelId: string) => {
     if (!sessionId || !isHost || playlistBusy) return;
     setPlaylistBusy(true);
+    setRoomPlaylistBusy(true);
     setPlaylistError(null);
     try {
       const updated = await patchSessionPlaylist(sessionId, { remove: modelId });
@@ -230,15 +264,19 @@ export default function Enter({
       setPlaylistError(err instanceof Error ? err.message : "Failed to remove manuscript");
     } finally {
       setPlaylistBusy(false);
+      setRoomPlaylistBusy(false);
     }
   };
 
-  const connectedCount = useMemo(
-    () => players.filter((p) => p.isConnected !== false).length || players.length,
+  /** Live roster: hide disconnected ghosts (stale hosts, closed Gallery tabs). */
+  const visiblePlayers = useMemo(
+    () => players.filter((p) => p && p.isConnected !== false),
     [players],
   );
 
-  const isLive = players.some((p) => p.isConnected);
+  const connectedCount = useMemo(() => visiblePlayers.length, [visiblePlayers]);
+
+  const isLive = visiblePlayers.some((p) => p.isConnected);
 
   const webGlUrl = useMemo(() => {
     if (!sessionId || !me) return null;
@@ -403,6 +441,38 @@ export default function Enter({
       );
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Kiosk update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const startTurn = async (minutes: RotationMinutes) => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const updated = await patchSessionRotation(sessionId, {
+        experiencePhase: "playing",
+        rotationMinutes: minutes,
+      });
+      applySession(updated as GameSession);
+      setRotationNow(Date.now());
+      setInviteStatus(`Turn started — ${minutes} min`);
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Could not start turn");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const resetTurn = async () => {
+    if (!sessionId || !isHost || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const updated = await patchSessionRotation(sessionId, { experiencePhase: "ended" });
+      applySession(updated as GameSession);
+      setInviteStatus("Turn reset — experience ended");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Could not reset turn");
     } finally {
       setHostBusy(false);
     }
@@ -717,10 +787,49 @@ export default function Enter({
           <summary className="vr-enter__host-ops-summary">
             <MaterialIcon name="admin_panel_settings" />
             Host tools
-            <span className="vr-enter__host-ops-hint">Visibility, kiosk, invites, manuscripts, participants</span>
+            <span className="vr-enter__host-ops-hint">Turn timer, visibility, kiosk, invites, manuscripts, participants</span>
           </summary>
 
           <div className="vr-enter__host-ops-toolbar">
+            <section className="vr-enter__turn-timer" aria-label="Turn timer">
+              <span className="vr-enter__turn-label">Turn timer</span>
+              {ROTATION_MINUTE_PRESETS.map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  className="vr-enter__text-btn"
+                  onClick={() => void startTurn(minutes)}
+                  disabled={hostBusy}
+                  title={`Start a ${minutes}-minute turn`}
+                >
+                  <MaterialIcon name="timer" />
+                  {minutes} min
+                </button>
+              ))}
+              <span
+                className={`vr-enter__turn-countdown${
+                  experiencePhase === "ended" || rotationExpired ? " vr-enter__turn-countdown--ended" : ""
+                }`}
+                role="timer"
+                aria-live="off"
+              >
+                {experiencePhase === "ended" || rotationExpired
+                  ? "Ended"
+                  : rotationRunning
+                    ? formatCountdown(rotationSecondsLeft)
+                    : "No timer"}
+              </span>
+              <button
+                type="button"
+                className="vr-btn vr-btn--primary vr-enter__turn-reset"
+                onClick={() => void resetTurn()}
+                disabled={hostBusy || experiencePhase === "ended"}
+                title="End the current turn and reset the experience"
+              >
+                <MaterialIcon name="restart_alt" />
+                Reset
+              </button>
+            </section>
             <button
               type="button"
               className="vr-enter__text-btn"
@@ -959,7 +1068,7 @@ export default function Enter({
               Participants
             </h2>
             <ul className="vr-enter__roster" aria-label="Participants">
-              {players.map((player) => {
+              {visiblePlayers.map((player) => {
                 const isMe = player.id === me?.playerId;
                 const canModerate = !player.isHost && !isMe;
                 return (
@@ -1047,7 +1156,7 @@ export default function Enter({
                   </div>
                 </div>
               </div>
-              {players.map((player, index) => (
+              {visiblePlayers.map((player, index) => (
                 <div
                   key={player.id}
                   className={`vr-enter__avatar${player.isHost ? " vr-enter__avatar--host" : ""}${

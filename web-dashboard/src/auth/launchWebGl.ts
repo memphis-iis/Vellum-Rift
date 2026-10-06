@@ -1,9 +1,14 @@
-import { TOKEN_STORAGE_KEY, EMAIL_STORAGE_KEY } from "../auth/config";
 import {
   mountWebGlAuthHandoff,
   AUTH_HANDOFF_READY,
   AUTH_HANDOFF_MESSAGE,
 } from "./mountWebGlAuthHandoff";
+import {
+  readBearerTokenForApi,
+  readHostEmail,
+  readHostToken,
+  readKioskToken,
+} from "./tokenStorage";
 
 export { AUTH_HANDOFF_READY, AUTH_HANDOFF_MESSAGE, mountWebGlAuthHandoff };
 
@@ -12,6 +17,12 @@ export function webGlOriginFromBaseUrl(baseUrl: string): string | null {
   const raw = baseUrl.trim();
   if (!raw) return null;
   try {
+    // Museum-kit relative path (/webgl/) shares the dashboard origin.
+    if (raw.startsWith("/")) {
+      if (typeof window !== "undefined" && window.location?.origin)
+        return window.location.origin;
+      return null;
+    }
     const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
     return url.origin;
   } catch {
@@ -20,21 +31,15 @@ export function webGlOriginFromBaseUrl(baseUrl: string): string | null {
 }
 
 export function readDashboardAccessToken(): string | null {
-  try {
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token || token === "local-dev") return null;
-    return token;
-  } catch {
-    return null;
-  }
+  const host = readHostToken();
+  if (host && host !== "local-dev") return host;
+  const kiosk = readKioskToken();
+  if (kiosk) return kiosk;
+  return readBearerTokenForApi();
 }
 
 export function readDashboardEmail(): string {
-  try {
-    return sessionStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
+  return readHostEmail();
 }
 
 /**

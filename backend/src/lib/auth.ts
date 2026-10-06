@@ -72,6 +72,88 @@ declare global {
 // Token introspection
 // ---------------------------------------------------------------------------
 
+type BluekeyIntrospectPayload = {
+  active?: boolean;
+  sub?: unknown;
+  email?: unknown;
+  exp?: unknown;
+  accountId?: unknown;
+  claims?: Record<string, unknown> | null;
+  user?: Record<string, unknown> | null;
+  data?: Record<string, unknown> | null;
+};
+
+function firstNonEmptyString(...candidates: unknown[]): string {
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+    if (typeof c === "number" && Number.isFinite(c)) return String(c);
+  }
+  return "";
+}
+
+/**
+ * Bluekey may put identity on the top level, under `claims`, or under nested
+ * wrappers. Undertaker already reads `claims.email` — match that here so host
+ * ACL (creator email/sub) does not silently see empty identity.
+ */
+function identityFromIntrospect(data: BluekeyIntrospectPayload): {
+  sub: string;
+  email: string;
+  exp: number;
+} {
+  const claims = data.claims && typeof data.claims === "object" ? data.claims : null;
+  const nestedUser = data.user && typeof data.user === "object" ? data.user : null;
+  const nestedData = data.data && typeof data.data === "object" ? data.data : null;
+
+  const sub = firstNonEmptyString(
+    data.sub,
+    data.accountId,
+    claims?.sub,
+    claims?.accountId,
+    nestedUser?.sub,
+    nestedData?.sub,
+  );
+  const email = firstNonEmptyString(
+    data.email,
+    claims?.email,
+    nestedUser?.email,
+    nestedData?.email,
+    claims?.preferred_username,
+    claims?.upn,
+  );
+  const expRaw = data.exp ?? claims?.exp ?? nestedData?.exp;
+  const exp =
+    typeof expRaw === "number" && Number.isFinite(expRaw)
+      ? expRaw
+      : typeof expRaw === "string" && /^\d+$/.test(expRaw)
+        ? Number(expRaw)
+        : Math.floor(Date.now() / 1000) + 3600;
+
+  return { sub, email, exp };
+}
+
+/** Best-effort decode of JWT payload claims when introspect omits identity. */
+function identityFromJwtPayload(token: string): { sub: string; email: string } {
+  const parts = token.split(".");
+  if (parts.length < 2) return { sub: "", email: "" };
+  try {
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+    const json = Buffer.from(b64 + pad, "base64").toString("utf8");
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    return {
+      sub: firstNonEmptyString(payload.sub, payload.accountId),
+      email: firstNonEmptyString(
+        payload.email,
+        payload.preferred_username,
+        payload.upn,
+      ),
+    };
+  } catch {
+    return { sub: "", email: "" };
+  }
+}
+
 /**
  * Call the Bluekey introspection endpoint to verify a token.
  */
@@ -85,16 +167,20 @@ async function introspectToken(token: string): Promise<AuthenticatedUser | null>
 
     if (!response.ok) return null;
 
-    const data = await response.json() as {
-      active: boolean;
-      sub: string;
-      email: string;
-      exp: number;
-    };
-
+    const data = (await response.json()) as BluekeyIntrospectPayload;
     if (!data.active) return null;
 
-    return { sub: data.sub, email: data.email, exp: data.exp };
+    let { sub, email, exp } = identityFromIntrospect(data);
+    if (!sub || !email) {
+      const fromJwt = identityFromJwtPayload(token);
+      if (!sub) sub = fromJwt.sub;
+      if (!email) email = fromJwt.email;
+    }
+
+    // Active-but-anonymous tokens must not pass host ACL as empty identity.
+    if (!sub && !email) return null;
+
+    return { sub: sub || `email:${email.toLowerCase()}`, email, exp };
   } catch {
     return null;
   }

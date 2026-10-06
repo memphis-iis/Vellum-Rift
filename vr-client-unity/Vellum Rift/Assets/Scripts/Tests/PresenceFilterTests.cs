@@ -51,14 +51,28 @@ namespace VellumRift.Tests
         }
 
         [Test]
-        public void Shows_RecentGuest()
+        public void Shows_RecentGuest_ByLastSeen()
         {
-            string recent = DateTime.UtcNow.AddMinutes(-1).ToString("o");
+            string oldJoin = DateTime.UtcNow.AddMinutes(-30).ToString("o");
+            string recentSeen = DateTime.UtcNow.AddSeconds(-30).ToString("o");
             Assert.That(
                 PresenceFilter.ShouldShowRemote(
                     "g1", isConnected: true,
-                    joinedAt: recent, localPlayerId: "me"),
+                    joinedAt: oldJoin, localPlayerId: "me", lastSeenAt: recentSeen),
                 Is.True);
+        }
+
+        [Test]
+        public void Hides_GalleryScreen_ByName()
+        {
+            var player = new PlayerState("g", SpectatorMode.DisplayName)
+            {
+                isConnected = true,
+                joinedAt = DateTime.UtcNow.ToString("o"),
+            };
+            Assert.That(
+                PresenceFilter.ShouldShowRemote(player, "me", hostId: "h"),
+                Is.False);
         }
 
         [Test]

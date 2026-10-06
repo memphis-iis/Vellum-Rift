@@ -5,38 +5,42 @@ namespace VellumRift
 {
     /// <summary>
     /// Who to show as a remote presence avatar / indicator.
-    /// Museum Demo accumulates guests that never clear <c>isConnected</c>, so
-    /// join age guards against a field of ghosts.
+    /// Prefer <c>lastSeenAt</c> (position heartbeats) over join age so long-lived
+    /// museum hosts stay visible while idle ghosts still drop.
     /// </summary>
     public static class PresenceFilter
     {
         /// <summary>Hide remotes idle longer than this (matches backend guest prune).</summary>
-        public const double MaxJoinAgeMinutes = 3.0;
+        public const double MaxIdleMinutes = 3.0;
+
+        /// <summary>Backward-compatible alias.</summary>
+        public const double MaxJoinAgeMinutes = MaxIdleMinutes;
 
         public static bool ShouldShowRemote(
             string playerId,
             bool isConnected,
             string joinedAt,
-            string localPlayerId)
+            string localPlayerId,
+            string lastSeenAt = null)
         {
             if (string.IsNullOrEmpty(playerId) || playerId == localPlayerId)
                 return false;
             if (!isConnected)
                 return false;
 
-            // Offline hosts must not linger as nameplates / laser targets.
-            if (string.IsNullOrEmpty(joinedAt))
+            string stamp = !string.IsNullOrEmpty(lastSeenAt) ? lastSeenAt : joinedAt;
+            if (string.IsNullOrEmpty(stamp))
                 return false;
 
             if (!DateTime.TryParse(
-                    joinedAt,
+                    stamp,
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.RoundtripKind,
-                    out DateTime joined))
+                    out DateTime seen))
                 return false;
 
-            double ageMinutes = (DateTime.UtcNow - joined.ToUniversalTime()).TotalMinutes;
-            return ageMinutes >= 0 && ageMinutes <= MaxJoinAgeMinutes;
+            double ageMinutes = (DateTime.UtcNow - seen.ToUniversalTime()).TotalMinutes;
+            return ageMinutes >= 0 && ageMinutes <= MaxIdleMinutes;
         }
 
         public static bool ShouldShowRemote(PlayerState player, string localPlayerId, string hostId)
@@ -44,14 +48,17 @@ namespace VellumRift
             if (player == null)
                 return false;
             _ = hostId;
-            // Museum wall spectator must not appear as a pill in other clients.
+            // Museum wall spectator must not appear as a pill / avatar in other clients.
             if (string.Equals(player.displayName, SpectatorMode.DisplayName, StringComparison.Ordinal))
+                return false;
+            if (SpectatorMode.LooksLikeSpectatorName(player.displayName))
                 return false;
             return ShouldShowRemote(
                 player.id,
                 player.isConnected,
                 player.joinedAt,
-                localPlayerId);
+                localPlayerId,
+                player.lastSeenAt);
         }
     }
 }

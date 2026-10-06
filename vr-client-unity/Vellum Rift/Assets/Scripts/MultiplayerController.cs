@@ -26,10 +26,10 @@ namespace VellumRift
 
         [Header("Synchronization Settings")]
         [Tooltip("Position interpolation speed (higher = snappier, lower = smoother)")]
-        [SerializeField] private float positionLerpSpeed = 10f;
+        [SerializeField] private float positionLerpSpeed = 18f;
 
         [Tooltip("Rotation interpolation speed")]
-        [SerializeField] private float rotationLerpSpeed = 10f;
+        [SerializeField] private float rotationLerpSpeed = 18f;
 
         [Tooltip("Position threshold before snapping (avoids micro-adjustments)")]
         [SerializeField] private float positionSnapThreshold = 0.01f;
@@ -37,15 +37,23 @@ namespace VellumRift
         [Tooltip("Rotation threshold before snapping (in degrees)")]
         [SerializeField] private float rotationSnapThreshold = 1f;
 
+        [Tooltip("Snap immediately when a remote jumps farther than this (teleport / first spawn)")]
+        [SerializeField] private float teleportSnapDistance = 4f;
+
         [Header("Local Player Settings")]
         [Tooltip("How often to send local player position to server (seconds)")]
-        [SerializeField] private float sendPositionInterval = 0.1f;
+        [SerializeField] private float sendPositionInterval = 0.05f;
 
         [Header("Runtime State")]
         private string sessionId;
         private string localPlayerId;
         private float lastSendTime = 0f;
-        
+
+        // Server samples arrive on the poll tick; we keep lerping toward these
+        // every frame so remotes don't hitch between polls.
+        private readonly Dictionary<string, Vector3> targetPositions = new Dictionary<string, Vector3>();
+        private readonly Dictionary<string, Quaternion> targetRotations = new Dictionary<string, Quaternion>();
+
 
         // ---------------------------------------------------------------
         // Unity Lifecycle
@@ -53,26 +61,17 @@ namespace VellumRift
 
         private void Start()
         {
-            // TODO: Subscribe to GameStatePoller events
-            // 1. Listen for OnGameStateReceived to update positions
-            // 2. Listen for OnPlayerJoined to spawn new players
-            // 3. Listen for OnPlayerLeft to remove players
-            if (gameStatePoller != null)
-{
-    gameStatePoller.OnGameStateReceived += HandleGameStateReceived;
-    gameStatePoller.OnPlayerJoined += HandlePlayerJoined;
-    gameStatePoller.OnPlayerLeft += HandlePlayerLeft;
-}
-            
+            // Events are wired once in Initialize() — do not subscribe here or
+            // HandleGameStateReceived runs twice per poll (double remote lerp).
         }
 
         private void Update()
         {
-            // TODO: Send local player position to server periodically
-            // 1. Check if we have a local player
-            // 2. Check if enough time has passed since last send
-            // 3. Get local player's current position/rotation
-            // 4. Send to server via API client
+            InterpolateRemotePlayers();
+
+            // Wall observer must not publish a wandering avatar (#observer icon on Quest).
+            if (SpectatorMode.IsActive)
+                return;
 
             if (string.IsNullOrEmpty(localPlayerId) || apiClient == null)
                 return;
@@ -86,13 +85,7 @@ namespace VellumRift
 
         private void OnDestroy()
         {
-            // TODO: Unsubscribe from events
-            if (gameStatePoller != null)
-            {
-                gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
-                gameStatePoller.OnPlayerJoined -= HandlePlayerJoined;
-                gameStatePoller.OnPlayerLeft -= HandlePlayerLeft;
-            }
+            UnsubscribePoller();
         }
 
         // ---------------------------------------------------------------
@@ -106,17 +99,10 @@ namespace VellumRift
         /// <param name="localPlayerId">The local player's ID</param>
         public void Initialize(string sessionId, string localPlayerId)
         {
-            // TODO: Implement initialization
-            // 1. Store session and player IDs
-            // 2. Subscribe to poller events
-            // 3. Set up references if not already set
-
             this.sessionId = sessionId;
             this.localPlayerId = localPlayerId;
 
-        
-
-            // Subscribe to events
+            UnsubscribePoller();
             if (gameStatePoller != null)
             {
                 gameStatePoller.OnGameStateReceived += HandleGameStateReceived;
@@ -125,6 +111,15 @@ namespace VellumRift
             }
 
             Debug.Log($"[MultiplayerController] Initialized for session {sessionId}, player {localPlayerId}");
+        }
+
+        private void UnsubscribePoller()
+        {
+            if (gameStatePoller == null)
+                return;
+            gameStatePoller.OnGameStateReceived -= HandleGameStateReceived;
+            gameStatePoller.OnPlayerJoined -= HandlePlayerJoined;
+            gameStatePoller.OnPlayerLeft -= HandlePlayerLeft;
         }
 
         /// <summary>
@@ -201,6 +196,7 @@ namespace VellumRift
 
                 if (!PresenceFilter.ShouldShowRemote(player, localPlayerId, state.hostId))
                 {
+                    ClearRemoteTarget(player.id);
                     if (playerSpawner.IsPlayerSpawned(player.id))
                         playerSpawner.RemovePlayer(player.id);
                     continue;
@@ -211,10 +207,7 @@ namespace VellumRift
 
                 UpdateSinglePlayer(player);
             }
-                
-            }
-           
-        
+        }
 
         /// <summary>
         /// Update a single player's transform to match server state.
@@ -222,38 +215,66 @@ namespace VellumRift
         /// <param name="player">The player state from the server</param>
         public void UpdateSinglePlayer(PlayerState player)
         {
-            // TODO: Implement single player update
-            // 1. Get the player's GameObject from spawner
-            // 2. If not found, skip (spawner should handle creation)
-            // 3. Get the target position/rotation from player state
-            // 4. Smoothly interpolate the transform
-
             if (playerSpawner == null || player == null)
                 return;
 
-            GameObject playerObj = playerSpawner.GetPlayerObject(player.id); //get Unity object for that player
+            GameObject playerObj = playerSpawner.GetPlayerObject(player.id);
             if (playerObj == null)
             {
                 Debug.LogWarning($"[MultiplayerController] No GameObject found for player {player.id}");
                 return;
             }
 
-            // Convert server position to Unity Vector3
             Vector3 targetPosition = new Vector3(
                 player.position.x,
                 player.position.y,
                 player.position.z
             );
 
-            // Convert server rotation to Unity Quaternion (Euler angles)
             Quaternion targetRotation = Quaternion.Euler(
                 player.rotation.x,
                 player.rotation.y,
                 player.rotation.z
             );
 
-            // Smoothly interpolate position and rotation
-            SmoothPosition(playerObj.transform, targetPosition, targetRotation);
+            float distance = Vector3.Distance(playerObj.transform.position, targetPosition);
+            bool firstSample = !targetPositions.ContainsKey(player.id);
+            // Snap tiny deltas (tests + idle) and large teleports; otherwise keep
+            // lerping toward the new sample every frame in Update.
+            if (firstSample || distance < positionSnapThreshold || distance > teleportSnapDistance)
+            {
+                playerObj.transform.position = targetPosition;
+                playerObj.transform.rotation = targetRotation;
+            }
+
+            targetPositions[player.id] = targetPosition;
+            targetRotations[player.id] = targetRotation;
+        }
+
+        private void InterpolateRemotePlayers()
+        {
+            if (playerSpawner == null || targetPositions.Count == 0)
+                return;
+
+            foreach (var kvp in targetPositions)
+            {
+                GameObject playerObj = playerSpawner.GetPlayerObject(kvp.Key);
+                if (playerObj == null)
+                    continue;
+
+                Quaternion targetRot = targetRotations.TryGetValue(kvp.Key, out Quaternion rot)
+                    ? rot
+                    : playerObj.transform.rotation;
+                SmoothPosition(playerObj.transform, kvp.Value, targetRot);
+            }
+        }
+
+        private void ClearRemoteTarget(string playerId)
+        {
+            if (string.IsNullOrEmpty(playerId))
+                return;
+            targetPositions.Remove(playerId);
+            targetRotations.Remove(playerId);
         }
 
         // ---------------------------------------------------------------
@@ -330,21 +351,28 @@ namespace VellumRift
             }
         
 
-            GameObject localPlayerObj = playerSpawner.GetPlayerObject(localPlayerId);
-            if (localPlayerObj == null)
+            // Prefer locomotion body (PlayerController) over Camera.main: HMD eye
+            // height jitters every frame and makes remote avatars / shared pose bob.
+            Transform body = null;
+            var localController = FindFirstObjectByType<VellumRift.Control.PlayerController>();
+            if (localController != null)
+                body = localController.transform;
+            if (body == null)
+            {
+                GameObject localPlayerObj = playerSpawner.GetPlayerObject(localPlayerId);
+                body = localPlayerObj != null ? localPlayerObj.transform : null;
+            }
+            if (body == null && Camera.main != null)
+                body = Camera.main.transform;
+            if (body == null)
                 return;
 
-            Vector3Data position = new Vector3Data(
-                localPlayerObj.transform.position.x,
-                localPlayerObj.transform.position.y,
-                localPlayerObj.transform.position.z
-            );
+            // Horizontal from body; Y from body (floor-anchored locomotion), not eye height.
+            Vector3 pos = body.position;
+            Vector3Data position = new Vector3Data(pos.x, pos.y, pos.z);
 
-            Vector3Data rotation = new Vector3Data(
-                localPlayerObj.transform.eulerAngles.x,
-                localPlayerObj.transform.eulerAngles.y,
-                localPlayerObj.transform.eulerAngles.z
-            );
+            Vector3 euler = body.eulerAngles;
+            Vector3Data rotation = new Vector3Data(0f, euler.y, 0f);
 
             try
             {
@@ -396,6 +424,7 @@ namespace VellumRift
             if (playerId == localPlayerId)
                 return;
 
+            ClearRemoteTarget(playerId);
             if (playerSpawner != null)
             {
                 playerSpawner.RemovePlayer(playerId);

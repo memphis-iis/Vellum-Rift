@@ -592,7 +592,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f9f217f05abf8a459db4321e067f6c2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VellumRift::VellumRift.Control.PlayerController
-  moveSpeed: 20
+  moveSpeed: 3.5
   yawSpeed: 90
   lookSensitivity: 0.2
 --- !u!1 &1500439037

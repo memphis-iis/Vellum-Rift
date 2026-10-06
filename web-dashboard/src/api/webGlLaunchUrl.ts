@@ -19,7 +19,10 @@ export function buildWebGlLaunchUrl(options: {
   if (!raw) return null;
 
   const withSlash = raw.endsWith("/") ? raw : `${raw}/`;
-  const url = new URL(withSlash.includes("://") ? withSlash : `https://${withSlash}`);
+  // Relative kit path (/webgl/) or absolute URL; avoid forcing https:// on paths.
+  const url = withSlash.startsWith("/")
+    ? new URL(withSlash, typeof window !== "undefined" ? window.location.origin : "http://localhost")
+    : new URL(withSlash.includes("://") ? withSlash : `https://${withSlash}`);
   // Ensure pathname ends with `/` even if env was host-only.
   if (!url.pathname.endsWith("/")) {
     url.pathname = `${url.pathname}/`;

@@ -143,13 +143,10 @@ public class BackendHealthChecker : MonoBehaviour
         if (string.IsNullOrEmpty(url))
             return;
 
-        if (isRunning)
-        {
-            Debug.LogWarning($"[BackendHealthChecker] SetHealthCheckUrl ignored — health check already started (using {resolvedUrl})");
-            return;
-        }
-
         healthCheckUrl = url.Trim();
+        externalUrlPinned = true;
+        if (isRunning)
+            resolvedUrl = healthCheckUrl;
     }
 
     /// <summary>
@@ -173,7 +170,7 @@ public class BackendHealthChecker : MonoBehaviour
 
     private void Awake()
     {
-        if (!WebGlShellMode.UsesExternalShell)
+        if (!WebGlShellMode.UsesExternalShell && !SpectatorMode.IsActive)
             BuildStatusUI();
     }
 
@@ -194,8 +191,28 @@ public class BackendHealthChecker : MonoBehaviour
             statusText.text = statusBaseLabel;
     }
 
+    private bool externalUrlPinned;
+
     private void Start()
     {
+        // Wait briefly for SessionManager / LAN discovery to pin the real URL
+        // so we do not lock onto the Inspector localhost default.
+        StartCoroutine(StartWhenReady());
+    }
+
+    private System.Collections.IEnumerator StartWhenReady()
+    {
+        float deadline = Time.realtimeSinceStartup + 4f;
+        while (!externalUrlPinned && Time.realtimeSinceStartup < deadline)
+        {
+            if (!string.IsNullOrEmpty(BackendLanDiscovery.CachedApiBase))
+            {
+                healthCheckUrl = BackendLanDiscovery.CachedApiBase.TrimEnd('/') + "/api/health";
+                break;
+            }
+            yield return null;
+        }
+
         resolvedUrl = ResolveBackendUrl();
         Debug.Log($"[BackendHealthChecker] Using backend URL: {resolvedUrl}");
 
@@ -207,7 +224,7 @@ public class BackendHealthChecker : MonoBehaviour
                 "The health check will report Disconnected until this is fixed.");
             lastMessage = "Disconnected: malformed backend URL (missing scheme?)";
             SetStatus(ConnectionStatus.Disconnected);
-            return;
+            yield break;
         }
 
         if (parsedUri.Scheme == Uri.UriSchemeHttp && BackendUrlResolver.IsRemoteHost(parsedUri))

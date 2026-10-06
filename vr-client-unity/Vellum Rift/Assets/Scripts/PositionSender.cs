@@ -21,7 +21,7 @@ namespace VellumRift
         public string authToken = "";
 
         [Header("Timing")]
-        [SerializeField] private float sendInterval = 1f / 10f;
+        [SerializeField] private float sendInterval = 1f / 20f;
 
         [Header("Runtime State")]
         [SerializeField] private string sessionId;
@@ -65,7 +65,11 @@ namespace VellumRift
         {
             Vector3 pos = trackedTransform.position;
             Vector3 rot = trackedTransform.eulerAngles;
-            string json = $"{{\"playerId\": \"{playerId}\", \"position\": {{\"x\": {pos.x:F4}, \"y\": {pos.y:F4}, \"z\": {pos.z:F4}}}}}";
+            // Avoid `$"{v:F4}"` inside `{{`/`}}` strings — WebGL can emit literal "F4"
+            // or "-Infinity", which the API rejects (avatars/lasers never move).
+            string json =
+                "{\"playerId\":\"" + playerId + "\",\"position\":" +
+                JsonNumbers.Vec3Object(pos.x, pos.y, pos.z) + "}";
             string url = $"{baseUrl}/api/game-state/{sessionId}/position";
 
             using (var req = new UnityWebRequest(url, "PATCH"))
@@ -79,7 +83,9 @@ namespace VellumRift
             }
 
             // Also send rotation
-            string rotJson = $"{{\"playerId\": \"{playerId}\", \"rotation\": {{\"x\": {rot.x:F4}, \"y\": {rot.y:F4}, \"z\": {rot.z:F4}}}}}";
+            string rotJson =
+                "{\"playerId\":\"" + playerId + "\",\"rotation\":" +
+                JsonNumbers.Vec3Object(rot.x, rot.y, rot.z) + "}";
             string rotUrl = $"{baseUrl}/api/game-state/{sessionId}/rotation";
             using (var req2 = new UnityWebRequest(rotUrl, "PATCH"))
             {

@@ -35,6 +35,8 @@ namespace VellumRift
         public bool isHost;
         public bool isConnected;
         public string joinedAt;
+        /// <summary>ISO last activity from position/laser heartbeats (preferred for presence).</summary>
+        public string lastSeenAt;
 
         public PlayerState(string id, string displayName)
         {
@@ -68,6 +70,12 @@ namespace VellumRift
 
         /// <summary>Ordered manuscript playlist model ids (#141).</summary>
         public string[] playlist;
+
+        /// <summary>Host rotation timer phase: "playing" or "ended" (empty when unset).</summary>
+        public string experiencePhase;
+
+        /// <summary>ISO-8601 UTC time the current rotation ends (empty when unset).</summary>
+        public string rotationEndsAt;
 
         // ---------------------------------------------------------------
         // Constructor

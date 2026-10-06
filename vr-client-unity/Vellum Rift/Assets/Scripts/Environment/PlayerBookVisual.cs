@@ -20,8 +20,8 @@ namespace VellumRift.Environment
         public const float MinVisibleDistance = 0.75f;
 
         [Header("Animation")]
-        [Tooltip("Hover bob amplitude (world units).")]
-        public float bobAmplitude = 0.06f;
+        [Tooltip("Hover bob amplitude (world units). Keep 0 — bob + pose lerp reads as jarring on Quest.")]
+        public float bobAmplitude = 0f;
 
         [Tooltip("Hover bob speed (radians/second).")]
         public float bobSpeed = 2f;

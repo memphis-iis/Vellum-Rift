@@ -43,7 +43,7 @@ namespace VellumRift
 
         private void Awake()
         {
-            if (WebGlShellMode.UsesExternalShell)
+            if (WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive)
             {
                 enabled = false;
                 return;
@@ -67,8 +67,9 @@ namespace VellumRift
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             canvasGO.AddComponent<GraphicRaycaster>();
 
-            const float width = 168f;
-            const float height = 40f;
+            // Quest laser target: never smaller than the theme minimum (#316).
+            float width = Mathf.Max(168f, VrTheme.MinHitWidthPx);
+            float height = Mathf.Max(40f, VrTheme.MinHitHeightPx);
             var hud = canvasGO.AddComponent<XrHudFollow>();
             hud.slot = XrHudSlot.LowerRight;
             hud.widthPx = width;

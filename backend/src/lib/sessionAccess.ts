@@ -19,7 +19,11 @@ export function isSessionCreator(
   state: GameState,
 ): boolean {
   if (!user || isKioskGuest(user)) return false;
-  if (state.createdBySub && user.sub && state.createdBySub === user.sub) {
+  if (
+    state.createdBySub &&
+    user.sub &&
+    String(state.createdBySub) === String(user.sub)
+  ) {
     return true;
   }
   const email = normalizeEmail(user.email);
@@ -42,7 +46,11 @@ export function isSessionHost(
   if (!user) return false;
   const hostPlayer = state.players.find((p) => p.id === state.hostId);
   if (!hostPlayer) return false;
-  if (hostPlayer.bluekeySub && user.sub && hostPlayer.bluekeySub === user.sub) {
+  if (
+    hostPlayer.bluekeySub &&
+    user.sub &&
+    String(hostPlayer.bluekeySub) === String(user.sub)
+  ) {
     return true;
   }
   const email = normalizeEmail(user.email);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
 #if ENABLE_INPUT_SYSTEM
@@ -8,14 +9,25 @@ using UnityEngine.InputSystem.XR;
 namespace VellumRift.Control
 {
     /// <summary>
-    /// Belt-and-suspenders XR pose: InputDevices node pose every frame.
-    /// Works even when Input System TrackedPoseDriver bindings are quiet.
+    /// Writes an XR node pose onto this transform once per frame, just before
+    /// render. Update-time writes land a frame late and Quest timewarp then
+    /// drags the image after the head.
     /// </summary>
     public sealed class XrNodePoseFollower : MonoBehaviour
     {
         public XRNode node = XRNode.CenterEye;
 
-        private void Update()
+        private void OnEnable()
+        {
+            Application.onBeforeRender += ApplyPose;
+        }
+
+        private void OnDisable()
+        {
+            Application.onBeforeRender -= ApplyPose;
+        }
+
+        private void ApplyPose()
         {
             var device = InputDevices.GetDeviceAtXRNode(node);
             if (!device.isValid)
@@ -25,6 +37,115 @@ namespace VellumRift.Control
                 transform.localPosition = pos;
             if (device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion rot))
                 transform.localRotation = rot;
+        }
+    }
+
+    /// <summary>
+    /// Applies the OpenXR head pose to the HMD camera immediately before render.
+    /// InputDevices.GetDeviceAtXRNode stays invalid on this Quest build, and
+    /// automatic XR camera tracking does not update a parented camera, so the
+    /// view stayed glued to the face and timewarp smeared it.
+    /// </summary>
+    public sealed class XrHeadPose : MonoBehaviour
+    {
+        private static bool _originSet;
+        private bool _logged;
+        private float _nextVerify;
+        private int _verifyTicks;
+        private Quaternion _lastVerifyRot;
+
+        private void OnEnable()
+        {
+            Application.onBeforeRender += ApplyPose;
+        }
+
+        private void OnDisable()
+        {
+            Application.onBeforeRender -= ApplyPose;
+        }
+
+        private void ApplyPose()
+        {
+            EnsureFloorOrigin();
+
+#if ENABLE_INPUT_SYSTEM
+            var hmd = InputSystem.GetDevice<XRHMD>();
+            if (hmd != null && hmd.added)
+            {
+                Quaternion rot = hmd.centerEyeRotation.ReadValue();
+                Vector3 pos = hmd.centerEyePosition.ReadValue();
+                Apply(rot, pos, "XRHMD");
+                return;
+            }
+#endif
+            UnityEngine.XR.InputDevice device = InputDevices.GetDeviceAtXRNode(XRNode.CenterEye);
+            if (!device.isValid)
+                device = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+            if (device.isValid
+                && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion deviceRot))
+            {
+                Vector3 devicePos = Vector3.zero;
+                device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out devicePos);
+                Apply(deviceRot, devicePos, device.name);
+                return;
+            }
+
+            if (!_logged)
+            {
+                _logged = true;
+                Debug.LogWarning("[XrHeadPose] No HMD pose yet; leaving XR camera tracking on");
+            }
+        }
+
+        private void Apply(Quaternion rot, Vector3 pos, string source)
+        {
+            var cam = GetComponent<Camera>();
+            if (cam != null)
+            {
+#pragma warning disable CS0618
+                XRDevice.DisableAutoXRCameraTracking(cam, true);
+#pragma warning restore CS0618
+            }
+
+            transform.localRotation = rot;
+            transform.localPosition = pos;
+            if (!_logged)
+            {
+                _logged = true;
+                _lastVerifyRot = rot;
+                Debug.Log("[XrHeadPose] " + source + " euler=" + rot.eulerAngles + " pos=" + pos);
+            }
+
+            if (_verifyTicks >= 8 || Time.unscaledTime < _nextVerify)
+                return;
+            _nextVerify = Time.unscaledTime + 2f;
+            _verifyTicks++;
+            float yawDelta = Quaternion.Angle(_lastVerifyRot, rot);
+            _lastVerifyRot = rot;
+            string parent = transform.parent != null ? transform.parent.name : "none";
+            Debug.Log(
+                "[QuestVerify] head source=" + source
+                + " deviceEuler=" + rot.eulerAngles
+                + " worldEuler=" + transform.eulerAngles
+                + " parent=" + parent
+                + " yawDelta=" + yawDelta.ToString("F1")
+                + " frameMs=" + (Time.unscaledDeltaTime * 1000f).ToString("F1"));
+        }
+
+        private static void EnsureFloorOrigin()
+        {
+            if (_originSet)
+                return;
+            var list = new List<XRInputSubsystem>();
+            SubsystemManager.GetSubsystems(list);
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (!list[i].TrySetTrackingOriginMode(TrackingOriginModeFlags.Floor))
+                    continue;
+                _originSet = true;
+                Debug.Log("[XrHeadPose] Tracking origin Floor");
+                return;
+            }
         }
     }
 
@@ -75,6 +196,8 @@ namespace VellumRift.Control
             EnsureCameraUnderOffset(offset);
             EnsureController(offset, LeftName, XRNode.LeftHand, isRight: false);
             EnsureController(offset, RightName, XRNode.RightHand, isRight: true);
+            if (origin.GetComponent<XrHandRig>() == null)
+                origin.gameObject.AddComponent<XrHandRig>();
             return origin;
         }
 
@@ -171,6 +294,27 @@ namespace VellumRift.Control
 
         private static void EnsureNodeFollower(GameObject go, XRNode node)
         {
+            // Native auto-tracking does not move a camera parented under the
+            // player, and InputDevices.GetDeviceAtXRNode stays invalid on this
+            // OpenXR build. XrHeadPose reads InputTracking node state instead.
+            if (node == XRNode.CenterEye)
+            {
+                EnsureHeadPose(go);
+                return;
+            }
+
+            // TrackedPoseDriver + InputDevices follower both write localPose every
+            // frame from slightly different samples → controller stutter.
+            // Prefer TPD when present; only keep the InputDevices fallback otherwise.
+#if ENABLE_INPUT_SYSTEM
+            if (go.GetComponent<TrackedPoseDriver>() != null && go.GetComponent<TrackedPoseDriver>().enabled)
+            {
+                var existing = go.GetComponent<XrNodePoseFollower>();
+                if (existing != null)
+                    Object.Destroy(existing);
+                return;
+            }
+#endif
             var follower = go.GetComponent<XrNodePoseFollower>();
             if (follower == null)
                 follower = go.AddComponent<XrNodePoseFollower>();
@@ -179,6 +323,11 @@ namespace VellumRift.Control
 
         private static void EnsureTrackedPose(GameObject go, XRNode node)
         {
+            if (node == XRNode.CenterEye)
+            {
+                EnsureHeadPose(go);
+                return;
+            }
 #if ENABLE_INPUT_SYSTEM
             var driver = go.GetComponent<TrackedPoseDriver>();
             if (driver == null)
@@ -216,6 +365,26 @@ namespace VellumRift.Control
                 driver.rotationInput = new InputActionProperty(rot);
             }
 #endif
+        }
+
+        /// <summary>
+        /// One writer for the HMD. Unity's automatic XR camera tracking does not
+        /// move a camera parented under the player, and TrackedPoseDriver turns
+        /// that tracking off in Awake. Destroying the driver re-enables it from
+        /// OnDestroy, so XrHeadPose keeps it off and writes the node pose itself.
+        /// </summary>
+        private static void EnsureHeadPose(GameObject go)
+        {
+            var follower = go.GetComponent<XrNodePoseFollower>();
+            if (follower != null)
+                Object.Destroy(follower);
+#if ENABLE_INPUT_SYSTEM
+            var driver = go.GetComponent<TrackedPoseDriver>();
+            if (driver != null)
+                Object.Destroy(driver);
+#endif
+            if (go.GetComponent<XrHeadPose>() == null)
+                go.AddComponent<XrHeadPose>();
         }
 
         public static Transform FindRightLaserAim()

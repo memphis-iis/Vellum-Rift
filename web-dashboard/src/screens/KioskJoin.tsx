@@ -2,7 +2,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { addPlayer, getSession } from "../api/gameState";
 import { fetchKioskStatus, mintKioskToken } from "../api/kiosk";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
-import { TOKEN_STORAGE_KEY, VELLUM_LOGO_URL } from "../auth/config";
+import { VELLUM_LOGO_URL } from "../auth/config";
+import {
+  clearKioskToken,
+  writeKioskToken,
+} from "../auth/tokenStorage";
 import {
   launchWebGlWithAuthHandoff,
   webGlOriginFromBaseUrl,
@@ -52,7 +56,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
 
         const minted = await mintKioskToken(sessionId);
         if (cancelled) return;
-        sessionStorage.setItem(TOKEN_STORAGE_KEY, minted.accessToken);
+        writeKioskToken(minted.accessToken);
         setAccessToken(minted.accessToken);
         setPhase("ready");
       } catch (err) {
@@ -164,7 +168,11 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
               Ask staff to turn <strong>Kiosk on</strong> for this Space and share the QR or kiosk
               link. Guests do not use Bluekey.
             </p>
-            <a className="vr-btn vr-btn--ghost" href={import.meta.env.BASE_URL || "/"}>
+            <a
+              className="vr-btn vr-btn--ghost"
+              href={import.meta.env.BASE_URL || "/"}
+              onClick={() => clearKioskToken()}
+            >
               Back to sign-in
             </a>
           </div>

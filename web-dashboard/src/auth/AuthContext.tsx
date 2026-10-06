@@ -13,9 +13,15 @@ import {
   BLUEKEY_ORIGIN,
   BLUEKEY_PORTAL_URL,
   BLUEKEY_SOFTWARE_ID,
-  EMAIL_STORAGE_KEY,
-  TOKEN_STORAGE_KEY,
 } from "./config";
+import {
+  AUTH_EXPIRED_EVENT,
+  clearHostSession,
+  consumeAuthExpiredMessage,
+  readHostEmail,
+  readHostToken,
+  writeHostSession,
+} from "./tokenStorage";
 
 export type AuthUser = {
   email: string;
@@ -23,6 +29,8 @@ export type AuthUser = {
   accessToken: string | null;
   /** Local-dev bypass without Bluekey */
   isLocalDev: boolean;
+  /** Bluekey JWT `sub` when decodeable from the access token */
+  sub?: string | null;
 };
 
 type AuthContextValue = {
@@ -47,40 +55,49 @@ const ACCEPTED_MESSAGE_TYPES = new Set([
   "auth-success",
 ]);
 
-function readStoredUser(): AuthUser | null {
+/** Best-effort JWT payload decode (no signature verify — UI identity only). */
+function subFromAccessToken(token: string | null | undefined): string | null {
+  if (!token || token === "local-dev") return null;
   try {
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    const email = sessionStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
-    if (token === "local-dev") {
-      return { email: email || "dev@memphis.edu", accessToken: null, isLocalDev: true };
-    }
-    if (token) {
-      return { email, accessToken: token, isLocalDev: false };
-    }
+    const parts = token.split(".");
+    const payloadB64 = parts[1];
+    if (!payloadB64) return null;
+    const json = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { sub?: unknown };
+    return typeof payload.sub === "string" && payload.sub ? payload.sub : null;
   } catch {
-    /* ignore */
+    return null;
+  }
+}
+
+function readStoredUser(): AuthUser | null {
+  const token = readHostToken();
+  const email = readHostEmail();
+  if (token === "local-dev") {
+    return { email: email || "dev@memphis.edu", accessToken: null, isLocalDev: true, sub: null };
+  }
+  if (token) {
+    return {
+      email,
+      accessToken: token,
+      isLocalDev: false,
+      sub: subFromAccessToken(token),
+    };
   }
   return null;
 }
 
 function persistUser(user: AuthUser | null): void {
-  try {
-    if (!user) {
-      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-      sessionStorage.removeItem(EMAIL_STORAGE_KEY);
-      return;
-    }
-    if (user.isLocalDev) {
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, "local-dev");
-      sessionStorage.setItem(EMAIL_STORAGE_KEY, user.email);
-      return;
-    }
-    if (user.accessToken) {
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, user.accessToken);
-      sessionStorage.setItem(EMAIL_STORAGE_KEY, user.email);
-    }
-  } catch {
-    /* ignore */
+  if (!user) {
+    clearHostSession();
+    return;
+  }
+  if (user.isLocalDev) {
+    writeHostSession("local-dev", user.email);
+    return;
+  }
+  if (user.accessToken) {
+    writeHostSession(user.accessToken, user.email);
   }
 }
 
@@ -118,15 +135,20 @@ function buildBluekeyUrl(mode: "popup"): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => consumeAuthExpiredMessage());
   const popupRef = useRef<Window | null>(null);
   const handledRef = useRef(false);
+
+  const rehydrate = useCallback(() => {
+    setUser(readStoredUser());
+  }, []);
 
   const completeLogin = useCallback((accessToken: string, email: string) => {
     const next: AuthUser = {
       email: email || "signed-in@memphis.edu",
       accessToken,
       isLocalDev: false,
+      sub: subFromAccessToken(accessToken),
     };
     persistUser(next);
     setUser(next);
@@ -172,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: "dev@memphis.edu",
       accessToken: null,
       isLocalDev: true,
+      sub: null,
     };
     persistUser(next);
     setUser(next);
@@ -238,6 +261,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [completeLogin]);
+
+  useEffect(() => {
+    const onPageShow = () => rehydrate();
+    const onFocus = () => rehydrate();
+    const onExpired = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ message?: string }>).detail;
+      setUser(null);
+      setError(detail?.message ?? "Session expired — sign in again.");
+      setLoading(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired as EventListener);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired as EventListener);
+    };
+  }, [rehydrate]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

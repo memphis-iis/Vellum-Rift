@@ -79,7 +79,8 @@ namespace VellumRift
                 StartCoroutine(WaitForHandoffThenPopup());
             }
 #else
-            // Quest / Editor / standalone museum entry: list public events (no Bluekey lobby).
+            // Quest / Editor / standalone museum entry: list public events (no Bluekey).
+            // Editor Play Mode matches headset museum flow — auto-join when one Event+kiosk Space is live.
             museumEventsEntry = true;
             showLobbyUi = false;
             StartCoroutine(MuseumEventsEntryCoroutine());
@@ -263,10 +264,22 @@ namespace VellumRift
                 yield break;
 
             EnsureEventPicker();
-            eventPicker.Show("Loading public events…");
+            eventPicker.Show("Looking for museum server…");
             eventPicker.SetBusy(true);
 
+            yield return WaitForLanDiscovery();
+
+            eventPicker.Show("Loading public events…");
+
             string backend = ResolveBackendUrlForLobby();
+            if (string.IsNullOrEmpty(backend))
+            {
+                eventPicker.SetBusy(false);
+                eventPicker.SetEvents(Array.Empty<MuseumEventPicker.EventRow>(),
+                    "No museum server on this Wi‑Fi. Join the kit network and tap Refresh.");
+                yield break;
+            }
+
             string url = $"{backend}/api/kiosk/events";
 
             using (var req = UnityWebRequest.Get(url))
@@ -455,8 +468,10 @@ namespace VellumRift
                 PendingJoinSessionId = spaceId;
                 guestBusy = false;
                 SetToken(token, "Guest");
-                if (string.IsNullOrEmpty(UserDisplayName))
-                    UserDisplayName = "Guest";
+                // Display name is allocated as Explorer N in SessionManager from live players.
+                if (string.IsNullOrEmpty(UserDisplayName) ||
+                    string.Equals(UserDisplayName, "Guest", System.StringComparison.OrdinalIgnoreCase))
+                    UserDisplayName = "";
                 Debug.Log($"[BluekeyAuth] Guest kiosk join for space {spaceId}");
             }
         }
@@ -473,16 +488,33 @@ namespace VellumRift
                 eventPicker.Show(message);
         }
 
+        private IEnumerator WaitForLanDiscovery()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            yield break;
+#else
+            var task = BackendLanDiscovery.EnsureAsync(
+                getCliArg: GetCliArgSafe,
+                getEnvVar: System.Environment.GetEnvironmentVariable);
+            while (!task.IsCompleted)
+                yield return null;
+#endif
+        }
+
         private string ResolveBackendUrlForLobby()
         {
+            if (!string.IsNullOrEmpty(BackendLanDiscovery.CachedApiBase))
+                return BackendLanDiscovery.CachedApiBase.TrimEnd('/');
+
 #if UNITY_WEBGL
-            return BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl).TrimEnd('/');
+            return BackendUrlResolver.StripHealthPath(
+                BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl)).TrimEnd('/');
 #else
-            return BackendUrlResolver.Resolve(
+            return BackendUrlResolver.StripHealthPath(BackendUrlResolver.Resolve(
                 inspectorDefault: defaultBackendUrl,
                 getCliArg: GetCliArgSafe,
                 getEnvVar: System.Environment.GetEnvironmentVariable,
-                log: null).TrimEnd('/');
+                log: null)).TrimEnd('/');
 #endif
         }
 

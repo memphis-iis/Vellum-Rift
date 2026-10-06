@@ -1,9 +1,11 @@
 /**
  * Collapsible shell panels for standalone WebGL (nav + chat tabs).
+ * H toggles all chrome (#318); key shared with the dashboard embed.
  */
 (function () {
   var STORAGE_NAV = "vellum.shell.navCollapsed";
   var STORAGE_CHAT = "vellum.shell.chatCollapsed";
+  var STORAGE_CHROME_HIDDEN = "vellum.chromeHidden";
 
   function $(id) {
     return document.getElementById(id);
@@ -65,6 +67,31 @@
     }
   }
 
+  function applyChromeHidden(hidden) {
+    writeBool(STORAGE_CHROME_HIDDEN, hidden);
+    document.body.classList.toggle("vellum-chrome-hidden", hidden);
+  }
+
+  function isTypingTarget(el) {
+    if (!el || !el.tagName) return false;
+    var tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  }
+
+  function onHideChromeKey(e) {
+    if (e.key !== "h" && e.key !== "H") return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (isTypingTarget(e.target)) return;
+    if (document.body.classList.contains("vellum-embed")) {
+      // Dashboard iframe: parent owns the chrome, so forward the toggle.
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "vellum:toggle-chrome" }, "*");
+      }
+      return;
+    }
+    applyChromeHidden(!document.body.classList.contains("vellum-chrome-hidden"));
+  }
+
   function bind() {
     var navCollapse = $("vellum-nav-collapse");
     var navTab = $("vellum-nav-tab");
@@ -73,6 +100,8 @@
 
     applyNav(readBool(STORAGE_NAV, false));
     applyChat(readBool(STORAGE_CHAT, false));
+    applyChromeHidden(readBool(STORAGE_CHROME_HIDDEN, false));
+    document.addEventListener("keydown", onHideChromeKey);
 
     if (navCollapse) {
       navCollapse.addEventListener("click", function () {

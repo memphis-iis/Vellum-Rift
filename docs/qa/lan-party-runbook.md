@@ -10,8 +10,10 @@ Deploy profile: [infra/deploy/lan-party/README.md](../../infra/deploy/lan-party/
 Related QA:
 
 - [museum-guest-entry.md](museum-guest-entry.md) — kiosk QR, guest join, observer wall display
+- [museum-guest-ux-audit.md](museum-guest-ux-audit.md) — Phase 0 scored guest UX audit ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314))
 - [multiplayer-demo-runbook.md](multiplayer-demo-runbook.md) — session polling architecture and client backend URL resolution
 - **Classroom museum (elementary/middle, Quest + laptops):** [classroom-museum-runbook.md](classroom-museum-runbook.md), [classroom-museum-presenter-script.md](classroom-museum-presenter-script.md)
+- **Museum kit USB (dynamic DHCP IP + Quest discovery + four stations):** [museum-kit-runbook.md](museum-kit-runbook.md) — does not replace this fixed-`SERVER_LAN_IP` path
 
 ## 1. Topology and ports
 
@@ -143,6 +145,7 @@ Alternative without containerized backend: root `make infra-up`, then run `npm r
    - Enable **Kiosk on** for walk-up guests.
    - Mark the Space as **Event** (`PATCH /api/game-state/:id/event` or dashboard control) so Quest `GET /api/kiosk/events` lists it.
    - Upload or confirm manuscripts in the playlist.
+   - Rotations: use **Turn timer** (5 / 8 / 10 / 12 min → **Start turn**, **Reset** to end early); backed by `PATCH /api/game-state/:id/turn`. Details in [classroom-museum-runbook.md](classroom-museum-runbook.md).
 5. Share LAN URLs:
    - Kiosk link / QR (`?session=<id>&kiosk=1`) — see [museum-guest-entry.md](museum-guest-entry.md).
    - Optional observer link for a wall PC (`spectator=1` / observer mode).
@@ -210,5 +213,6 @@ curl -s "http://<SERVER_LAN_IP>:4000/api/health"
 
 - Deploy: [infra/deploy/lan-party/README.md](../../infra/deploy/lan-party/README.md)
 - Museum/kiosk UX: [museum-guest-entry.md](museum-guest-entry.md)
+- Guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md)
 - Polling multiplayer: [multiplayer-demo-runbook.md](multiplayer-demo-runbook.md)
 - Build overrides: issue #295, `vr-client-unity/scripts/build-webgl-museum.sh`, `build-android-quest.sh`

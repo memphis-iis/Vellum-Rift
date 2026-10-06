@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Vellum Wall Observer
+Comment=Open museum dashboard for Observer / wall display
+Exec=bash -lc '/opt/vellum-client/join-exhibit.sh observer'
+Icon=video-display
+Terminal=false
+Categories=Network;
+X-GNOME-Autostart-enabled=false

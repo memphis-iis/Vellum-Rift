@@ -66,7 +66,8 @@ export function pruneStalePlayers(
   const hostId = state.hostId;
   state.players = state.players.filter((p) => {
     if (!p) return false;
-    if (p.isHost || p.id === hostId) return true;
+    // Only the current hostId is immortal; stale isHost flags must expire.
+    if (p.id === hostId) return true;
     return ageMs(presenceStamp(p), nowMs) <= idleMs;
   });
   const removed = before - state.players.length;

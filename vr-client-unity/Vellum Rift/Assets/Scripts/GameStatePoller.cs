@@ -17,7 +17,7 @@ namespace VellumRift
     {
         [Header("Polling Configuration")]
         [Tooltip("How often to poll the server (in seconds)")]
-        [SerializeField] private float pollingInterval = 0.1f; // 100ms = ~10 Hz
+        [SerializeField] private float pollingInterval = 0.05f; // 50ms = ~20 Hz
 
         [Tooltip("Reference to the API client for making requests")]
         [SerializeField] private GameStateApiClient apiClient;

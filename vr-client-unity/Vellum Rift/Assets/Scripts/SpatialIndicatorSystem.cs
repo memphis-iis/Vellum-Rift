@@ -289,11 +289,14 @@ namespace VellumRift
                 foreach (var p in state.players)
                 {
                     if (p == null) continue;
+                    if (SpectatorMode.LooksLikeSpectatorName(p.displayName))
+                        continue;
                     if (!PresenceFilter.ShouldShowRemote(
                             p.id,
                             p.isConnected,
                             p.joinedAt,
-                            localPlayerId))
+                            localPlayerId,
+                            lastSeenAt: null))
                         continue;
                     players.Add(new RemotePlayerData
                     {
@@ -721,9 +724,13 @@ namespace VellumRift
         }
 
         // ---------------------------------------------------------------
-        // Nameplates (parented to player GameObject, WorldSpace with dynamic
-        // scale so they stay ~150px on screen regardless of distance)
+        // Nameplates ride the remote player in world space (above the head).
+        // Edge pills stay on the visor; names do not.
         // ---------------------------------------------------------------
+
+        /// <summary>World point above a body. Nameplates hang here, not on the visor.</summary>
+        public static Vector3 NameplateAnchor(Vector3 bodyPosition, float heightMeters) =>
+            bodyPosition + Vector3.up * heightMeters;
 
         private void UpdateNameplate(string id, string displayName, Vector3 position, bool isHost)
         {
@@ -733,22 +740,8 @@ namespace VellumRift
                 nameplates[id] = np;
             }
 
-            if (mainCamera == null || canvasRect == null) return;
-
-            Vector3 worldPos = position + Vector3.up * nameplateHeight;
-            Vector3 vp = mainCamera.WorldToViewportPoint(worldPos);
-
-            bool visible = vp.z > 0f && vp.x >= -0.15f && vp.x <= 1.15f &&
-                           vp.y >= -0.15f && vp.y <= 1.25f;
-
-            np.root.SetActive(visible);
-            if (visible)
-            {
-                np.rootRect.anchoredPosition = new Vector2(
-                    (vp.x - 0.5f) * canvasRect.rect.width,
-                    (vp.y - 0.5f) * canvasRect.rect.height
-                );
-            }
+            PlaceNameplate(np, id, position);
+            np.root.SetActive(true);
 
             np.nameLabel.text = TruncateName(displayName);
 
@@ -766,12 +759,45 @@ namespace VellumRift
             if (np.pingText != null) np.pingText.text = "PING: 24ms";
         }
 
+        private void PlaceNameplate(Nameplate np, string id, Vector3 position)
+        {
+            GameObject body = playerSpawner != null ? playerSpawner.GetPlayerObject(id) : null;
+            Vector3 world;
+            if (body != null)
+            {
+                if (np.root.transform.parent != body.transform)
+                    np.root.transform.SetParent(body.transform, false);
+                np.root.transform.localPosition = new Vector3(0f, nameplateHeight, 0f);
+                world = np.root.transform.position;
+            }
+            else
+            {
+                if (np.root.transform.parent != null)
+                    np.root.transform.SetParent(null, true);
+                world = NameplateAnchor(position, nameplateHeight);
+                np.root.transform.position = world;
+            }
+
+            Camera cam = mainCamera != null ? mainCamera : Camera.main;
+            if (cam == null)
+                return;
+            Vector3 toCam = cam.transform.position - world;
+            if (toCam.sqrMagnitude > 0.0001f)
+                np.root.transform.rotation = Quaternion.LookRotation(toCam, Vector3.up);
+        }
+
         private Nameplate CreateNameplate(string id, string displayName, bool isHost)
         {
             var go = new GameObject($"Nameplate_{id}");
-            go.transform.SetParent(canvasGO.transform, false);
-            var rootRect = go.AddComponent<RectTransform>();
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = Camera.main;
+            var rootRect = go.GetComponent<RectTransform>();
             rootRect.sizeDelta = new Vector2(200, 48);
+            // 200 px → about 0.5 m, so the name reads above a person a few meters away.
+            go.transform.localScale = Vector3.one * 0.0025f;
+            var scaler = go.AddComponent<CanvasScaler>();
+            scaler.dynamicPixelsPerUnit = VrTheme.EffectiveDynamicPixelsPerUnit;
 
             var np = new Nameplate { root = go, rootRect = rootRect };
 

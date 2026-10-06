@@ -119,8 +119,12 @@
     (function () {
       var params = new URLSearchParams(window.location.search);
       var embed = params.get("embed") === "1";
-      if (embed) {
+      var spectator = params.get("spectator") === "1"
+        || params.get("spectator") === "true";
+      // Museum wall / Lobby Observer: canvas + Unity radar/chat only — no guest chrome.
+      if (embed || spectator) {
         document.body.classList.add("vellum-embed");
+        if (spectator) document.body.classList.add("vellum-spectator");
       } else {
         var chrome = document.getElementById("vellum-chrome");
         if (chrome) chrome.hidden = false;
@@ -207,6 +211,11 @@
           window.unityInstance = instance;
           document.querySelector("#unity-loading-bar").style.display = "none";
           layoutCanvas();
+          // Unity PlayerSetting runInBackground + Application.runInBackground
+          // keep the sim alive when the tab/window blurs. Browsers still
+          // throttle requestAnimationFrame for fully hidden tabs; leave the
+          // wall display visible (second monitor / unobscured window) for
+          // smooth museum rendering while you use another app.
         }).catch(function (message) {
           unityShowBanner(message, "error");
         });

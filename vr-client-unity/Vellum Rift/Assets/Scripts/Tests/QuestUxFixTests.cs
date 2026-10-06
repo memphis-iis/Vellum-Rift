@@ -258,6 +258,8 @@ namespace VellumRift.Tests
 
             Vector3 expected = camGo.transform.position + camGo.transform.forward * dist;
             Assert.That(panel.transform.position, Is.EqualTo(expected).Within(0.02f));
+            Vector3 away = panel.transform.position - camGo.transform.position;
+            Assert.That(Vector3.Dot(panel.transform.forward, away.normalized), Is.GreaterThan(0.99f));
 
             Object.DestroyImmediate(camGo);
             Object.DestroyImmediate(panel);
@@ -325,6 +327,238 @@ namespace VellumRift.Tests
                 Is.GreaterThan(0f));
 
             ManuscriptPlaySpace.Clear();
+        }
+
+        [Test]
+        public void ManuscriptPlaySpace_OrientationGuidesPointAtManuscriptCenter()
+        {
+            ManuscriptPlaySpace.Clear();
+            var bounds = new Bounds(new Vector3(2f, 0.5f, -1f), new Vector3(8f, 1f, 6f));
+            ManuscriptPlaySpace.Configure(bounds, marginMeters: 4f, gallerySpawnRadius: 14f);
+
+            Assert.That(ManuscriptPlaySpace.HasOrientationGuides, Is.True);
+            Assert.That(
+                ManuscriptPlaySpace.ActiveOrientationGuideCount,
+                Is.EqualTo(ManuscriptPlaySpace.OrientationGuideCount));
+
+            Vector3 center = ManuscriptPlaySpace.Center;
+            float bookRadius = Mathf.Max(bounds.extents.x, bounds.extents.z);
+            var bandHeights = new float[ManuscriptPlaySpace.OrientationBandCount];
+            for (int i = 0; i < ManuscriptPlaySpace.OrientationGuideCount; i++)
+            {
+                Assert.That(
+                    ManuscriptPlaySpace.TryGetOrientationGuidePose(i, out Vector3 pos, out Vector3 forward),
+                    Is.True);
+                Vector3 flatToCenter = center - new Vector3(pos.x, 0f, pos.z);
+                flatToCenter.y = 0f;
+                Assert.That(flatToCenter.magnitude, Is.GreaterThan(bookRadius + 1f));
+                Assert.That(Vector3.Dot(forward.normalized, flatToCenter.normalized), Is.GreaterThan(0.98f));
+
+                int band = i / ManuscriptPlaySpace.GuidesPerBand;
+                int slot = i % ManuscriptPlaySpace.GuidesPerBand;
+                if (slot == 0)
+                    bandHeights[band] = pos.y;
+            }
+
+            // Floor < eye < upper bands.
+            Assert.That(bandHeights[1], Is.GreaterThan(bandHeights[0] + 1f));
+            Assert.That(bandHeights[2], Is.GreaterThan(bandHeights[1] + 0.8f));
+
+            ManuscriptPlaySpace.Clear();
+            Assert.That(ManuscriptPlaySpace.HasOrientationGuides, Is.False);
+            Assert.That(ManuscriptPlaySpace.ActiveOrientationGuideCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Jetpack_BuildsThenSettlesToZero()
+        {
+            Vector3 velocity = Vector3.zero;
+            const float cruise = 10f;
+            const float dt = 0.05f;
+            for (int i = 0; i < 3; i++)
+            {
+                velocity = VellumRift.Control.FreeFlyMover.IntegrateJetpack(
+                    velocity, Vector3.forward, thrusting: true, cruise, dt);
+            }
+
+            Assert.That(velocity.magnitude, Is.GreaterThan(0.1f));
+            Assert.That(velocity.magnitude, Is.LessThan(cruise));
+
+            for (int i = 0; i < 40; i++)
+            {
+                velocity = VellumRift.Control.FreeFlyMover.IntegrateJetpack(
+                    velocity, Vector3.forward, thrusting: false, cruise, dt);
+            }
+
+            Assert.That(velocity, Is.EqualTo(Vector3.zero));
+        }
+
+        [Test]
+        public void XrMove_FullStickOutrunsARestingOffset()
+        {
+            float full = VellumRift.Control.FreeFlyMover.XrSpeed(3.5f, 1f, 1f);
+            float rest = VellumRift.Control.FreeFlyMover.XrSpeed(3.5f, 0.15f, 1f);
+            Assert.That(full, Is.GreaterThan(8f));
+            Assert.That(rest, Is.LessThan(full * 0.25f));
+            Assert.That(VellumRift.Control.FreeFlyMover.XrSpeed(3.5f, 0f, 1f), Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void NameplateAnchor_SitsAboveTheBody()
+        {
+            Vector3 anchor = SpatialIndicatorSystem.NameplateAnchor(new Vector3(2f, 0f, 4f), 1.8f);
+            Assert.That(anchor, Is.EqualTo(new Vector3(2f, 1.8f, 4f)));
+        }
+
+        [Test]
+        public void LocalNameBadge_PinsExplorerNameToTheTopOfTheVisor()
+        {
+            var host = new GameObject("BadgeHost");
+            var badge = LocalNameBadge.Ensure(host);
+            badge.Show("Explorer 3");
+
+            var canvas = host.GetComponent<LocalNameBadge>();
+            Assert.That(canvas, Is.Not.Null);
+            var hudGo = GameObject.Find("LocalNameBadgeCanvas");
+            Assert.That(hudGo, Is.Not.Null);
+
+            var label = hudGo.transform.Find("Badge/Name")?.GetComponent<UnityEngine.UI.Text>();
+            Assert.That(label, Is.Not.Null);
+            Assert.That(label.text, Is.EqualTo("Explorer 3"));
+            Assert.That(label.gameObject.activeSelf, Is.True);
+            Assert.That(hudGo.transform.Find("Badge/LookHint"), Is.Null);
+            var hint = hudGo.transform.Find("LookHint");
+            Assert.That(hint, Is.Not.Null);
+            Assert.That(hint.parent, Is.EqualTo(hudGo.transform));
+            var badgeRt = hudGo.transform.Find("Badge").GetComponent<RectTransform>();
+            var hintRt = hint.GetComponent<RectTransform>();
+            Assert.That(hintRt.anchoredPosition.y, Is.LessThan(badgeRt.anchoredPosition.y - badgeRt.sizeDelta.y));
+            Assert.That(LocalNameBadge.VisorLocalPosition.y, Is.GreaterThan(0.15f));
+            Assert.That(LocalNameBadge.VisorLocalPosition.z, Is.GreaterThan(0.8f));
+
+            Object.DestroyImmediate(hudGo);
+            Object.DestroyImmediate(host);
+        }
+
+        [Test]
+        public void ManuscriptLookHint_DescribesViewportOctants()
+        {
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(0.5f, 1.4f, 2f)),
+                Is.EqualTo("Look up"));
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(0.5f, -0.3f, 2f)),
+                Is.EqualTo("Look down"));
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(1.4f, 0.5f, 2f)),
+                Is.EqualTo("Look right"));
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(-0.2f, 0.5f, 2f)),
+                Is.EqualTo("Look left"));
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(1.3f, -0.2f, 2f)),
+                Is.EqualTo("Look down and right"));
+            Assert.That(
+                ManuscriptLookHint.DescribeViewportOffset(new Vector3(-0.2f, 1.3f, 2f)),
+                Is.EqualTo("Look up and left"));
+        }
+
+        [Test]
+        public void ManuscriptLookHint_ReturnsFalseWhenInView()
+        {
+            var camGo = new GameObject("HintCam");
+            var cam = camGo.AddComponent<Camera>();
+            camGo.transform.position = Vector3.zero;
+            camGo.transform.rotation = Quaternion.identity;
+            // Point directly in front of camera, near center of view.
+            Vector3 ahead = camGo.transform.position + camGo.transform.forward * 5f;
+            Assert.That(ManuscriptLookHint.TryGetHint(cam, ahead, out _), Is.False);
+            Object.DestroyImmediate(camGo);
+        }
+
+        [Test]
+        public void TryDecimateGrid_KeepsCornersAndStaysUnderBudget()
+        {
+            Mesh source = BuildTopographyGrid(8, 8);
+            Mesh coarse = RemoteModelLoader.TryDecimateGrid(source, maxVertices: 16);
+
+            Assert.That(coarse, Is.Not.Null);
+            Assert.That(coarse.vertexCount, Is.LessThanOrEqualTo(16));
+            Assert.That(coarse.vertexCount, Is.GreaterThanOrEqualTo(4));
+
+            Vector3[] src = source.vertices;
+            Vector3[] dst = coarse.vertices;
+            Assert.That(dst[0], Is.EqualTo(src[0]));
+            Assert.That(dst[dst.Length - 1], Is.EqualTo(src[src.Length - 1]));
+
+            UnityEngine.Object.DestroyImmediate(source);
+            UnityEngine.Object.DestroyImmediate(coarse);
+        }
+
+        [Test]
+        public void TryDecimateGrid_ScrambledWindingStillThins()
+        {
+            Mesh source = BuildTopographyGrid(8, 8);
+            int[] tris = source.triangles;
+            for (int i = 0; i + 2 < tris.Length; i += 3)
+            {
+                int swap = tris[i];
+                tris[i] = tris[i + 2];
+                tris[i + 2] = swap;
+            }
+
+            source.triangles = tris;
+            Mesh coarse = RemoteModelLoader.TryDecimateGrid(source, maxVertices: 16);
+
+            Assert.That(coarse, Is.Not.Null);
+            Assert.That(coarse.vertexCount, Is.LessThanOrEqualTo(16));
+            Assert.That(coarse.vertexCount, Is.GreaterThanOrEqualTo(4));
+            Assert.That(coarse.triangles.Length, Is.GreaterThanOrEqualTo(3));
+
+            UnityEngine.Object.DestroyImmediate(source);
+            UnityEngine.Object.DestroyImmediate(coarse);
+        }
+
+        [Test]
+        public void TryDecimateGrid_SmallGridReturnsNull()
+        {
+            Mesh source = BuildTopographyGrid(2, 2);
+            Assert.That(RemoteModelLoader.TryDecimateGrid(source, RemoteModelLoader.QuestMaxVertices), Is.Null);
+            UnityEngine.Object.DestroyImmediate(source);
+        }
+
+        private static Mesh BuildTopographyGrid(int width, int height)
+        {
+            var verts = new Vector3[width * height];
+            var tris = new int[(width - 1) * (height - 1) * 6];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                    verts[y * width + x] = new Vector3(x, y, 0f);
+            }
+
+            int t = 0;
+            for (int y = 0; y < height - 1; y++)
+            {
+                for (int x = 0; x < width - 1; x++)
+                {
+                    int topLeft = y * width + x;
+                    int topRight = topLeft + 1;
+                    int bottomLeft = (y + 1) * width + x;
+                    int bottomRight = bottomLeft + 1;
+                    tris[t++] = topLeft;
+                    tris[t++] = bottomLeft;
+                    tris[t++] = topRight;
+                    tris[t++] = topRight;
+                    tris[t++] = bottomLeft;
+                    tris[t++] = bottomRight;
+                }
+            }
+
+            var mesh = new Mesh();
+            mesh.vertices = verts;
+            mesh.triangles = tris;
+            return mesh;
         }
     }
 }

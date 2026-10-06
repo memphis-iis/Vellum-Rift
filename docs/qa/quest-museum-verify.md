@@ -92,12 +92,18 @@ Then walk the flow below **while watching for untextured geometry**:
 - [ ] **First XR join:** sticky Menu (How to Play + Space Status + Chat if enabled) opens once with coach “Look at your left wrist anytime for Menu.”
 - [ ] **Wrist MENU:** raise left wrist + look at the pad labeled **MENU** → HUD sticks open; pad flips to **CLOSE**; look again dismisses
 - [ ] **Desktop H parity (#315):** with Unity HUD, **H** toggles the same MENU stack as wrist (guide + status + chat-if-enabled)
+- [ ] **MENU open (guest):** lower-right **Call for help** (≥64 px tall) and lower-left **LOG OUT** appear with the stack; both hide again on **CLOSE**. Left **Y** still calls for help with MENU closed. Host/spectator never see Call for help
+- [ ] **LOG OUT (guest):** returns to the event picker / login lobby and does **not** archive the shared Space (others stay connected)
+- [ ] **Turn timer (host laptop Lobby → Host tools):** Start turn with **5 / 8 / 10 / 12 min**; countdown ticks; on expiry or **Reset**, Quest freezes + passthrough (or turn-over overlay fallback); **Start turn** again restores play for the next person. Space stays up; pins kept
 - [ ] Later joins (after teach): FOV starts quiet; wrist opens/closes the same sticky HUD
 - [ ] **Jetpack:** left grip thrusts along **look direction** (not world-up); Right A only renames when aiming a pin
 - [ ] Chat and How to Play sit on the **right without overlapping** when Menu is open; Session status and Logout similarly separated on the left
 - [ ] Chat / controls / status HUDs sit **outside** the central sightline
 - [ ] **Left stick moves immediately** from gallery spawn (no “stuck at zero” locomotion)
 - [ ] Edge **MANUSCRIPT** / player / waypoint arrows appear on the **visor rim** when the target is off-screen (canvas faces the HMD)
+- [ ] When the manuscript is off-screen, the **name badge** shows a look cue under the name (**Look up** / **Look down and right**, etc.)
+- [ ] **Orientation chevrons** at **floor / eye / upper** height around the play ring are **always visible** and point **toward the manuscript**
+- [ ] Look up / around: solid **void** clear (no skybox) with Tron deck edge, spawn glow, and horizon rings still reading clearly; manuscript lighting matches the pre-skybox gallery look
 - [ ] Side HUDs stay **peripheral** (roughly under ~1.2 m tall in world space, not wall-sized)
 - [ ] Walk away from the manuscript: Space Status shows **distance or “Far from manuscript”**; movement slows but you can **always walk back**; off-screen **MANUSCRIPT** edge pointer still works
 - [ ] Console (`adb logcat -s Unity`) shows no `ArgumentNullException` / `Missing shader`

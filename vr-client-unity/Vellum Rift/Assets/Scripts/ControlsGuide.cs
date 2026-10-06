@@ -88,10 +88,11 @@ namespace VellumRift
         private float lastPanelSpriteH = -1f;
         private bool isHost;
         private bool isVisible = true;
+        private SessionHudStack hudStack;
 
         private void Awake()
         {
-            if (WebGlShellMode.UsesExternalShell)
+            if (WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive)
             {
                 enabled = false;
                 return;
@@ -105,13 +106,22 @@ namespace VellumRift
         }
 
         private ControlSchema lastSchema = ControlSchema.KeyboardMouse;
+        private XrInputMode lastXrMode = XrInputMode.None;
+        private Text titleText;
 
         private void Update()
         {
+            if (InputControlSchema.IsXrActive())
+                XrTrackingSource.Tick(Time.unscaledDeltaTime);
+
             var currentSchema = InputControlSchema.Detect();
-            if (currentSchema != lastSchema)
+            var xrMode = currentSchema == ControlSchema.XR
+                ? XrTrackingSource.Mode
+                : XrInputMode.None;
+            if (currentSchema != lastSchema || xrMode != lastXrMode)
             {
                 lastSchema = currentSchema;
+                lastXrMode = xrMode;
                 if (canvasGO != null) RebuildRows();
             }
 
@@ -277,7 +287,8 @@ namespace VellumRift
             iconRect.anchoredPosition = new Vector2(24, 0);
 
             // Title — letter-spaced to approximate the monospace tracking-widest.
-            Text title = CreateTextAt(header.transform, "Title", "H O W   T O   P L A Y", TITLE_FONT, TextAnchor.MiddleLeft);
+            titleText = CreateTextAt(header.transform, "Title", "H O W   T O   P L A Y", TITLE_FONT, TextAnchor.MiddleLeft);
+            Text title = titleText;
             title.color = COLOR_GOLD;
             title.fontStyle = FontStyle.Bold;
             title.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -351,39 +362,54 @@ namespace VellumRift
             }
 
             var schema = InputControlSchema.Detect();
-            var guideRows = InputControlSchema.GuideRows(schema);
+            bool handsCard = schema == ControlSchema.XR && XrTrackingSource.Mode == XrInputMode.Hands;
+            var xrMode = handsCard ? XrInputMode.Hands : XrInputMode.Controllers;
+            var guideRows = InputControlSchema.GuideRows(schema, xrMode);
+            if (titleText != null)
+            {
+                if (schema == ControlSchema.XR)
+                    titleText.text = handsCard ? "HOW TO PLAY  ·  HANDS" : "HOW TO PLAY  ·  TOUCH";
+                else
+                    titleText.text = "H O W   T O   P L A Y";
+            }
 
             (IconKind icon, string action, string key)[] rows = new (IconKind, string, string)[guideRows.Length];
             for (int i = 0; i < guideRows.Length; i++)
             {
                 IconKind kind = IconKind.Keyboard;
                 string act = guideRows[i].Action;
-                if (act.Contains("Laser")) kind = IconKind.Laser;
-                else if (act.Contains("Pin") || act.Contains("Marker")) kind = IconKind.Waypoint;
+                if (act.IndexOf("laser", System.StringComparison.OrdinalIgnoreCase) >= 0 || act == "Point")
+                    kind = IconKind.Laser;
+                else if (act.IndexOf("pin", System.StringComparison.OrdinalIgnoreCase) >= 0 || act.Contains("Marker"))
+                    kind = IconKind.Waypoint;
                 else if (act.Contains("Turn") || act.Contains("Look")) kind = IconKind.Gamepad;
                 else if (act.Contains("Move") || act.Contains("Lift") || act.Contains("Elevation")) kind = IconKind.Keyboard;
 
                 rows[i] = (kind, act, guideRows[i].Binding);
             }
 
-            // showHostOnly=true → summon row for hosts only; false → all guests (museum).
-            if (!showHostOnly || isHost)
-                rows = Append(rows, (IconKind.Summon, "Open Object Menu", schema == ControlSchema.XR ? "R-SEC" : "Q"));
-
-            if (ChatEnabled.IsEnabled())
-                rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
-
-            bool hasToggleMenu = false;
-            for (int i = 0; i < rows.Length; i++)
+            // Hands already lists Menu. Do not stack host/chat/H rows on that card.
+            if (!handsCard)
             {
-                if (rows[i].action == "Toggle menu")
+                // showHostOnly=true → summon row for hosts only; false → all guests (museum).
+                if (!showHostOnly || isHost)
+                    rows = Append(rows, (IconKind.Summon, "Open Object Menu", schema == ControlSchema.XR ? "R-SEC" : "Q"));
+
+                if (ChatEnabled.IsEnabled())
+                    rows = Append(rows, (IconKind.Chat, "Open Chat", "ENTER"));
+
+                bool hasToggleMenu = false;
+                for (int i = 0; i < rows.Length; i++)
                 {
-                    hasToggleMenu = true;
-                    break;
+                    if (rows[i].action == InputControlSchema.ToggleMenuAction)
+                    {
+                        hasToggleMenu = true;
+                        break;
+                    }
                 }
+                if (!hasToggleMenu)
+                    rows = Append(rows, (IconKind.Gamepad, InputControlSchema.ToggleMenuAction, "H"));
             }
-            if (!hasToggleMenu)
-                rows = Append(rows, (IconKind.Gamepad, "Toggle menu", "H"));
 
             // Build rows top-down inside the content area.
             for (int i = 0; i < rows.Length; i++)

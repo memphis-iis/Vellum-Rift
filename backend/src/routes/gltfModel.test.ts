@@ -33,6 +33,8 @@ const mocks = { query: (globalThis as Record<string, unknown>).__pgMockQuery as 
 
 const mockUpload = vi.fn().mockResolvedValue({ etag: "abc123" });
 const mockDownload = vi.fn();
+const mockDownloadBuffer = vi.fn();
+const mockStat = vi.fn();
 const mockRemove = vi.fn().mockResolvedValue(undefined);
 const mockPresignedUrl = vi.fn().mockResolvedValue("http://minio.local/bucket/key.glb?sig=fake");
 
@@ -40,11 +42,26 @@ vi.mock("../lib/storage.js", () => ({
   getStorage: () => ({
     upload: mockUpload,
     download: mockDownload,
+    downloadBuffer: mockDownloadBuffer,
+    stat: mockStat,
     remove: mockRemove,
     presignedUrl: mockPresignedUrl,
   }),
   resetStorage: vi.fn(),
 }));
+
+vi.mock("../lib/lodGlb.js", () => {
+  const subsampleGlb = vi.fn(async (buf: Buffer) => ({
+    glb: Buffer.from("QUESTGLB"),
+    vertexCount: 100,
+    changed: buf.length > 0,
+  }));
+  (globalThis as Record<string, unknown>).__subsampleGlb = subsampleGlb;
+  return {
+    lodStorageKey: (key: string, tier: string) => key.replace(/\.glb$/i, `.${tier}.glb`),
+    subsampleGlb,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock the glTF exporter so we don't pay the @gltf-transform cost in tests
@@ -127,9 +144,12 @@ describe("gltfModel routes", () => {
     mocks.query.mockReset();
     mockUpload.mockClear();
     mockDownload.mockClear();
+    mockDownloadBuffer.mockClear();
+    mockStat.mockReset();
     mockRemove.mockClear();
     mockPresignedUrl.mockClear();
     mockEnqueue.mockClear();
+    ((globalThis as Record<string, unknown>).__subsampleGlb as ReturnType<typeof vi.fn>).mockClear();
   });
 
   afterEach(() => {
@@ -295,6 +315,69 @@ describe("gltfModel routes", () => {
         .expect(404);
 
       expect(res.body.error).toBe("Model not found");
+    });
+
+    it("streams the original glb when tier=quest is already within budget", async () => {
+      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+      mockDownload.mockResolvedValueOnce(Readable.from(["FAKEGLB"]));
+
+      const res = await request(app)
+        .get(`/${SAMPLE_MODEL_ID}?tier=quest`)
+        .expect(200);
+
+      expect(res.text).toBe("FAKEGLB");
+      expect(mockStat).not.toHaveBeenCalled();
+      expect(mockDownload).toHaveBeenCalledWith(SAMPLE_STORAGE_KEY);
+    });
+
+    it("builds and caches a quest glb when the stored mesh is over budget", async () => {
+      mocks.query.mockResolvedValueOnce({
+        rows: [{ ...mockDbRow, vertex_count: 330_600, width: 600, height: 551 }],
+      });
+      mockStat.mockRejectedValueOnce(new Error("not found"));
+      mockDownloadBuffer.mockResolvedValueOnce(Buffer.from("ORIGINAL"));
+      mockDownload.mockResolvedValueOnce(Readable.from(["QUESTGLB"]));
+
+      const res = await request(app)
+        .get(`/${SAMPLE_MODEL_ID}?tier=quest`)
+        .expect(200);
+
+      expect(res.text).toBe("QUESTGLB");
+      expect(mockDownloadBuffer).toHaveBeenCalledWith(SAMPLE_STORAGE_KEY);
+      expect(mockUpload).toHaveBeenCalledWith(
+        "models/test-abc123.quest.glb",
+        expect.anything(),
+        Buffer.from("QUESTGLB").length,
+        "model/gltf-binary",
+      );
+      expect(mockDownload).toHaveBeenCalledWith("models/test-abc123.quest.glb");
+    });
+
+    it("serves the cached quest glb without rebuilding", async () => {
+      mocks.query.mockResolvedValueOnce({
+        rows: [{ ...mockDbRow, vertex_count: 330_600, width: 600, height: 551 }],
+      });
+      mockStat.mockResolvedValueOnce({ name: "cache", size: 8, etag: "e", lastModified: "" });
+      mockDownload.mockResolvedValueOnce(Readable.from(["CACHED"]));
+
+      const res = await request(app)
+        .get(`/${SAMPLE_MODEL_ID}?tier=quest`)
+        .expect(200);
+
+      expect(res.text).toBe("CACHED");
+      expect(mockDownloadBuffer).not.toHaveBeenCalled();
+      expect(mockUpload).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for an unknown tier", async () => {
+      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+
+      const res = await request(app)
+        .get(`/${SAMPLE_MODEL_ID}?tier=phone`)
+        .expect(400);
+
+      expect(res.body.error).toContain("Invalid LoD tier");
+      expect(mockDownload).not.toHaveBeenCalled();
     });
   });
 

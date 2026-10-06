@@ -200,6 +200,8 @@ namespace VellumRift
             public bool isActive;
             public string activeModelId;
             public string[] playlist;
+            public string experiencePhase;
+            public string rotationEndsAt;
         }
 
         public static GameState ParseGameState(string body)
@@ -220,6 +222,8 @@ namespace VellumRift
                 isActive = dto.isActive,
                 activeModelId = dto.activeModelId ?? "",
                 playlist = dto.playlist ?? Array.Empty<string>(),
+                experiencePhase = dto.experiencePhase ?? "",
+                rotationEndsAt = dto.rotationEndsAt ?? "",
                 players = dto.players != null
                     ? new System.Collections.Generic.List<PlayerState>(dto.players)
                     : new System.Collections.Generic.List<PlayerState>(),

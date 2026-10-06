@@ -144,6 +144,41 @@ public static class BackendUrlResolver
         return fallback;
     }
 
+    /// <summary>
+    /// Strip a trailing "/api/health" (with or without a final slash) so API
+    /// clients get a bare base URL. Host/port resolver tiers append that path.
+    /// </summary>
+    public static string StripHealthPath(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return url;
+
+        const string suffix = "/api/health";
+        string trimmed = url.TrimEnd('/');
+        return trimmed.EndsWith(suffix, StringComparison.Ordinal)
+            ? trimmed.Substring(0, trimmed.Length - suffix.Length)
+            : trimmed;
+    }
+
+    /// <summary>
+    /// True when CLI or env already set an explicit backend URL/host (discovery
+    /// must not override operator/build overrides).
+    /// </summary>
+    public static bool HasExplicitOverride(
+        Func<string, string> getCliArg,
+        Func<string, string> getEnvVar)
+    {
+        if (!string.IsNullOrEmpty(Clean(getCliArg?.Invoke("-backendUrl"))))
+            return true;
+        if (!string.IsNullOrEmpty(Clean(getCliArg?.Invoke("-backendHost"))))
+            return true;
+        if (!string.IsNullOrEmpty(Clean(getEnvVar?.Invoke("VELLUM_BACKEND_URL"))))
+            return true;
+        if (!string.IsNullOrEmpty(Clean(getEnvVar?.Invoke("VELLUM_BACKEND_HOST"))))
+            return true;
+        return false;
+    }
+
     // Trims surrounding whitespace so a stray trailing space in a CLI flag or
     // env var (e.g. "VELLUM_BACKEND_URL=http://host/ ") doesn't flow into the
     // resolved URL. Null-safe: null in, null out.

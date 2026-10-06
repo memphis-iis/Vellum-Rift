@@ -88,6 +88,23 @@ describe("sessionPresence", () => {
     expect(host.laserActive).toBe(false);
   });
 
+  it("drops stale players that still have isHost=true but are not hostId", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-29T18:00:00.000Z"));
+
+    const state = new GameState("Museum");
+    const host = state.addPlayer("CurrentHost", true);
+    const ghost = state.addPlayer("GhostHost");
+    ghost.isHost = true;
+    ghost.joinedAt = "2026-09-29T17:50:00.000Z";
+    host.joinedAt = "2026-09-29T17:59:00.000Z";
+
+    const removed = pruneStalePlayers(state, DEFAULT_GUEST_IDLE_MS, Date.now());
+    expect(removed).toBe(1);
+    expect(state.players.map((p) => p.displayName)).toEqual(["CurrentHost"]);
+    expect(state.hostId).toBe(host.id);
+  });
+
   it("prunes old metadata artifacts", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-29T18:00:00.000Z"));

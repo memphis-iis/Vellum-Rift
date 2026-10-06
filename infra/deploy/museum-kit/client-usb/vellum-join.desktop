@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Join Vellum Exhibit
+Comment=Find museum-kit server and open the dashboard (WebGL over Wi-Fi)
+Exec=bash -lc '/opt/vellum-client/join-exhibit.sh join'
+Icon=applications-internet
+Terminal=false
+Categories=Network;
+X-GNOME-Autostart-enabled=true

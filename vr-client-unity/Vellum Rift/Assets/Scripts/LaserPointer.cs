@@ -38,7 +38,8 @@ namespace VellumRift
 
         [Header("Timing")]
         [SerializeField] private float sendInterval = 1f / 30f;
-        [SerializeField] private float pollInterval = 1f / 10f;
+        [SerializeField] private float pollInterval = 1f / 20f;
+        [SerializeField] private float remoteLaserLerpSpeed = 20f;
 
         [Header("Runtime State")]
         [SerializeField] private string sessionId;
@@ -58,6 +59,8 @@ namespace VellumRift
         private LineRenderer muzzleReticleH;
         private LineRenderer muzzleReticleV;
         private InputAction xrTriggerAction;
+        /// <summary>Wall observer: render remotes only, never publish a local beam.</summary>
+        private bool receiveOnly;
 
         private void Awake()
         {
@@ -224,25 +227,30 @@ namespace VellumRift
         {
             if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(playerId)) return;
 
-            if (controllerTransform == null || controllerTransform == Camera.main?.transform)
+            if (!receiveOnly)
             {
-                if (InputControlSchema.IsXrActive()) FindControllerAnchor();
+                if (controllerTransform == null || controllerTransform == Camera.main?.transform)
+                {
+                    if (InputControlSchema.IsXrActive()) FindControllerAnchor();
+                }
+
+                bool isVR = controllerTransform != null && controllerTransform != Camera.main?.transform;
+                if (isVR && XrTrackingSource.Mode != XrInputMode.Hands)
+                {
+                    bool shouldActivate = xrTriggerAction != null && xrTriggerAction.IsPressed();
+                    if (shouldActivate && !laserActive) ActivateLaser();
+                    else if (!shouldActivate && laserActive) DeactivateLaser();
+                }
+
+                if (laserActive && Time.time - lastSendTime >= sendInterval)
+                {
+                    lastSendTime = Time.time;
+                    StartCoroutine(SendLaserState());
+                }
+                UpdateLocalBeam();
             }
 
-            bool isVR = controllerTransform != null && controllerTransform != Camera.main?.transform;
-            if (isVR)
-            {
-                bool shouldActivate = xrTriggerAction != null && xrTriggerAction.IsPressed();
-                if (shouldActivate && !laserActive) ActivateLaser();
-                else if (!shouldActivate && laserActive) DeactivateLaser();
-            }
-
-            if (laserActive && Time.time - lastSendTime >= sendInterval)
-            {
-                lastSendTime = Time.time;
-                StartCoroutine(SendLaserState());
-            }
-            UpdateLocalBeam();
+            UpdateRemoteBeams();
         }
 
         private void OnEnable() { if (pollCoroutine == null && !string.IsNullOrEmpty(sessionId)) pollCoroutine = StartCoroutine(PollRemoteLasers()); }
@@ -266,12 +274,22 @@ namespace VellumRift
             if (pollCoroutine == null && gameObject.activeInHierarchy) pollCoroutine = StartCoroutine(PollRemoteLasers());
         }
 
+        /// <summary>
+        /// When true, poll/render remote lasers only (museum wall / observer).
+        /// </summary>
+        public void SetReceiveOnly(bool observeOnly)
+        {
+            receiveOnly = observeOnly;
+            if (receiveOnly && laserActive)
+                DeactivateLaser();
+        }
+
         public void SetHost(bool host) { isHost = host; if (localBeamRenderer != null) { localBeamRenderer.startColor = host ? Color.red : Color.green; localBeamRenderer.endColor = host ? Color.red : Color.green; } }
         public void SetBaseUrl(string url) { if (!string.IsNullOrEmpty(url)) baseUrl = url.TrimEnd('/'); }
 
         public void ActivateLaser()
         {
-            if (laserActive) return;
+            if (receiveOnly || laserActive) return;
             laserActive = true;
             lastSendTime = 0f;
             if (localBeamRenderer != null) localBeamRenderer.enabled = true;
@@ -390,7 +408,11 @@ namespace VellumRift
         {
             if (controllerTransform == null) yield break;
             var (o, d, _) = GetLaserOrigin();
-            string json = $"{{\"playerId\": \"{playerId}\", \"active\": true, \"origin\": {{\"x\": {o.x:F4}, \"y\": {o.y:F4}, \"z\": {o.z:F4}}}, \"direction\": {{\"dx\": {d.x:F4}, \"dy\": {d.y:F4}, \"dz\": {d.z:F4}}}}}";
+            // Safe numbers — WebGL `$"{v:F4}"` inside braced JSON was emitting "F4" / "-Infinity".
+            string json =
+                "{\"playerId\":\"" + playerId +
+                "\",\"active\":true,\"origin\":" + JsonNumbers.Vec3Object(o.x, o.y, o.z) +
+                ",\"direction\":" + JsonNumbers.DirectionObject(d.x, d.y, d.z) + "}";
             using (var req = new UnityWebRequest($"{baseUrl}/api/game-state/{sessionId}/laser", "PATCH"))
             {
                 byte[] b = Encoding.UTF8.GetBytes(json);
@@ -449,7 +471,10 @@ namespace VellumRift
             HashSet<string> seen = new HashSet<string>();
             foreach (var e in list.entries)
             {
-                if (e == null || e.userId == userId) continue;
+                if (e == null || string.IsNullOrEmpty(e.userId)) continue;
+                // Skip our own published beam (observer has no local beam anyway).
+                if (!receiveOnly && e.userId == userId) continue;
+                if (!e.active) continue;
                 seen.Add(e.userId);
                 Color c = e.color == "red" ? Color.red : Color.green;
 
@@ -462,18 +487,25 @@ namespace VellumRift
                 if (e.origin != null && e.direction != null)
                 {
                     Vector3 o = new Vector3(e.origin.x, e.origin.y, e.origin.z);
-                    Vector3 d = new Vector3(e.direction.dx, e.direction.dy, e.direction.dz).normalized;
-                    Vector3 endPt = o + d * beamLength;
-                    beam.SetPosition(0, o);
-                    beam.SetPosition(1, endPt);
-                    beam.enabled = true;
+                    Vector3 d = new Vector3(e.direction.dx, e.direction.dy, e.direction.dz);
+                    if (d.sqrMagnitude < 1e-8f)
+                        d = Vector3.forward;
+                    else
+                        d.Normalize();
 
                     var data = beam.GetComponent<RemoteBeamData>();
-                    if (data != null && data.hitDot != null)
+                    if (data != null)
                     {
-                        data.hitDot.transform.position = endPt;
-                        data.hitDot.SetActive(true);
+                        if (!data.hasTarget)
+                        {
+                            data.displayOrigin = o;
+                            data.displayDirection = d;
+                            data.hasTarget = true;
+                        }
+                        data.targetOrigin = o;
+                        data.targetDirection = d;
                     }
+                    beam.enabled = true;
                 }
             }
 
@@ -488,6 +520,49 @@ namespace VellumRift
                     Destroy(b.gameObject);
                 remoteBeams.Remove(k);
             }
+        }
+
+        private void UpdateRemoteBeams()
+        {
+            if (remoteBeams.Count == 0) return;
+            float t = Mathf.Clamp01(Time.deltaTime * remoteLaserLerpSpeed);
+
+            foreach (var kvp in remoteBeams)
+            {
+                LineRenderer beam = kvp.Value;
+                if (beam == null) continue;
+                var data = beam.GetComponent<RemoteBeamData>();
+                if (data == null || !data.hasTarget) continue;
+
+                data.displayOrigin = Vector3.Lerp(data.displayOrigin, data.targetOrigin, t);
+                data.displayDirection = Vector3.Slerp(data.displayDirection, data.targetDirection, t).normalized;
+
+                Vector3 endPt = ResolveBeamEnd(data.displayOrigin, data.displayDirection);
+                beam.SetPosition(0, data.displayOrigin);
+                beam.SetPosition(1, endPt);
+                beam.enabled = true;
+
+                if (data.hitDot != null)
+                {
+                    data.hitDot.transform.position = endPt;
+                    data.hitDot.transform.localScale = Vector3.one * HitDotDiameter;
+                    data.hitDot.SetActive(true);
+                }
+            }
+        }
+
+        /// <summary>Same surface stop as the local beam (not a fixed-length rod).</summary>
+        public static Vector3 ResolveBeamEnd(Vector3 origin, Vector3 direction, float maxLength = 50f)
+        {
+            Vector3 dir = direction.sqrMagnitude < 1e-8f ? Vector3.forward : direction.normalized;
+            if (Physics.Raycast(origin, dir, out RaycastHit hit, maxLength))
+                return hit.point;
+            return origin + dir * maxLength;
+        }
+
+        private Vector3 ResolveBeamEnd(Vector3 origin, Vector3 direction)
+        {
+            return ResolveBeamEnd(origin, direction, beamLength);
         }
 
         /// <summary>
@@ -531,8 +606,9 @@ namespace VellumRift
             go.transform.SetParent(transform, false);
             LineRenderer lr = go.AddComponent<LineRenderer>();
             lr.positionCount = 2;
-            lr.startWidth = beamStartWidth * 2f;
-            lr.endWidth = beamEndWidth * 2f;
+            // Match local beam width — remote used to be 2× thicker.
+            lr.startWidth = beamStartWidth;
+            lr.endWidth = beamEndWidth;
             if (remoteBeamMaterial != null)
                 lr.material = new Material(remoteBeamMaterial);
             lr.startColor = c;
@@ -552,9 +628,14 @@ namespace VellumRift
         }
     }
 
-    /// <summary>Helper to track remote beam hit dot.</summary>
+    /// <summary>Helper to track remote beam aim samples + hit dot.</summary>
     public class RemoteBeamData : MonoBehaviour
     {
         public GameObject hitDot;
+        public Vector3 targetOrigin;
+        public Vector3 targetDirection = Vector3.forward;
+        public Vector3 displayOrigin;
+        public Vector3 displayDirection = Vector3.forward;
+        public bool hasTarget;
     }
 }

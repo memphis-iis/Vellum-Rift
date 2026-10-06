@@ -3,8 +3,9 @@ using UnityEngine;
 namespace VellumRift
 {
     /// <summary>
-    /// Soft play boundary around the loaded manuscript: HUD distance cues and
-    /// locomotion damping when guests wander too far in XR.
+    /// Soft play boundary around the loaded manuscript: HUD distance cues,
+    /// locomotion damping when guests wander too far in XR, and always-visible
+    /// gallery orientation chevrons (floor / eye / upper) aimed at the manuscript.
     /// </summary>
     public static class ManuscriptPlaySpace
     {
@@ -12,18 +13,61 @@ namespace VellumRift
         public const float HardEdgeExtraMeters = 6f;
         public const float SpawnRadiusBufferMeters = 3f;
         public const float MinMoveMultiplier = 0.35f;
+        /// <summary>Chevrons per height band (floor, eye, upper).</summary>
+        public const int GuidesPerBand = 8;
+        public const int OrientationBandCount = 3;
+        public const int OrientationGuideCount = GuidesPerBand * OrientationBandCount;
+        /// <summary>Legacy alias — chevrons in the floor band only.</summary>
+        public const int FloorGuideCount = GuidesPerBand;
+
         private const int RingSegments = 72;
+        private const string GuidesRootName = "ManuscriptOrientationGuides";
+        private const float ChevronLength = 0.85f;
+        private const float ChevronHalfWidth = 0.42f;
+        private const float FloorBandOffset = 0.025f;
+        private const float EyeBandOffset = 1.45f;
+        private const float UpperBandOffset = 2.6f;
+
+        private static readonly float[] BandHeightOffsets =
+        {
+            FloorBandOffset,
+            EyeBandOffset,
+            UpperBandOffset
+        };
+
+        private static readonly string[] BandNames =
+        {
+            "Floor",
+            "Eye",
+            "Upper"
+        };
 
         private static bool configured;
         private static Vector3 center;
         private static float softRadius;
         private static float hardRadius;
         private static float floorY;
+        private static float manuscriptRadius;
         private static GameObject ringRoot;
+        private static Transform guidesRoot;
 
         public static bool IsConfigured => configured;
         public static float SoftRadius => softRadius;
         public static Vector3 Center => center;
+
+        /// <summary>True when all orientation chevron bands exist.</summary>
+        public static bool HasOrientationGuides =>
+            guidesRoot != null && guidesRoot.childCount >= OrientationGuideCount;
+
+        /// <summary>Legacy alias for <see cref="HasOrientationGuides"/>.</summary>
+        public static bool HasFloorGuides => HasOrientationGuides;
+
+        /// <summary>Number of orientation chevron children (0 when cleared).</summary>
+        public static int ActiveOrientationGuideCount =>
+            guidesRoot == null ? 0 : guidesRoot.childCount;
+
+        /// <summary>Legacy alias for <see cref="ActiveOrientationGuideCount"/>.</summary>
+        public static int ActiveFloorGuideCount => ActiveOrientationGuideCount;
 
         public static void Configure(
             Bounds bounds,
@@ -38,16 +82,22 @@ namespace VellumRift
             softRadius = fromSpawn > 0f ? Mathf.Max(fromBounds, fromSpawn) : fromBounds;
             hardRadius = softRadius + HardEdgeExtraMeters;
             floorY = bounds.min.y;
+            manuscriptRadius = Mathf.Max(bounds.extents.x, bounds.extents.z);
             configured = true;
             EnsureFloorRing();
+            EnsureOrientationGuides();
         }
 
         public static void Clear()
         {
             configured = false;
+            guidesRoot = null;
             if (ringRoot != null)
             {
-                Object.Destroy(ringRoot);
+                if (Application.isPlaying)
+                    Object.Destroy(ringRoot);
+                else
+                    Object.DestroyImmediate(ringRoot);
                 ringRoot = null;
             }
         }
@@ -116,6 +166,34 @@ namespace VellumRift
             return gallerySpawnRadius <= softRadius;
         }
 
+        /// <summary>
+        /// World pose of orientation guide <paramref name="index"/> (0..OrientationGuideCount-1).
+        /// Forward points toward the manuscript on the horizontal plane.
+        /// </summary>
+        public static bool TryGetOrientationGuidePose(int index, out Vector3 position, out Vector3 forward)
+        {
+            position = Vector3.zero;
+            forward = Vector3.zero;
+            if (guidesRoot == null || index < 0 || index >= guidesRoot.childCount)
+                return false;
+            Transform t = guidesRoot.GetChild(index);
+            position = t.position;
+            forward = t.forward;
+            return true;
+        }
+
+        /// <summary>Legacy alias for <see cref="TryGetOrientationGuidePose"/>.</summary>
+        public static bool TryGetFloorGuidePose(int index, out Vector3 position, out Vector3 forward)
+        {
+            return TryGetOrientationGuidePose(index, out position, out forward);
+        }
+
+        /// <summary>World forward of orientation guide <paramref name="index"/>.</summary>
+        public static bool TryGetFloorGuideForward(int index, out Vector3 forward)
+        {
+            return TryGetOrientationGuidePose(index, out _, out forward);
+        }
+
         private static void EnsureFloorRing()
         {
             if (ringRoot == null)
@@ -144,6 +222,104 @@ namespace VellumRift
                 p.y = floorY + 0.02f;
                 lr.SetPosition(i, p);
             }
+        }
+
+        private static void EnsureOrientationGuides()
+        {
+            if (ringRoot == null)
+                EnsureFloorRing();
+
+            // Migrate prior floor-only root name if present.
+            if (guidesRoot == null)
+            {
+                Transform existing = ringRoot.transform.Find(GuidesRootName)
+                                     ?? ringRoot.transform.Find("ManuscriptFloorGuides");
+                if (existing != null)
+                {
+                    existing.name = GuidesRootName;
+                    guidesRoot = existing;
+                }
+                else
+                {
+                    var go = new GameObject(GuidesRootName);
+                    go.transform.SetParent(ringRoot.transform, false);
+                    guidesRoot = go.transform;
+                }
+            }
+
+            while (guidesRoot.childCount > OrientationGuideCount)
+            {
+                Transform extra = guidesRoot.GetChild(guidesRoot.childCount - 1);
+                if (Application.isPlaying)
+                    Object.Destroy(extra.gameObject);
+                else
+                    Object.DestroyImmediate(extra.gameObject);
+            }
+
+            float guideRadius = ResolveGuideRadius();
+            Color chevronColor = VrTheme.WithAlpha(VrTheme.AccentBright, 0.55f);
+            Material sharedMat = VellumShaders.TryCreateLineMaterial(chevronColor);
+
+            int childIndex = 0;
+            for (int band = 0; band < OrientationBandCount; band++)
+            {
+                float y = floorY + BandHeightOffsets[band];
+                string bandName = BandNames[band];
+                for (int i = 0; i < GuidesPerBand; i++)
+                {
+                    float angle = i / (float)GuidesPerBand * Mathf.PI * 2f;
+                    Vector3 outward = new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle));
+                    Vector3 pos = center + outward * guideRadius;
+                    pos.y = y;
+
+                    Vector3 towardCenter = center - new Vector3(pos.x, 0f, pos.z);
+                    towardCenter.y = 0f;
+                    if (towardCenter.sqrMagnitude < 0.0001f)
+                        towardCenter = -outward;
+                    towardCenter.Normalize();
+
+                    Transform slot = childIndex < guidesRoot.childCount
+                        ? guidesRoot.GetChild(childIndex)
+                        : new GameObject($"{bandName}Chevron_{i}").transform;
+                    if (slot.parent != guidesRoot)
+                        slot.SetParent(guidesRoot, false);
+                    slot.name = $"{bandName}Chevron_{i}";
+                    slot.position = pos;
+                    slot.rotation = Quaternion.LookRotation(towardCenter, Vector3.up);
+
+                    var lr = slot.GetComponent<LineRenderer>();
+                    if (lr == null)
+                        lr = slot.gameObject.AddComponent<LineRenderer>();
+                    if (sharedMat != null)
+                        lr.sharedMaterial = sharedMat;
+                    lr.useWorldSpace = true;
+                    lr.loop = false;
+                    lr.startWidth = 0.07f;
+                    lr.endWidth = 0.07f;
+                    lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    lr.receiveShadows = false;
+                    lr.positionCount = 3;
+
+                    Vector3 tip = pos + towardCenter * (ChevronLength * 0.55f);
+                    Vector3 baseMid = tip - towardCenter * ChevronLength;
+                    Vector3 right = Vector3.Cross(Vector3.up, towardCenter).normalized;
+                    lr.SetPosition(0, baseMid + right * ChevronHalfWidth);
+                    lr.SetPosition(1, tip);
+                    lr.SetPosition(2, baseMid - right * ChevronHalfWidth);
+
+                    childIndex++;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Place chevrons near the soft/spawn ring but always outside the manuscript footprint.
+        /// </summary>
+        private static float ResolveGuideRadius()
+        {
+            float minOutsideBook = manuscriptRadius + 1.5f;
+            float nearSoft = Mathf.Max(2f, softRadius - 0.75f);
+            return Mathf.Max(minOutsideBook, nearSoft);
         }
     }
 }

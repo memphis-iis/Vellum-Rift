@@ -1,0 +1,20 @@
+{
+  "policies": {
+    "_comment": "Template only — join-exhibit.sh runs write-firefox-policies.sh with the discovered museum host.",
+    "BlockAboutConfig": true,
+    "DisableFirefoxAccounts": true,
+    "DisablePrivateBrowsing": true,
+    "Homepage": {
+      "URL": "http://MUSEUM_HOST/",
+      "Locked": true,
+      "StartPage": "homepage"
+    },
+    "WebsiteFilter": {
+      "Block": ["<all_urls>"],
+      "Exceptions": [
+        "http://MUSEUM_HOST/*",
+        "http://MUSEUM_HOST:*/*"
+      ]
+    }
+  }
+}

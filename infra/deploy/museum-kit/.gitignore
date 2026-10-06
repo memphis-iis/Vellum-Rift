@@ -1,0 +1,10 @@
+.env
+runtime.env
+images/
+quest/*.apk
+seed/
+webgl/
+client-usb/dist/
+client-usb/server.url
+client-usb/kit-wifi.env
+client-usb/dist/**/kit-wifi.env

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAuthHeaders } from "./authHeaders";
+import { notifyAuthExpired, readKioskToken } from "../auth/tokenStorage";
 
 export interface Vec3 {
   x: number;
@@ -60,6 +61,9 @@ export interface GameSession {
   kind?: "exploration" | "event";
   startsAt?: string | null;
   endsAt?: string | null;
+  /** Museum host turn timer — server clamps expired turns to "ended". */
+  experiencePhase?: "playing" | "ended";
+  rotationEndsAt?: string | null;
   /** Pending guest help alerts (#294). */
   helpRequests?: HelpRequest[];
   metadata?: Record<string, unknown>;
@@ -73,9 +77,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(
-      (body as { error?: string } | null)?.error ?? `Request failed (${res.status})`,
-    );
+    const message =
+      (body as { error?: string } | null)?.error ?? `Request failed (${res.status})`;
+    // Host Bluekey expired — clear and force re-login. Skip when only a kiosk JWT is in use.
+    if (res.status === 401 && !readKioskToken()) {
+      const lower = message.toLowerCase();
+      if (
+        lower.includes("expired") ||
+        lower.includes("invalid") ||
+        lower.includes("token") ||
+        lower.includes("unauthorized")
+      ) {
+        notifyAuthExpired("Session expired — sign in again.");
+      }
+    }
+    throw new Error(message);
   }
 
   if (res.status === 204) return undefined as T;
@@ -97,13 +113,25 @@ export function addPlayer(
   sessionId: string,
   displayName: string,
   isHost = false,
+  playerId?: string | null,
 ): Promise<PlayerState> {
   return request<PlayerState>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players`,
     {
       method: "POST",
-      body: JSON.stringify({ displayName, isHost }),
+      body: JSON.stringify({
+        displayName,
+        isHost,
+        ...(playerId ? { playerId } : {}),
+      }),
     },
+  );
+}
+
+export function removePlayer(sessionId: string, playerId: string): Promise<void> {
+  return request<void>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}`,
+    { method: "DELETE" },
   );
 }
 

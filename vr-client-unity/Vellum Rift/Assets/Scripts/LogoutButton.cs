@@ -33,7 +33,7 @@ namespace VellumRift
 
         private void Awake()
         {
-            if (WebGlShellMode.UsesExternalShell)
+            if (WebGlShellMode.UsesExternalShell || SpectatorMode.IsActive)
             {
                 enabled = false;
                 return;

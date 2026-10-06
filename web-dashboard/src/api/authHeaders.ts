@@ -1,12 +1,14 @@
 /**
  * Attach Bluekey Bearer token when present (local-dev skip has no token).
+ * Prefers host localStorage token; kiosk JWT only on kiosk routes.
  */
-import { EMAIL_STORAGE_KEY, TOKEN_STORAGE_KEY } from "../auth/config";
+import { EMAIL_STORAGE_KEY } from "../auth/config";
+import { readBearerTokenForApi, readHostEmail } from "../auth/tokenStorage";
 
 export function getAuthHeaders(extra?: HeadersInit): Headers {
   const headers = new Headers(extra);
   try {
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    const token = readBearerTokenForApi();
     if (token && token !== "local-dev") {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -20,9 +22,11 @@ export function getAuthHeaders(extra?: HeadersInit): Headers {
 }
 
 export function getStoredEmail(): string {
-  try {
-    return sessionStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
+  return readHostEmail() || (() => {
+    try {
+      return sessionStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  })();
 }

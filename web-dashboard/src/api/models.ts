@@ -1,17 +1,10 @@
 import { API_BASE_URL } from "./config";
-import { TOKEN_STORAGE_KEY } from "../auth/config";
+import { getAuthHeaders } from "./authHeaders";
 
 function authHeaders(json = false): Headers {
-  const headers = new Headers();
-  try {
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token && token !== "local-dev") {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  } catch {
-    /* ignore */
-  }
-  if (json) headers.set("Content-Type", "application/json");
+  const headers = getAuthHeaders();
+  if (!json) headers.delete("Content-Type");
+  else if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   return headers;
 }
 

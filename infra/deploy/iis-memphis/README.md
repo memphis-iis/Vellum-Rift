@@ -74,6 +74,16 @@ large packages as empty dirs). So the backend is NOT built on the box:
    ```
 4. WebGL build → `/assets/static/vellumrift/` (served at
    `https://iis.memphis.edu/vellumrift/`; `index.html` is the entry).
+   Unity writes `Build/*.br` as mode `600` — rsync with world-readable
+   modes so Caddy can always serve them:
+   ```bash
+   rsync -av --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+     "vr-client-unity/Vellum Rift/web build/" \
+     jrhaner@iis:/assets/static/vellumrift/
+   ```
+   Live Caddy must send `Content-Encoding: br` for `*.br` (see
+   `Caddyfile.vellumrift.snippet`). After deploy: hard-refresh / clear
+   site cache — mixed old/new wasm+data causes `RuntimeError: index out of bounds`.
 
 ## Test server: ramiel (current API host)
 
@@ -121,6 +131,15 @@ rsync -av --delete dist/ jrhaner@iis:/assets/static/vellum-dashboard/
 ```
 
 Do **not** rsync into `/assets/static/vellumrift/` — that tree is the Unity WebGL client.
+
+**After deploy smoke (token / lobby / presence / colors):**
+
+1. Sign in → open a **new tab** to the dashboard — still authenticated (localStorage).
+2. Lobby → **Set active** on a manuscript — stays Active across several seconds (poll race fixed).
+3. Participants list shows ~one row per live client (not dozens of host/Gallery ghosts). Rejoin clears stale `isHost`.
+4. Enter 3D on Mona Lisa / painted manuscripts — albedo visible (not grey relief only). If still grey, download `GET /api/models/{id}` and confirm the GLB texture is color vs IR.
+
+**Backend presence fixes** (player reconnect / prune) must be deployed to **ramiel** with the usual artifact transfer — dashboard-only rsync is not enough for duplicate participants.
 
 Caddy route on the iis box (`/assets/Caddyfile`):
 

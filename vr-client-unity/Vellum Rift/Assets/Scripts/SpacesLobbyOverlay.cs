@@ -32,6 +32,7 @@ namespace VellumRift
         private Text statusText;
         private Text bannerText;
         private InputField newLabelField;
+        private InputField joinSessionField;
         private Transform listContent;
         private ScrollRect scrollRect;
 
@@ -126,7 +127,7 @@ namespace VellumRift
 
             // Scroll list
             GameObject scrollGO = CreateUIObject("Scroll", panel.transform);
-            SetRect(scrollGO.GetComponent<RectTransform>(), 48f, y, -48f, y - 360f);
+            SetRect(scrollGO.GetComponent<RectTransform>(), 48f, y, -48f, y - 280f);
             var scrollImg = scrollGO.AddComponent<Image>();
             scrollImg.color = VrTheme.WithAlpha(VrTheme.SurfaceContainer, 0.9f);
             scrollRect = scrollGO.AddComponent<ScrollRect>();
@@ -159,7 +160,39 @@ namespace VellumRift
             scrollRect.viewport = viewport.GetComponent<RectTransform>();
             scrollRect.content = contentRt;
 
-            y -= 380f;
+            y -= 300f;
+
+            Text joinHead = CreateText("JoinHead", panel.transform, "Or paste a Space ID", 18, TextAnchor.MiddleLeft, VrTheme.Primary);
+            joinHead.fontStyle = FontStyle.Bold;
+            SetRect(joinHead.rectTransform, 48f, y, -48f, y - 26f);
+            y -= 32f;
+
+            joinSessionField = CreateInput(
+                panel.transform,
+                "JoinSession",
+                "Paste session UUID from the dashboard URL",
+                48f,
+                y,
+                -220f,
+                y - 48f);
+            CreateButton(
+                panel.transform,
+                "JoinPasteBtn",
+                "Join",
+                VrTheme.Accent,
+                VrTheme.OnAccent,
+                -200f,
+                y,
+                -48f,
+                y - 48f,
+                () =>
+                {
+                    string id = joinSessionField != null ? joinSessionField.text : "";
+                    _ = JoinAsync(id);
+                },
+                absoluteRight: true);
+            y -= 60f;
+
             Text newHead = CreateText("NewHead", panel.transform, "New space", 20, TextAnchor.MiddleLeft, VrTheme.Primary);
             newHead.fontStyle = FontStyle.Bold;
             SetRect(newHead.rectTransform, 48f, y, -48f, y - 28f);
@@ -291,14 +324,45 @@ namespace VellumRift
 
         private async Task JoinAsync(string sessionId)
         {
-            if (apiClient == null || string.IsNullOrEmpty(sessionId) || busy)
+            if (apiClient == null || busy)
                 return;
+
+            string id = (sessionId ?? "").Trim();
+            // Allow pasting a full dashboard URL (?session=…).
+            if (id.Contains("session=", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var uri = new Uri(id.Contains("://") ? id : "https://local/?" + id.TrimStart('?'));
+                    string q = uri.Query.TrimStart('?');
+                    foreach (string part in q.Split('&'))
+                    {
+                        string[] kv = part.Split(new[] { '=' }, 2);
+                        if (kv.Length == 2 &&
+                            string.Equals(Uri.UnescapeDataString(kv[0]), "session", StringComparison.OrdinalIgnoreCase))
+                        {
+                            id = Uri.UnescapeDataString(kv[1]).Trim();
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    /* keep raw id */
+                }
+            }
+
+            if (string.IsNullOrEmpty(id))
+            {
+                SetStatus("Enter a Space ID (or paste the dashboard URL).");
+                return;
+            }
 
             busy = true;
             SetStatus("Joining…");
             try
             {
-                var result = await apiClient.GetSession(sessionId);
+                var result = await apiClient.GetSession(id);
                 if (result.State == null || !result.State.isActive)
                 {
                     SetStatus("That space is missing or archived. Pick another or create a new one.");

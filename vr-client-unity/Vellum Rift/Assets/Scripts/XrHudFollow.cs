@@ -141,9 +141,12 @@ namespace VellumRift
                 return;
 
             t.position = cam.transform.position + cam.transform.forward * distance;
-            Vector3 toCam = cam.transform.position - t.position;
-            if (toCam.sqrMagnitude > 0.0001f)
-                t.rotation = Quaternion.LookRotation(toCam.normalized, Vector3.up);
+            // World-space UI is readable from the canvas's -Z side. Point +Z
+            // away from the eyes so the front faces the player. Aiming +Z at
+            // the camera shows the back, and the message reads mirrored.
+            Vector3 away = t.position - cam.transform.position;
+            if (away.sqrMagnitude > 0.0001f)
+                t.rotation = Quaternion.LookRotation(away.normalized, Vector3.up);
         }
 
         public static void PlaceSideHud(

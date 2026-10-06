@@ -25,6 +25,21 @@ namespace VellumRift
             }
         }
 
+        /// <summary>True for wall-observer nametags (exact or common variants).</summary>
+        public static bool LooksLikeSpectatorName(string displayName)
+        {
+            if (string.IsNullOrEmpty(displayName))
+                return false;
+            string n = displayName.Trim();
+            if (string.Equals(n, DisplayName, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (string.Equals(n, "GalleryScreen", System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (string.Equals(n, "Observer", System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            return false;
+        }
+
         /// <summary>EditMode / tests: clear cached detection.</summary>
         public static void ClearCache() => cached = null;
 

@@ -1,12 +1,15 @@
+import { Readable } from "node:stream";
 import { Router, type Request, type Response } from "express";
 
 import { isKioskGuest } from "../lib/auth.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { getStorage } from "../lib/storage.js";
-import { GlTFModelRepository } from "../lib/gltfModelRepository.js";
+import { GlTFModelRepository, type GlTFModelRecord } from "../lib/gltfModelRepository.js";
 import { JobQueue } from "../lib/jobQueue.js";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { getLoDBudget, LOD_TIER_KEYS, type LoDTier } from "../lib/lodTiers.js";
+import { lodStorageKey, subsampleGlb } from "../lib/lodGlb.js";
 
 const router = Router();
 const repo = new GlTFModelRepository();
@@ -42,6 +45,66 @@ async function kioskMayAccessModel(
     return { ok: false, status: 403, error: "Model is not on this space playlist" };
   }
   return { ok: true };
+}
+
+/**
+ * Quest (and any other client) asks with `?tier=quest`. When the stored grid
+ * is over that tier's vertex budget, serve a cached subsampled GLB. No tier,
+ * or a mesh already inside the budget, keeps the original key.
+ * Returns null when the tier name is not one we know.
+ */
+async function resolveTierStorageKey(
+  record: GlTFModelRecord,
+  tierQuery: unknown,
+): Promise<string | null> {
+  if (tierQuery == null || tierQuery === "") return record.storageKey;
+  if (typeof tierQuery !== "string") return null;
+
+  let tier: LoDTier;
+  try {
+    tier = getLoDBudget(tierQuery).tier;
+  } catch {
+    return null;
+  }
+
+  const budget = getLoDBudget(tier);
+  if (!Number.isFinite(budget.maxVertices) || record.vertexCount <= budget.maxVertices) {
+    return record.storageKey;
+  }
+
+  const storage = getStorage();
+  const cacheKey = lodStorageKey(record.storageKey, tier);
+  try {
+    await storage.stat(cacheKey);
+    return cacheKey;
+  } catch {
+    // Cache miss — build it once.
+  }
+
+  const original = await storage.downloadBuffer(record.storageKey);
+  const reduced = await subsampleGlb(original, {
+    maxVertices: budget.maxVertices,
+    maxTextureSize: budget.maxTextureSize,
+    width: record.width,
+    height: record.height,
+  });
+  if (!reduced.changed) {
+    console.warn(
+      `[models] ${record.modelId} is ${record.vertexCount} verts but could not be subsampled for ${tier}; serving original`,
+    );
+    return record.storageKey;
+  }
+
+  await storage.upload(
+    cacheKey,
+    Readable.from(reduced.glb),
+    reduced.glb.length,
+    "model/gltf-binary",
+  );
+  console.log(
+    `[models] Cached ${tier} LoD for ${record.modelId}: ${record.vertexCount} → ${reduced.vertexCount} verts`,
+  );
+  return cacheKey;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,14 +226,20 @@ router.get("/:modelId", async (req: Request, res: Response) => {
       return;
     }
 
-    // Stream the .glb from MinIO directly to the HTTP response.
     const storage = getStorage();
-    const downloadStream = await storage.download(record.storageKey);
+    const storageKey = await resolveTierStorageKey(record, req.query.tier);
+    if (storageKey == null) {
+      res.status(400).json({
+        error: `Invalid LoD tier. Must be one of: ${LOD_TIER_KEYS.join(", ")}`,
+      });
+      return;
+    }
+
+    const downloadStream = await storage.download(storageKey);
 
     res.setHeader("Content-Type", "model/gltf-binary");
     res.setHeader("Content-Disposition", `attachment; filename="${modelId}.glb"`);
 
-    // Pipe MinIO stream → Express response
     (downloadStream as NodeJS.ReadableStream).pipe(res);
   } catch (err) {
     console.error(`GET /api/models/${req.params.modelId} failed:`, err);
@@ -228,9 +297,17 @@ router.delete("/:modelId", async (req: Request, res: Response) => {
       return;
     }
 
-    // Delete from MinIO first, then DB.
+    // Delete from MinIO first, then DB. Cached tier variants sit beside the original.
     const storage = getStorage();
     await storage.remove(record.storageKey);
+    for (const tier of LOD_TIER_KEYS) {
+      if (tier === "archival") continue;
+      try {
+        await storage.remove(lodStorageKey(record.storageKey, tier));
+      } catch (err) {
+        console.warn(`DELETE cache ${tier} for ${modelId} failed:`, err);
+      }
+    }
     await repo.delete(modelId);
 
     res.json({ removed: true, modelId });

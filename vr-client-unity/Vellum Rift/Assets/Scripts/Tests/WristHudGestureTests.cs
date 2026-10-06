@@ -80,6 +80,12 @@ namespace VellumRift.Tests
         }
 
         [Test]
+        public void ToggleMenuAction_IsStable()
+        {
+            Assert.That(InputControlSchema.ToggleMenuAction, Is.EqualTo("Toggle menu"));
+        }
+
+        [Test]
         public void CancelFirstTeachAutoDismiss_StopsPendingDismiss()
         {
             var go = new GameObject("WristHud");

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,6 +30,7 @@ namespace VellumRift
         private readonly List<Image> pool = new List<Image>();
         private Image manuscriptMark;
         private Text titleLabel;
+        private Text turnLabel;
         private float refreshAccum;
 
         public static SpectatorRadar Ensure(
@@ -70,6 +72,8 @@ namespace VellumRift
             if (!string.IsNullOrEmpty(excludeLocalId) && playerId == excludeLocalId) return false;
             if (string.Equals(displayName, SpectatorMode.DisplayName, System.StringComparison.Ordinal))
                 return false;
+            if (SpectatorMode.LooksLikeSpectatorName(displayName))
+                return false;
             return true;
         }
 
@@ -84,6 +88,23 @@ namespace VellumRift
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
+
+            var turnGo = new GameObject("TurnCountdown", typeof(RectTransform));
+            turnGo.transform.SetParent(canvasGO.transform, false);
+            var turnRt = turnGo.GetComponent<RectTransform>();
+            turnRt.anchorMin = new Vector2(0.5f, 1f);
+            turnRt.anchorMax = new Vector2(0.5f, 1f);
+            turnRt.pivot = new Vector2(0.5f, 1f);
+            turnRt.anchoredPosition = new Vector2(0f, -20f);
+            turnRt.sizeDelta = new Vector2(360f, 72f);
+            turnLabel = turnGo.AddComponent<Text>();
+            turnLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            turnLabel.fontSize = 48;
+            turnLabel.fontStyle = FontStyle.Bold;
+            turnLabel.alignment = TextAnchor.MiddleCenter;
+            turnLabel.color = VrTheme.AccentBright;
+            turnLabel.raycastTarget = false;
+            turnGo.SetActive(false);
 
             var panel = new GameObject("RadarPanel");
             panel.transform.SetParent(canvasGO.transform, false);
@@ -138,10 +159,23 @@ namespace VellumRift
         {
             if (!SpectatorMode.IsActive || mapRoot == null)
                 return;
+            RefreshTurn();
             refreshAccum += Time.unscaledDeltaTime;
             if (refreshAccum < 0.2f) return;
             refreshAccum = 0f;
             RefreshDots();
+        }
+
+        private void RefreshTurn()
+        {
+            if (turnLabel == null)
+                return;
+            string clock = TurnCountdown.Format(DateTime.UtcNow);
+            bool show = !string.IsNullOrEmpty(clock);
+            if (turnLabel.gameObject.activeSelf != show)
+                turnLabel.gameObject.SetActive(show);
+            if (show)
+                turnLabel.text = clock;
         }
 
         private void RefreshDots()

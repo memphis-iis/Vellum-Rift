@@ -101,3 +101,42 @@ export function formatEventWindow(
   if (startsAt) return `From ${fmt(startsAt)}`;
   return `Until ${fmt(endsAt!)}`;
 }
+
+export type ExperiencePhase = "playing" | "ended";
+
+/** Museum host turn timer phase (defaults to playing). */
+export function sessionExperiencePhase(session: {
+  experiencePhase?: string | null;
+  metadata?: Record<string, unknown> | null;
+} | null | undefined): ExperiencePhase {
+  const raw = session?.experiencePhase ?? session?.metadata?.experiencePhase;
+  return raw === "ended" ? "ended" : "playing";
+}
+
+/** ISO end of the current host turn, or null when untimed / reset. */
+export function sessionRotationEndsAt(session: {
+  rotationEndsAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+} | null | undefined): string | null {
+  const raw = session?.rotationEndsAt ?? session?.metadata?.rotationEndsAt;
+  return typeof raw === "string" && Number.isFinite(Date.parse(raw)) ? raw : null;
+}
+
+/** Whole seconds left in the turn (0 when expired); null when no timer is running. */
+export function rotationSecondsRemaining(
+  session: Parameters<typeof sessionRotationEndsAt>[0] &
+    Parameters<typeof sessionExperiencePhase>[0],
+  nowMs: number = Date.now(),
+): number | null {
+  if (sessionExperiencePhase(session) === "ended") return null;
+  const endsAt = sessionRotationEndsAt(session);
+  if (!endsAt) return null;
+  return Math.max(0, Math.ceil((Date.parse(endsAt) - nowMs) / 1000));
+}
+
+/** m:ss for a countdown. */
+export function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}

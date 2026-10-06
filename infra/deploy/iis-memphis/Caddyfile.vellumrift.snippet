@@ -15,7 +15,18 @@ handle_path /apis/vellumrift/* {
 
 # --- WebGL client (static files in /assets/static/vellumrift/) ---------------
 # https://iis.memphis.edu/vellumrift/
+# Unity Brotli builds (webGLDecompressionFallback: 0) request *.br directly and
+# need Content-Encoding: br + correct MIME types. Keep Build/*.br world-readable
+# (mode 644) — Caddy in Docker cannot serve jrhaner-owned mode 600 files.
 handle_path /vellumrift/* {
 	root * /usr/share/caddy/static/vellumrift
+	@brWasm path *.wasm.br
+	@brJs path *.js.br
+	@brData path *.data.br
+	@br path *.br
+	header @br Content-Encoding br
+	header @brWasm Content-Type application/wasm
+	header @brJs Content-Type application/javascript
+	header @brData Content-Type application/octet-stream
 	file_server
 }

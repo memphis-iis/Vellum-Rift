@@ -4,7 +4,7 @@
 
 **Scenario:** one **offline LAN server**, student/staff **laptops**, **2–3 Meta Quest 2** headsets, classroom with tables, taped play boundaries, and **no internet on show day** after prep.
 
-Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md). Scored guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md) ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314)).
+Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md). Scored guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md) ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314)). **USB / dynamic IP / four-station set-and-forget:** [museum-kit-runbook.md](museum-kit-runbook.md).
 
 ---
 
@@ -19,9 +19,9 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
 - [ ] Pull or build Docker images (**Postgres**, **Silo**, **backend**, **dashboard**, **WebGL** nginx) while online.
 - [ ] Build the **dashboard** via compose (or prebuilt image with the same LAN `VITE_*` as `.env`).
 - [ ] Build Unity **WebGL** museum client and copy into `infra/deploy/lan-party/webgl/` (see lan-party runbook §2.3–2.4).
-- [ ] Build and **sideload Quest APKs** on each headset (`VELLUM_BUILD_BACKEND_URL` = LAN API, insecure HTTP allowed for LAN).
+- [ ] Build and **sideload Quest APKs** on each headset (`VELLUM_BUILD_BACKEND_URL` = LAN API, insecure HTTP allowed for LAN). Rebuild after MENU stack / help / leave / turn-timer soft-end (passthrough) lands — see [quest-museum-verify.md](quest-museum-verify.md).
 - [ ] **Ingest manuscripts** into a demo Space (upload while stack is up); confirm assets in MinIO before you copy volumes or re-upload on the LAN.
-- [ ] Dry run on the LAN (or same router at school): `docker compose up -d`, health checks, host **local developer** → create/open Space → **Kiosk on** → mark **Event** → Quest sees event → one laptop joins WebGL.
+- [ ] Dry run on the LAN (or same router at school): `docker compose up -d`, health checks, host **local developer** → create/open Space → **Kiosk on** → mark **Event** → Quest sees event → one laptop joins WebGL. Host tools **Turn timer** Start / Reset smoke-tested against one headset.
 
 ### Pack list
 
@@ -31,7 +31,7 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
 | Closed router / Wi‑Fi AP | No WAN on visit day after `.env` is final |
 | 2–3 Quest 2 + charged controllers | Spare AA batteries if using disposable cells |
 | USB cables / SideQuest-capable laptop | For sideload updates during prep only |
-| Host laptop | Dashboard + **Call for help** alerts on Enter tab |
+| Host laptop | Dashboard Lobby **Host tools**: **Turn timer** + **Call for help** alerts |
 | Optional wall display + HDMI / projector | **Observer / spectator link** so peers (and staff) can watch the same explorer view |
 | Reusable or disposable **VR face pads** (foam/silicone covers) | Enough for full rotations, or a wipe-and-swap protocol between users |
 | Painter’s tape or floor tape | Play rectangles + “do not cross” lines |
@@ -103,7 +103,7 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 5. Confirm manuscript playlist; run a **30-second Quest + one laptop** smoke test.
 6. If you have a wall display or projector, open the **observer / spectator link** so peer observers can watch the same view during rotations ([museum-guest-entry.md](museum-guest-entry.md)).
 7. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
-8. Remind staff: **chat is off** on this profile; Quest guests use **left Y** only for **Call for help** (see wrist **MENU** → ControlsGuide). There is **no on-screen help button or log out in VR** — staff handle exit at the headset ([#312](https://github.com/memphis-iis/Vellum-Rift/issues/312)).
+8. Remind staff: **chat is off** on this profile; Quest guests use **left Y** only for **Call for help** (see wrist **MENU** → ControlsGuide). **Call for help** and **Log out** appear in VR only while wrist **MENU** is open ([#312](https://github.com/memphis-iis/Vellum-Rift/issues/312), [#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
 
 ### How students join
 
@@ -113,6 +113,8 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 | **Laptop** | Kiosk URL or QR → nametag → **Enter 3D** (WebGL). Optional **observer** URL on wall display or projector for **peer** viewing. |
 
 Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-only features.
+
+**Quest leave:** open wrist **MENU** (raise left wrist, look at the pad) → laser-select **LOG OUT**. A guest leaves their own seat and returns to the event picker; the shared Space stays running for the next student. Only the host ending a session archives it.
 
 ---
 
@@ -133,7 +135,9 @@ Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-
 | Elementary | **5–8 min** | **8–10 min** | Shorter VR; emphasize calm movement |
 | Middle school | **8–12 min** | **10–12 min** | Optional laser/pin if spotter agrees |
 
-Use a **visible timer** (projector or phone) for fairness. Signal **one minute left** verbally.
+Use the owner's **Lobby → Host tools → Turn timer**: pick **5 / 8 / 10 / 12 min** and press **Start turn** (the server clock sets the end time; the live countdown shows in the lobby). Press **Reset** to end the turn early and force the experience to *ended*. Signal **one minute left** verbally.
+
+In WebGL, press **H** to hide/show the on-screen chrome for a clean wall or screenshot view (remembered for the browser session).
 
 ### Hygiene
 

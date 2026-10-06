@@ -18,6 +18,9 @@ namespace VellumRift
 
     public static class InputControlSchema
     {
+        /// <summary>Desktop MENU row label (H toggles <see cref="SessionHudStack"/>).</summary>
+        public const string ToggleMenuAction = "Toggle menu";
+
         public readonly struct BindingRow
         {
             public readonly string Action;
@@ -60,23 +63,39 @@ namespace VellumRift
 #endif
         }
 
-        public static string SchemaLabel(ControlSchema schema)
+        public static string SchemaLabel(ControlSchema schema) =>
+            SchemaLabel(schema, XrInputMode.Controllers);
+
+        public static string SchemaLabel(ControlSchema schema, XrInputMode xrMode)
         {
             switch (schema)
             {
-                case ControlSchema.XR: return "Touch / XR";
+                case ControlSchema.XR:
+                    return xrMode == XrInputMode.Hands ? "Hands" : "Touch";
                 case ControlSchema.Gamepad: return "Gamepad";
                 default: return "Keyboard / Mouse";
             }
         }
 
         /// <summary>
-        /// Platform-specific control hints (#184).
+        /// Platform-specific control hints (#184). XR defaults to the Touch list.
         /// </summary>
-        public static BindingRow[] GuideRows(ControlSchema schema)
+        public static BindingRow[] GuideRows(ControlSchema schema) =>
+            GuideRows(schema, XrInputMode.Controllers);
+
+        public static BindingRow[] GuideRows(ControlSchema schema, XrInputMode xrMode)
         {
             switch (schema)
             {
+                case ControlSchema.XR when xrMode == XrInputMode.Hands:
+                    return new[]
+                    {
+                        new BindingRow("Move", "Pinch left, look"),
+                        new BindingRow("Point", "Right hand"),
+                        new BindingRow("Drop a pin", "Pinch once"),
+                        new BindingRow("Change a pin", "Pinch the pin"),
+                        new BindingRow("Menu", "Look at left wrist"),
+                    };
                 case ControlSchema.XR:
                     return new[]
                     {
@@ -109,7 +128,7 @@ namespace VellumRift
                         new BindingRow("Turn Left / Right", "Z / E"),
                         new BindingRow("Use Laser", "L-CLK"),
                         new BindingRow("Drop a Pin", "F"),
-                        new BindingRow("Toggle menu", "H"),
+                        new BindingRow(ToggleMenuAction, "H"),
                     };
             }
         }

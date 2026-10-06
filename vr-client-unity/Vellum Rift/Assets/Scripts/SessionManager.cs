@@ -55,6 +55,8 @@ namespace VellumRift
         [SerializeField] private SessionHudStack sessionHudStack;
         [SerializeField] private PlayerSpawner playerSpawner;
 
+        private ExperiencePhaseController phaseController;
+
         [Header("Multiplayer Sync")]
         [SerializeField] private GameStatePoller gameStatePoller;
         [SerializeField] private MultiplayerController multiplayerController;
@@ -112,7 +114,8 @@ namespace VellumRift
                 if (chatManager != null && !SpectatorMode.IsActive)
                     chatManager.FocusChanged += HandleChatFocusChanged;
             }
-            if (!WebGlShellMode.UsesExternalShell)
+            // Guest/VR chrome (controls guide, help, logout) — never on museum wall observer.
+            if (!WebGlShellMode.UsesExternalShell && !SpectatorMode.IsActive)
             {
                 if (controlsGuide == null) controlsGuide = GetComponent<ControlsGuide>() ?? gameObject.AddComponent<ControlsGuide>();
                 if (helpRequestButton == null)
@@ -140,7 +143,7 @@ namespace VellumRift
                 else
                     sessionHudStack.Close();
             }
-            if (!WebGlShellMode.UsesExternalShell)
+            if (!WebGlShellMode.UsesExternalShell && !SpectatorMode.IsActive)
             {
                 if (logoutButton == null) logoutButton = GetComponent<LogoutButton>() ?? gameObject.AddComponent<LogoutButton>();
             }
@@ -174,14 +177,17 @@ namespace VellumRift
                 pageQuerySession: pageSession,
                 log: msg => Debug.Log($"[SessionManager] {msg}"));
 
+            // Sticky model overrides are for local debug only. When joining a real
+            // Space (CLI/env/inspector session id), always follow session activeModelId
+            // — including in the Editor so monalisa / playlist switches load.
+            bool joiningKnownSession = !string.IsNullOrEmpty(sessionIdOverride);
             _modelIdOverride = ModelIdResolver.ResolveOverride(
                 inspectorDefault: modelId,
                 getCliArg: GetCliArg,
                 getEnvVar: System.Environment.GetEnvironmentVariable,
                 pageQueryModelId: pageModel,
                 log: msg => Debug.Log($"[SessionManager] {msg}"),
-                // Stale SampleScene modelId must not override session playlist in WebGL.
-                allowInspectorDefault: Application.isEditor);
+                allowInspectorDefault: Application.isEditor && !joiningKnownSession);
         }
 
         private void Start()
@@ -194,7 +200,7 @@ namespace VellumRift
             bool createdSession = false;
             try
             {
-                string backendUrl = ResolveBackendUrl();
+                string backendUrl = await ResolveBackendUrlAsync();
                 _backendUrl = backendUrl;
                 apiClient.SetBaseUrl(backendUrl);
                 healthChecker.SetHealthCheckUrl(backendUrl + "/api/health");
@@ -263,7 +269,8 @@ namespace VellumRift
 
                 // Player identity: prefer the Bluekey account display name, then
                 // email, then the Inspector/CLI-provided playerName fallback.
-                string resolvedPlayerName = ResolvePlayerName();
+                // Museum/kiosk guests without a real name become Explorer N.
+                string resolvedPlayerName = ResolvePlayerName(session);
 
                 if (healthChecker != null)
                     healthChecker.SetSessionInfo(session.sessionId, resolvedPlayerName);
@@ -293,14 +300,45 @@ namespace VellumRift
                 IsHost = player.isHost;
                 Debug.Log($"[SessionManager] Player {LocalPlayerId} added (host={IsHost})");
 
+                // Wall observer joins for manuscript sync only — never appear as a remote avatar.
+                if (SpectatorMode.IsActive)
+                {
+                    try
+                    {
+                        await apiClient.SetConnection(SessionId, LocalPlayerId, connected: false);
+                        Debug.Log("[SessionManager] Spectator marked disconnected for presence");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[SessionManager] Spectator presence hide failed: {ex.Message}");
+                    }
+                }
+
                 // Step 3: Initialize all feature components
                 InitializeFeatures(backendUrl, resolvedPlayerName);
+
+                if (!SpectatorMode.IsActive)
+                {
+                    var badge = LocalNameBadge.Ensure(gameObject);
+                    badge?.Show(resolvedPlayerName);
+                }
 
                 // Stand back from the manuscript — SampleScene Player starts at origin.
                 PlaceLocalPlayerAtSpawn();
 
                 // Step 4: Load manuscript from session activeModelId (or launch override).
+                Debug.Log(
+                    $"[SessionManager] Session activeModelId='{session.activeModelId ?? ""}' " +
+                    $"override='{_modelIdOverride}'");
                 await ApplyActiveModelAsync(session.activeModelId);
+                if (string.IsNullOrEmpty(_loadedModelId) &&
+                    string.IsNullOrEmpty(_modelIdOverride) &&
+                    string.IsNullOrEmpty(session.activeModelId))
+                {
+                    Debug.LogWarning(
+                        "[SessionManager] Space has no active manuscript — set one in the dashboard " +
+                        "Library / playlist (Set active for everyone).");
+                }
 
                 // After mesh bounds are known, push spawn out if the book is huge.
                 AdjustSpawnForModelBounds();
@@ -344,7 +382,7 @@ namespace VellumRift
             }
         }
 
-        private string ResolvePlayerName()
+        private string ResolvePlayerName(GameState session)
         {
             if (SpectatorMode.IsActive)
                 return SpectatorMode.DisplayName;
@@ -363,59 +401,78 @@ namespace VellumRift
                     bluekeyName = bluekeyAuth.UserEmail;
             }
 
-            return SessionIdResolver.ResolvePlayerName(
+            string resolved = SessionIdResolver.ResolvePlayerName(
                 inspectorDefault: playerName,
                 getCliArg: GetCliArg,
                 getEnvVar: System.Environment.GetEnvironmentVariable,
                 pageQueryPlayerName: pagePlayer,
                 bluekeyDisplayName: bluekeyName,
                 log: msg => Debug.Log($"[SessionManager] {msg}"));
+
+            // Museum / Quest kiosk guests: Guest/Player → Explorer 1, Explorer 2, …
+            bool museumHeadset =
+#if UNITY_ANDROID && !UNITY_EDITOR
+                true;
+#else
+                KioskMode.IsActive;
+#endif
+            if (museumHeadset && MuseumGuestNames.IsPlaceholder(resolved))
+            {
+                var existing = new System.Collections.Generic.List<string>();
+                if (session?.players != null)
+                {
+                    foreach (var p in session.players)
+                    {
+                        if (p != null && !string.IsNullOrEmpty(p.displayName))
+                            existing.Add(p.displayName);
+                    }
+                }
+                resolved = MuseumGuestNames.NextExplorer(existing);
+                Debug.Log($"[SessionManager] Museum guest display name → {resolved}");
+            }
+
+            return resolved;
         }
 
         private void InitializeFeatures(string backendUrl, string resolvedPlayerName)
         {
             bool spectator = SpectatorMode.IsActive;
 
+            // Never SetActive(false) on components that share this GameObject —
+            // that would stop GameStatePoller / MultiplayerController and hide
+            // every remote avatar + laser on the wall display.
             if (positionSender != null)
             {
+                // MultiplayerController already publishes body-anchored pose at ~20 Hz.
+                // A second sender (often Camera.main / HMD Y) fights it and makes remotes bob.
+                positionSender.enabled = false;
                 if (spectator)
-                {
-                    positionSender.gameObject.SetActive(false);
-                    Debug.Log("[SessionManager] Spectator — position sender disabled");
-                }
+                    Debug.Log("[SessionManager] Spectator — position publish disabled (avatars/lasers still shown)");
                 else
-                {
-                    positionSender.SetBaseUrl(backendUrl);
-                    positionSender.Initialize(SessionId, LocalPlayerId);
-                }
+                    Debug.Log("[SessionManager] PositionSender off — MultiplayerController owns pose publish");
             }
             if (spatialIndicatorSystem != null)
             {
-                if (spectator)
-                    spatialIndicatorSystem.gameObject.SetActive(false);
-                else
-                {
-                    spatialIndicatorSystem.SetBaseUrl(backendUrl);
-                    spatialIndicatorSystem.SetPlayerSpawner(playerSpawner);
-                    spatialIndicatorSystem.Initialize(SessionId, LocalPlayerId);
-                }
+                // Observer needs nameplates over remotes; keep indicators for wall camera.
+                spatialIndicatorSystem.enabled = true;
+                spatialIndicatorSystem.SetBaseUrl(backendUrl);
+                spatialIndicatorSystem.SetPlayerSpawner(playerSpawner);
+                spatialIndicatorSystem.Initialize(SessionId, LocalPlayerId);
             }
             if (laserPointer != null)
             {
-                if (spectator)
-                    laserPointer.gameObject.SetActive(false);
-                else
-                {
-                    laserPointer.SetBaseUrl(backendUrl);
-                    laserPointer.Initialize(SessionId, LocalPlayerId, LocalPlayerId, IsHost);
-                }
+                // Observer still renders remote beams; local beam/publish is suppressed.
+                laserPointer.SetBaseUrl(backendUrl);
+                laserPointer.Initialize(SessionId, LocalPlayerId, LocalPlayerId, IsHost);
+                laserPointer.SetReceiveOnly(spectator);
             }
             if (summonManager != null)
             {
                 if (spectator)
-                    summonManager.gameObject.SetActive(false);
+                    summonManager.enabled = false;
                 else
                 {
+                    summonManager.enabled = true;
                     summonManager.SetBaseUrl(backendUrl);
                     summonManager.Initialize(SessionId, LocalPlayerId, IsHost);
                 }
@@ -428,14 +485,23 @@ namespace VellumRift
             if (controlsGuide != null)
             {
                 if (spectator)
-                    controlsGuide.gameObject.SetActive(false);
+                {
+                    controlsGuide.SetVisible(false);
+                    controlsGuide.enabled = false;
+                }
                 else
+                {
+                    controlsGuide.enabled = true;
                     controlsGuide.SetHost(IsHost);
+                }
             }
             if (helpRequestButton != null)
             {
                 if (spectator || IsHost)
+                {
+                    helpRequestButton.SetHudVisible(false);
                     helpRequestButton.enabled = false;
+                }
                 else
                 {
                     helpRequestButton.enabled = true;
@@ -455,18 +521,30 @@ namespace VellumRift
                 chatManager.Initialize(SessionId, LocalPlayerId, resolvedPlayerName, localAnchor);
                 if (spectator)
                 {
+                    // Wall: read-only chat + radar only — no guest/VR chrome.
                     chatManager.SetReadOnly(true);
                     chatManager.SetHudVisible(true);
                 }
             }
 
-            if (spectator && healthChecker != null)
-                healthChecker.gameObject.SetActive(false);
+            if (healthChecker != null)
+            {
+                if (spectator)
+                {
+                    healthChecker.SetHudVisible(false);
+                    healthChecker.enabled = false;
+                }
+                else
+                    healthChecker.enabled = true;
+            }
 
             if (logoutButton != null)
             {
                 if (spectator)
+                {
+                    logoutButton.SetHudVisible(false);
                     logoutButton.enabled = false;
+                }
                 else if (InputControlSchema.IsXrActive())
                     logoutButton.SetHudVisible(false);
             }
@@ -485,6 +563,16 @@ namespace VellumRift
                 multiplayerController.SetGameStatePoller(gameStatePoller);
                 multiplayerController.SetApiClient(apiClient);
                 multiplayerController.Initialize(SessionId, LocalPlayerId);
+            }
+
+            // Soft-end is for immersive guests only — skip HTML-shell embeds and
+            // Gallery screen / spectator walls (unityHud=1) to avoid WebGL recursion.
+            if (!spectator && !WebGlShellMode.UsesExternalShell)
+            {
+                if (phaseController == null)
+                    phaseController = GetComponent<ExperiencePhaseController>()
+                        ?? gameObject.AddComponent<ExperiencePhaseController>();
+                phaseController.Initialize(IsHost, spectator: false);
             }
 
             if (!spectator)
@@ -608,11 +696,20 @@ namespace VellumRift
             }
             Debug.Log($"[SessionManager] Loading manuscript model {desired}");
             await modelLoader.Load();
-            if (modelLoader.IsLoaded)
+            // Only mark loaded when the mesh that ended up on screen is this id —
+            // a superseded in-flight load must not block future host switches.
+            string loadedUrl = modelLoader.LoadedModelUrl ?? "";
+            if (modelLoader.IsLoaded && loadedUrl.IndexOf(desired, System.StringComparison.Ordinal) >= 0)
             {
                 _loadedModelId = desired;
                 AdjustSpawnForModelBounds();
                 RefreshManuscriptPlaySpace();
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"[SessionManager] Manuscript {desired} not confirmed loaded " +
+                    $"(IsLoaded={modelLoader.IsLoaded}, url={loadedUrl}) — will retry on next poll");
             }
         }
 
@@ -655,6 +752,9 @@ namespace VellumRift
         {
             if (state == null || !IsReady)
                 return;
+            TurnCountdown.Apply(state.experiencePhase, state.rotationEndsAt);
+            if (phaseController != null && phaseController.enabled)
+                phaseController.Apply(state);
             // Sticky launch override: do not follow host playlist switches.
             if (!string.IsNullOrEmpty(_modelIdOverride))
                 return;
@@ -732,6 +832,7 @@ namespace VellumRift
             Debug.Log("[SessionManager] Full logout — stopping all systems.");
 
             string sid = SessionId;
+            bool wasHost = IsHost;
 
             // 1. Stop polling (prevents stale state / duplicate player spawns).
             if (gameStatePoller != null) gameStatePoller.StopPolling();
@@ -757,7 +858,8 @@ namespace VellumRift
 
             // 7. End the session entirely so all server-side state is cleared.
             //    The next login will auto-recreate it fresh (no stale players).
-            if (!string.IsNullOrEmpty(sid) && apiClient != null)
+            //    Guests never end the shared Space (#317) — they only leave it.
+            if (wasHost && !string.IsNullOrEmpty(sid) && apiClient != null)
             {
                 try
                 {
@@ -782,6 +884,9 @@ namespace VellumRift
         private void Update()
         {
             if (!IsReady || playerController == null) return;
+            // Wall observer: camera director owns the view; still show remotes via
+            // MultiplayerController + LaserPointer receive-only (no local input).
+            if (SpectatorMode.IsActive) return;
 
             Camera cam = Camera.main;
             bool overUI = EventSystem.current != null &&
@@ -864,7 +969,7 @@ namespace VellumRift
             }
 
             // Waypoint: F / Left primary — name before POST (#163 / #287).
-            if (playerController.WaypointTriggered && artifactManager != null)
+            if (playerController.WaypointTriggered && artifactManager != null && !renameHandled)
             {
                 Vector3 pos;
                 if (xr && laserPointer != null && laserPointer.TryGetAim(out _, out _, out Vector3 hitPoint))
@@ -904,6 +1009,7 @@ namespace VellumRift
         private void LateUpdate()
         {
             if (!IsReady) return;
+            if (SpectatorMode.IsActive) return; // WallCameraDirector owns the camera.
             EnsureDesktopView();
         }
 
@@ -1066,7 +1172,8 @@ namespace VellumRift
             if (controller != null)
             {
                 controller.InputEnabled =
-                    !_chatInputFocused && !_pinPromptFocused && !_shellPinPromptOpen;
+                    !_chatInputFocused && !_pinPromptFocused && !_shellPinPromptOpen
+                    && !ExperiencePhaseController.InputFrozen;
             }
         }
 
@@ -1094,7 +1201,7 @@ namespace VellumRift
                 _ = LeaveSession();
         }
 
-        private string ResolveBackendUrl()
+        private async Task<string> ResolveBackendUrlAsync()
         {
 #if UNITY_WEBGL
             string resolved = BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl);
@@ -1103,9 +1210,42 @@ namespace VellumRift
                 if (allowInsecureHttp) Debug.LogWarning("[SessionManager] Connecting over plain http.");
                 else resolved = "https://" + resolved.Substring("http://".Length);
             }
-            return resolved;
+            return BackendUrlResolver.StripHealthPath(resolved);
 #else
-            return BackendUrlResolver.Resolve(inspectorDefault: defaultBackendUrl, getCliArg: GetCliArg, getEnvVar: System.Environment.GetEnvironmentVariable, log: msg => Debug.Log($"[SessionManager] {msg}"));
+            string discovered = await BackendLanDiscovery.EnsureAsync(
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable);
+            if (!string.IsNullOrEmpty(discovered))
+                return discovered;
+
+            string resolved = BackendUrlResolver.Resolve(
+                inspectorDefault: defaultBackendUrl,
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
+                log: msg => Debug.Log($"[SessionManager] {msg}"));
+            return BackendUrlResolver.StripHealthPath(resolved);
+#endif
+        }
+
+        private string ResolveBackendUrl()
+        {
+            // Sync path for callers that cannot await; prefer discovery cache.
+            if (!string.IsNullOrEmpty(BackendLanDiscovery.CachedApiBase))
+                return BackendLanDiscovery.CachedApiBase;
+#if UNITY_WEBGL
+            string resolved = BackendUrlResolver.FromQueryString(Application.absoluteURL, defaultBackendUrl);
+            if (resolved.StartsWith("http://", StringComparison.Ordinal))
+            {
+                if (allowInsecureHttp) Debug.LogWarning("[SessionManager] Connecting over plain http.");
+                else resolved = "https://" + resolved.Substring("http://".Length);
+            }
+            return BackendUrlResolver.StripHealthPath(resolved);
+#else
+            return BackendUrlResolver.StripHealthPath(BackendUrlResolver.Resolve(
+                inspectorDefault: defaultBackendUrl,
+                getCliArg: GetCliArg,
+                getEnvVar: System.Environment.GetEnvironmentVariable,
+                log: msg => Debug.Log($"[SessionManager] {msg}")));
 #endif
         }
 

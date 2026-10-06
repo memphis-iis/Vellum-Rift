@@ -211,7 +211,7 @@ export default function Documents({
       const name = updated.label?.trim() || "space";
       setBindStatus(
         setAsActive
-          ? `Added and set active in “${name}”.`
+          ? `Added and set active in “${name}”. Everyone in the space will load this manuscript.`
           : `Added to “${name}” playlist.`,
       );
       await refreshSpaces();
@@ -220,6 +220,33 @@ export default function Documents({
         err instanceof Error
           ? err.message
           : "Failed to add to space (you must be the host)",
+      );
+    } finally {
+      setBindBusy(false);
+    }
+  };
+
+  /** Host: make this manuscript the live one for the selected space (append if needed). */
+  const onSetActiveInSpace = async () => {
+    if (!modelId || !addTargetId || bindBusy) return;
+    setBindBusy(true);
+    setError(null);
+    setBindStatus(null);
+    try {
+      const updated = await patchSessionPlaylist(addTargetId, {
+        append: modelId,
+        activeModelId: modelId,
+      });
+      const name = updated.label?.trim() || "space";
+      setBindStatus(
+        `Active manuscript in “${name}” is now this one. Connected clients will switch automatically.`,
+      );
+      await refreshSpaces();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to set active manuscript (you must be the host)",
       );
     } finally {
       setBindBusy(false);
@@ -338,6 +365,15 @@ export default function Documents({
               onClick={() => void onAddToSpace()}
             >
               {bindBusy ? "Adding…" : "Add to space"}
+            </button>
+            <button
+              type="button"
+              className="vr-btn vr-btn--primary"
+              disabled={bindBusy || !addTargetId || !modelId}
+              onClick={() => void onSetActiveInSpace()}
+              title="Set this manuscript as the live one for everyone in the space"
+            >
+              {bindBusy ? "Working…" : "Set active for everyone"}
             </button>
             <button
               type="button"

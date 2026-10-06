@@ -118,6 +118,52 @@ describe("requireAuth (AUTH_REQUIRED=true)", () => {
     });
     expect(next).toHaveBeenCalledOnce();
   });
+
+  it("reads identity from nested claims when top-level email/sub are missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          active: true,
+          exp: 9999999999,
+          claims: { sub: 1, email: "jrhaner@memphis.edu" },
+        }),
+      }),
+    );
+
+    const req = { headers: { authorization: "Bearer nested-token" } } as Request;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(req.user).toEqual({
+      sub: "1",
+      email: "jrhaner@memphis.edu",
+      exp: 9999999999,
+    });
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("rejects active tokens that carry no identity", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ active: true, exp: 9999999999 }),
+      }),
+    );
+
+    const req = { headers: { authorization: "Bearer anon-token" } } as Request;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(res.statusCode).toBe(401);
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe("BLUEKEY_CONFIG defaults", () => {

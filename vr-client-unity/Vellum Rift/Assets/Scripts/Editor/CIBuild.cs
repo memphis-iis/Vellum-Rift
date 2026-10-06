@@ -46,7 +46,9 @@ namespace VellumRift.Editor
 
                 // Custom shell chrome (no default Unity footer/logo). Folder name under Assets/WebGLTemplates.
                 PlayerSettings.WebGL.template = "PROJECT:VellumRift";
-                Debug.Log("[CIBuild] WebGL template = PROJECT:VellumRift");
+                // Museum wall / multi-monitor: keep simulating when the browser blurs.
+                PlayerSettings.runInBackground = true;
+                Debug.Log("[CIBuild] WebGL template = PROJECT:VellumRift; runInBackground=true");
 
                 var options = new BuildPlayerOptions
                 {
@@ -91,6 +93,22 @@ namespace VellumRift.Editor
 
                 Debug.Log($"[CIBuild] Starting Android Quest build → {outputPath} (Dev: {isDev})");
 
+                // Stale XR Simulation temp assets from a prior crashed preprocess
+                // block ARFoundation's move-aside and contribute to flaky Android builds.
+                string xrTemp = Path.Combine(Application.dataPath, "XR", "Temp");
+                if (Directory.Exists(xrTemp))
+                {
+                    try
+                    {
+                        Directory.Delete(xrTemp, recursive: true);
+                        Debug.Log("[CIBuild] Cleared Assets/XR/Temp before Android build.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[CIBuild] Could not clear Assets/XR/Temp: {ex.Message}");
+                    }
+                }
+
                 string[] scenes = GetEnabledScenes();
                 if (scenes.Length == 0)
                 {
@@ -99,23 +117,46 @@ namespace VellumRift.Editor
                     return;
                 }
 
-                // Prefer Android as the active target, but do not hard-fail the switch:
-                // SwitchActiveBuildTarget returns false when already on Android, and can
-                // also flap after a crashed Editor session even when AndroidPlayer is present.
-                // BuildPipeline.BuildPlayer still targets Android via BuildPlayerOptions.
+                // Batchmode cannot SwitchActiveBuildTarget (Unity docs) — rely on CLI
+                // -buildTarget Android. If the Android module never registered (license
+                // entitlement com.unity.editor.platforms.android denied / Hub token missing),
+                // fail fast with a clear message instead of "build target was unsupported".
+                bool androidSupported = BuildPipeline.IsBuildTargetSupported(
+                    BuildTargetGroup.Android, BuildTarget.Android);
                 var active = EditorUserBuildSettings.activeBuildTarget;
-                Debug.Log($"[CIBuild] Active build target before switch: {active}");
-                if (active != BuildTarget.Android)
+                Debug.Log($"[CIBuild] Active build target: {active}; Android module supported: {androidSupported}");
+                if (!androidSupported)
+                {
+                    Debug.LogError(
+                        "[CIBuild] Android Build Support is not available to this Editor session " +
+                        "(IsBuildTargetSupported=false). Usually the Hub access token is missing " +
+                        "so entitlement com.unity.editor.platforms.android is denied — " +
+                        "sign in via Unity Hub, open the project once from Hub (File → Build Settings " +
+                        "should list Android), then re-run build-android-quest.sh. " +
+                        "SwitchActiveBuildTarget cannot fix this in -batchmode.");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                if (active != BuildTarget.Android && !Application.isBatchMode)
                 {
                     bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
-                        BuildTargetGroup.Android, BuildTarget.Android);
+                        NamedBuildTarget.Android, BuildTarget.Android);
                     Debug.Log(switched
                         ? "[CIBuild] Switched active build target to Android."
-                        : "[CIBuild] SwitchActiveBuildTarget returned false — continuing with Android BuildPlayerOptions anyway.");
+                        : "[CIBuild] SwitchActiveBuildTarget returned false.");
+                    if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
+                    {
+                        Debug.LogError("[CIBuild] Active build target is still not Android after switch.");
+                        EditorApplication.Exit(1);
+                        return;
+                    }
                 }
-                else
+                else if (active != BuildTarget.Android && Application.isBatchMode)
                 {
-                    Debug.Log("[CIBuild] Active build target already Android — skipping switch.");
+                    Debug.LogWarning(
+                        "[CIBuild] Batchmode active target is " + active +
+                        " (CLI -buildTarget Android should have selected Android at launch). Continuing.");
                 }
 
                 EditorUserBuildSettings.buildAppBundle = false;

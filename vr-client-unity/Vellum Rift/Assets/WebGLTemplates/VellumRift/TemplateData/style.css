@@ -222,6 +222,14 @@ body.vellum-embed .vellum-chat {
   display: none !important;
 }
 
+/* #318 — H hides all chrome (key: vellum.chromeHidden) */
+body.vellum-chrome-hidden .vellum-chrome,
+body.vellum-chrome-hidden .vellum-fog,
+body.vellum-chrome-hidden .vellum-controls,
+body.vellum-chrome-hidden .vellum-chat {
+  display: none !important;
+}
+
 body.vellum-embed #unity-viewport {
   inset: 0;
 }

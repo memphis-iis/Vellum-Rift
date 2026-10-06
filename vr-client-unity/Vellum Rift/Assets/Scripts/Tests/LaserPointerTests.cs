@@ -107,6 +107,25 @@ namespace VellumRift.Tests
             Assert.That(dir.x, Is.GreaterThan(0.9f));
         }
 
+        [Test]
+        public void SetReceiveOnly_BlocksActivateLaser()
+        {
+            laser.Initialize("space-1", "player-1", "user-1", isHost: false);
+            laser.SetReceiveOnly(true);
+            laser.ActivateLaser();
+            FieldInfo active = typeof(LaserPointer).GetField(
+                "laserActive", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That((bool)active.GetValue(laser), Is.False);
+        }
+
+        [Test]
+        public void ResolveBeamEnd_UsesMaxLengthWhenNoHit()
+        {
+            Vector3 end = LaserPointer.ResolveBeamEnd(
+                Vector3.zero, Vector3.forward, maxLength: 12f);
+            Assert.That(end.z, Is.EqualTo(12f).Within(0.01f));
+        }
+
         private static void SetPrivateField(object target, string name, object value)
         {
             FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);

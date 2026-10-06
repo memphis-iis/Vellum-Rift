@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
+import { readSessionRotation } from "../lib/sessionRotation.js";
 import { touchPlayerSeen } from "../lib/sessionPresence.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
@@ -412,6 +413,7 @@ export class GameState {
     const { playlist, activeModelId } = readPlaylist(this.metadata);
     const kioskEnabled = readKioskEnabled(this.metadata);
     const { kind, startsAt, endsAt } = readSessionEvent(this.metadata);
+    const { experiencePhase, rotationEndsAt } = readSessionRotation(this.metadata);
     return {
       sessionId: this.sessionId,
       label: this.label,
@@ -434,6 +436,9 @@ export class GameState {
       /** Optional event window (#146). */
       startsAt,
       endsAt,
+      /** Museum host turn timer — server clamps expired turns to "ended". */
+      experiencePhase,
+      rotationEndsAt,
       /** Pending guest help alerts for host dashboard (#294). */
       helpRequests: this.getPendingHelpRequests(),
       metadata: { ...this.metadata },

@@ -1,17 +1,10 @@
 import { API_BASE_URL } from "./config";
-import { TOKEN_STORAGE_KEY } from "../auth/config";
+import { getAuthHeaders } from "./authHeaders";
 
 function authHeaders(json = false): Headers {
-  const headers = new Headers();
-  try {
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token && token !== "local-dev") {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  } catch {
-    /* ignore */
-  }
-  if (json) headers.set("Content-Type", "application/json");
+  const headers = getAuthHeaders();
+  if (!json) headers.delete("Content-Type");
+  else if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   return headers;
 }
 
@@ -42,6 +35,9 @@ export type GameSession = {
   kind?: "exploration" | "event";
   startsAt?: string | null;
   endsAt?: string | null;
+  /** Museum host turn timer — server clamps expired turns to "ended". */
+  experiencePhase?: "playing" | "ended";
+  rotationEndsAt?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -171,6 +167,38 @@ export async function patchSessionEvent(
   const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
   if (!res.ok) {
     throw new Error(data.error || `Update event chrome failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Turn lengths the host can pick (minutes). */
+export const ROTATION_MINUTE_PRESETS = [5, 8, 10, 12] as const;
+export type RotationMinutes = (typeof ROTATION_MINUTE_PRESETS)[number];
+
+export type RotationPatch = {
+  experiencePhase?: "playing" | "ended";
+  rotationMinutes?: RotationMinutes;
+};
+
+/**
+ * Host-only: start a museum turn ({ rotationMinutes }) or reset it
+ * ({ experiencePhase: "ended" }). The server computes the end time.
+ */
+export async function patchSessionRotation(
+  sessionId: string,
+  patch: RotationPatch,
+): Promise<GameSession> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/turn`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify(patch),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Update turn timer failed (${res.status})`);
   }
   return data;
 }

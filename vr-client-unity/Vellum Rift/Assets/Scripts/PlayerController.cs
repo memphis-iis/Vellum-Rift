@@ -36,6 +36,11 @@ namespace VellumRift.Control
         private const float MaxPitchDegrees = 89f;
         private const float XrSnapDegrees = 45f;
         private const float XrSnapDeadzone = 0.55f;
+        /// <summary>Quest gallery is tens of meters; 3.5 m/s reads as a slow slide.</summary>
+        public const float XrCruiseMultiplier = 3f;
+        public const float JetpackTimeToCruise = 0.6f;
+        public const float JetpackSettleSeconds = 1f;
+        public const float JetpackStopSpeed = 0.05f;
         private readonly Transform body;
 
         // Runtime adjustable movement settings
@@ -46,6 +51,7 @@ namespace VellumRift.Control
         // Tracks the current up/down look angle to accurately enforce clamps
         private float accumulatedPitch;
         private float prevXrYawStick;
+        private Vector3 jetpackVelocity;
 
         public FreeFlyMover(Transform body, float moveSpeed, float yawSpeed, float lookSensitivity)
         {
@@ -62,28 +68,37 @@ namespace VellumRift.Control
         public void Tick(MovementIntent intent, float deltaTime)
         {
             // --- Translation ---
-            if (intent.Move.sqrMagnitude > 0f)
+            if (InputControlSchema.IsXrActive())
             {
-                if (InputControlSchema.IsXrActive())
+                Camera cam = Camera.main;
+                Transform refTransform = cam != null ? cam.transform : body;
+                Vector3 forward = Vector3.ProjectOnPlane(refTransform.forward, Vector3.up).normalized;
+                Vector3 right = Vector3.ProjectOnPlane(refTransform.right, Vector3.up).normalized;
+                if (intent.Move.sqrMagnitude > 0f)
                 {
-                    // Stick: horizontal head-relative. Grip thrust: along camera forward.
-                    Camera cam = Camera.main;
-                    Transform refTransform = cam != null ? cam.transform : body;
-                    Vector3 forward = Vector3.ProjectOnPlane(refTransform.forward, Vector3.up).normalized;
-                    Vector3 right = Vector3.ProjectOnPlane(refTransform.right, Vector3.up).normalized;
+                    // Stick: horizontal head-relative. Magnitude is kept so a
+                    // resting offset is not the same speed as a full push.
                     Vector3 worldMove = forward * intent.Move.z + right * intent.Move.x;
-                    if (Mathf.Abs(intent.Move.y) > 0.01f && cam != null)
-                        worldMove += cam.transform.forward * intent.Move.y;
+                    float stick = new Vector2(intent.Move.x, intent.Move.z).magnitude;
                     if (worldMove.sqrMagnitude > 0.0001f)
                         worldMove.Normalize();
                     float boundary = ManuscriptPlaySpace.GetMoveSpeedMultiplier(body.position);
-                    body.position += worldMove * MoveSpeed * boundary * deltaTime;
+                    body.position += worldMove * XrSpeed(MoveSpeed, stick, boundary) * deltaTime;
                 }
-                else
-                {
-                    // Move relative to the camera's current facing direction (Space.Self)
-                    body.Translate(intent.Move.normalized * MoveSpeed * deltaTime, Space.Self);
-                }
+
+                float boundaryNow = ManuscriptPlaySpace.GetMoveSpeedMultiplier(body.position);
+                bool thrust = Mathf.Abs(intent.Move.y) > 0.5f;
+                Vector3 look = cam != null ? cam.transform.forward : body.forward;
+                float cruise = MoveSpeed * XrCruiseMultiplier * boundaryNow;
+                jetpackVelocity = IntegrateJetpack(jetpackVelocity, look, thrust, cruise, deltaTime);
+                if (jetpackVelocity.sqrMagnitude > 0f)
+                    body.position += jetpackVelocity * deltaTime;
+            }
+            else if (intent.Move.sqrMagnitude > 0f)
+            {
+                // Move relative to the camera's current facing direction (Space.Self)
+                body.Translate(intent.Move.normalized * MoveSpeed * deltaTime, Space.Self);
+                jetpackVelocity = Vector3.zero;
             }
 
             // --- Rotation ---
@@ -116,6 +131,34 @@ namespace VellumRift.Control
                 prevXrYawStick = 0f;
             }
         }
+
+        /// <summary>Meters per second for a deadzone-scaled stick (0 at rest, full at the gate).</summary>
+        public static float XrSpeed(float moveSpeed, float stickMagnitude, float boundary) =>
+            moveSpeed * XrCruiseMultiplier * Mathf.Clamp01(stickMagnitude) * boundary;
+
+        /// <summary>
+        /// Jetpack velocity. Thrust accelerates toward cruise along look;
+        /// release damps to a hard zero so it cannot drift.
+        /// </summary>
+        public static Vector3 IntegrateJetpack(
+            Vector3 velocity,
+            Vector3 forward,
+            bool thrusting,
+            float cruise,
+            float deltaTime)
+        {
+            cruise = Mathf.Max(0f, cruise);
+            float dt = Mathf.Max(0f, deltaTime);
+            Vector3 target = Vector3.zero;
+            if (thrusting && forward.sqrMagnitude > 0.0001f)
+                target = forward.normalized * cruise;
+            float span = thrusting ? JetpackTimeToCruise : JetpackSettleSeconds;
+            float rate = span <= 0.0001f ? cruise : cruise / span;
+            Vector3 next = Vector3.MoveTowards(velocity, target, rate * dt);
+            if (!thrusting && next.magnitude < JetpackStopSpeed)
+                return Vector3.zero;
+            return next;
+        }
     }
 
     /// <summary>
@@ -123,11 +166,12 @@ namespace VellumRift.Control
     /// </summary>
     public class PlayerController : MonoBehaviour
     {
-        private const float XrMoveStickDeadzone = 0.12f;
+        private const float XrMoveStickDeadzone = 0.25f;
+        private const float XrGripThrustDeadzone = 0.75f;
 
         [Header("Translation")]
         [SerializeField, Tooltip("World units per second.")]
-        private float moveSpeed = 5f;
+        private float moveSpeed = 3.5f;
 
         public float MoveSpeed
         {
@@ -327,6 +371,9 @@ namespace VellumRift.Control
                 ffm.LookSensitivity = lookSensitivity;
             }
 
+            if (InputControlSchema.IsXrActive())
+                XrTrackingSource.Tick(Time.unscaledDeltaTime);
+
             if (InputEnabled)
             {
                 // Read feature inputs
@@ -338,6 +385,24 @@ namespace VellumRift.Control
                 XrRenameTriggered = xrRenameAction.WasPressedThisFrame();
                 XrDeleteTriggered = xrDeleteAction.WasPressedThisFrame();
                 XrHelpTriggered = xrHelpAction.WasPressedThisFrame();
+
+                if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.Hands)
+                {
+                    LaserPressed = XrTrackingSource.RightPinchHeld;
+                    bool pinchEdge = XrTrackingSource.RightPinchPressed;
+                    XrRenameTriggered = pinchEdge;
+                    WaypointTriggered = pinchEdge;
+                    XrDeleteTriggered = false;
+                    XrHelpTriggered = false;
+                }
+                else if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.None)
+                {
+                    LaserPressed = false;
+                    WaypointTriggered = false;
+                    XrRenameTriggered = false;
+                    XrDeleteTriggered = false;
+                    XrHelpTriggered = false;
+                }
 
                 // Process the movement calculations every frame
                 mover.Tick(ReadIntent(), Time.deltaTime);
@@ -375,15 +440,34 @@ namespace VellumRift.Control
         {
             Vector2 planar = moveAction.ReadValue<Vector2>();
             float yaw = yawAction.ReadValue<float>();
+            float vertical = verticalAction.ReadValue<float>();
             if (InputControlSchema.IsXrActive())
             {
-                planar = ApplyRadialDeadzone(planar, XrMoveStickDeadzone);
-                yaw = ApplyAxisDeadzone(yaw, XrMoveStickDeadzone);
+                if (XrTrackingSource.Mode == XrInputMode.Hands)
+                {
+                    planar = Vector2.zero;
+                    yaw = 0f;
+                    vertical = XrTrackingSource.LeftPinchHeld ? 1f : 0f;
+                }
+                else if (XrTrackingSource.Mode == XrInputMode.None)
+                {
+                    planar = Vector2.zero;
+                    yaw = 0f;
+                    vertical = 0f;
+                }
+                else
+                {
+                    planar = ApplyRadialDeadzone(planar, XrMoveStickDeadzone);
+                    yaw = ApplyAxisDeadzone(yaw, XrMoveStickDeadzone);
+                    // Left grip is binary-ish but floats mid-press → accidental look-thrust
+                    // that bobs the locomotion body (and manuscript in-view) up/down.
+                    vertical = ApplyAxisDeadzone(vertical, XrGripThrustDeadzone);
+                }
             }
 
             return new MovementIntent
             {
-                Move       = new Vector3(planar.x, verticalAction.ReadValue<float>(), planar.y),
+                Move       = new Vector3(planar.x, vertical, planar.y),
                 Yaw        = yaw,
                 LookActive = lookHoldAction.IsPressed(),
                 Look       = lookAction.ReadValue<Vector2>()

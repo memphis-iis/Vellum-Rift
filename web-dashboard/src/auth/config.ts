@@ -20,6 +20,8 @@ export const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED === "true";
 
 export const TOKEN_STORAGE_KEY = "vellum_rift_access_token";
 export const EMAIL_STORAGE_KEY = "vellum_rift_user_email";
+/** Museum kiosk JWT — must not overwrite Bluekey host token. */
+export const KIOSK_TOKEN_STORAGE_KEY = "vellum_rift_kiosk_token";
 
 export const VELLUM_LOGO_URL = "https://iis.memphis.edu/static/bluekey/icons/vellumrift.png";
 export const MEMPHIS_PILLAR_URL =

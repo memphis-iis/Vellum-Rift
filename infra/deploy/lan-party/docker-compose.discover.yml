@@ -1,0 +1,20 @@
+# Optional overlay: UDP LAN discovery beacon for existing lan-party stacks.
+# Usage (from infra/deploy/lan-party):
+#   docker compose -f docker-compose.yml -f docker-compose.discover.yml up -d
+#
+# Requires SERVER_LAN_IP in .env (same as today’s absolute VITE_* bake).
+
+services:
+  lan-discover:
+    build:
+      context: ../museum-kit/lan-discover
+    image: museum-kit-lan-discover:local
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      SERVER_LAN_IP: ${SERVER_LAN_IP:?Set SERVER_LAN_IP in .env}
+      PORT: ${PORT:-4000}
+      DISCOVER_PORT: ${DISCOVER_PORT:-41234}
+      DASHBOARD_PUBLIC_URL: ${DASHBOARD_PUBLIC_URL:-http://${SERVER_LAN_IP}:5173}
+      WEBGL_PUBLIC_URL: ${WEBGL_PUBLIC_URL:-http://${SERVER_LAN_IP}:8080/}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://${SERVER_LAN_IP}:4000}
