@@ -94,7 +94,7 @@ Then walk the flow below **while watching for untextured geometry**:
 - [ ] **Desktop H parity (#315):** with Unity HUD, **H** toggles the same MENU stack as wrist (guide + status + chat-if-enabled)
 - [ ] **MENU open (guest):** lower-right **Call for help** (≥64 px tall) and lower-left **LOG OUT** appear with the stack; both hide again on **CLOSE**. Left **Y** still calls for help with MENU closed. Host/spectator never see Call for help
 - [ ] **LOG OUT (guest):** returns to the event picker / login lobby and does **not** archive the shared Space (others stay connected)
-- [ ] **Turn timer (host laptop Lobby → Host tools):** Start turn with **5 / 8 / 10 / 12 min**; countdown ticks; on expiry or **Reset**, Quest freezes + passthrough (or turn-over overlay fallback); **Start turn** again restores play for the next person. Space stays up; pins kept
+- [ ] **Turn timer (host laptop Lobby → Host tools):** Start turn with **5 / 8 / 10 / 12 min**; countdown ticks; on expiry or **Reset**, Quest freezes + passthrough (or turn-over overlay fallback); **Start turn** again restores locomotion for the next person (thumbstick / jetpack work — #324). Space stays up; pins kept
 - [ ] Later joins (after teach): FOV starts quiet; wrist opens/closes the same sticky HUD
 - [ ] **Jetpack:** left grip thrusts along **look direction** (not world-up); Right A only renames when aiming a pin
 - [ ] Chat and How to Play sit on the **right without overlapping** when Menu is open; Session status and Logout similarly separated on the left
