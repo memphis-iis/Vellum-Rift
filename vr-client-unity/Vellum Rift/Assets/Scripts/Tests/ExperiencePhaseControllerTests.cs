@@ -53,6 +53,43 @@ namespace VellumRift.Tests
         }
 
         [Test]
+        public void Apply_RepeatedEnded_StaysFrozen()
+        {
+            var go = new GameObject("Phase");
+            var phase = go.AddComponent<ExperiencePhaseController>();
+            phase.Initialize(isHost: false, spectator: false);
+
+            phase.Apply("ended", "");
+            phase.Apply("ended", "");
+            Assert.That(ExperiencePhaseController.InputFrozen, Is.True);
+            Assert.That(phase.Phase, Is.EqualTo(ExperiencePhaseController.PhaseEnded));
+            UnityEngine.Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void Apply_ReconcilesWhenFrozenButPhaseAlreadyPlaying()
+        {
+            // Simulate desync: Phase already "playing" but InputFrozen stuck true
+            // (old early-return path after dashboard Reset → Start).
+            var go = new GameObject("Phase");
+            var phase = go.AddComponent<ExperiencePhaseController>();
+            phase.Initialize(isHost: false, spectator: false);
+
+            phase.Apply("playing", "2026-10-08T15:00:00.000Z");
+            Assert.That(phase.Phase, Is.EqualTo(ExperiencePhaseController.PhasePlaying));
+
+            var prop = typeof(ExperiencePhaseController).GetProperty(
+                "InputFrozen",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            prop.SetValue(null, true);
+            Assert.That(ExperiencePhaseController.InputFrozen, Is.True);
+
+            phase.Apply("playing", "2026-10-08T15:00:00.000Z");
+            Assert.That(ExperiencePhaseController.InputFrozen, Is.False);
+            UnityEngine.Object.DestroyImmediate(go);
+        }
+
+        [Test]
         public void Apply_Ended_DoesNotFreezeHost()
         {
             var go = new GameObject("Phase");

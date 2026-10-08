@@ -755,6 +755,9 @@ namespace VellumRift
             TurnCountdown.Apply(state.experiencePhase, state.rotationEndsAt);
             if (phaseController != null && phaseController.enabled)
                 phaseController.Apply(state);
+            // Recompose chat/pin/soft-end onto the managed PlayerController after
+            // phase changes so Start turn after Reset restores locomotion (#324).
+            ApplyGameplayInputGate();
             // Sticky launch override: do not follow host playlist switches.
             if (!string.IsNullOrEmpty(_modelIdOverride))
                 return;
