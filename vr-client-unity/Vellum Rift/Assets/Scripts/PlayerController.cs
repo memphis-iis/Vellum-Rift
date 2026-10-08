@@ -65,6 +65,12 @@ namespace VellumRift.Control
             if (accumulatedPitch > 180f) accumulatedPitch -= 360f;
         }
 
+        /// <summary>Clear look-thrust residual after a dashboard/museum respawn (#322).</summary>
+        public void ClearJetpack()
+        {
+            jetpackVelocity = Vector3.zero;
+        }
+
         public void Tick(MovementIntent intent, float deltaTime)
         {
             // --- Translation ---
@@ -220,6 +226,14 @@ namespace VellumRift.Control
         private InputAction xrRenameAction;   // Right primary — rename pin while aiming (#287)
         private InputAction xrDeleteAction;   // Right secondary — delete pin while aiming (#287)
         private InputAction xrHelpAction;     // Left secondary — guest Call for help (#310)
+        private InputAction splitJetpackAction; // All left Quest buttons (#322)
+        private InputAction splitLaserAction;   // All right Quest buttons (#322)
+
+        /// <summary>
+        /// Quest scheme from museum dashboard (#322). Applied only when XR is active;
+        /// laptop/gamepad ignore this and keep KeyboardMouse / Gamepad bindings.
+        /// </summary>
+        public QuestControlScheme QuestScheme { get; private set; } = QuestControlScheme.Default;
 
         /// <summary>True while left mouse button is held (laser pointer).</summary>
         public bool LaserPressed { get; private set; }
@@ -310,8 +324,59 @@ namespace VellumRift.Control
             xrHelpAction = new InputAction("XrHelp", InputActionType.Button);
             xrHelpAction.AddBinding(HelpRequestBindings.XrInputPath);
 
+            // Museum split scheme (#322): all left digital → jetpack; all right digital → laser.
+            splitJetpackAction = new InputAction("SplitJetpack", InputActionType.Button);
+            splitJetpackAction.AddBinding("<XRController>{LeftHand}/triggerPressed");
+            splitJetpackAction.AddBinding("<XRController>{LeftHand}/trigger");
+            splitJetpackAction.AddBinding("<XRController>{LeftHand}/gripButton");
+            splitJetpackAction.AddBinding("<XRController>{LeftHand}/primaryButton");
+            splitJetpackAction.AddBinding("<XRController>{LeftHand}/secondaryButton");
+            splitLaserAction = new InputAction("SplitLaser", InputActionType.Button);
+            splitLaserAction.AddBinding("<XRController>{RightHand}/triggerPressed");
+            splitLaserAction.AddBinding("<XRController>{RightHand}/trigger");
+            splitLaserAction.AddBinding("<XRController>{RightHand}/gripButton");
+            splitLaserAction.AddBinding("<XRController>{RightHand}/primaryButton");
+            splitLaserAction.AddBinding("<XRController>{RightHand}/secondaryButton");
+
             // Initialize the default free fly mover
             mover = new FreeFlyMover(transform, moveSpeed, yawSpeed, lookSensitivity);
+        }
+
+        /// <summary>
+        /// Apply museum dashboard Quest scheme. No-op for non-XR sessions — laptop
+        /// and gamepad keep their existing KeyboardMouse / Gamepad bindings (#322).
+        /// </summary>
+        public void SetQuestControlScheme(QuestControlScheme scheme)
+        {
+            if (QuestScheme == scheme)
+                return;
+            QuestScheme = scheme;
+            SyncSplitActionEnablement();
+        }
+
+        /// <summary>Teleport local body and clear jetpack residual (#322).</summary>
+        public void ApplyRespawnPose(Vector3 position, float yawDegrees)
+        {
+            transform.position = position;
+            transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+            if (mover is FreeFlyMover ffm)
+                ffm.ClearJetpack();
+        }
+
+        private void SyncSplitActionEnablement()
+        {
+            bool split = QuestScheme == QuestControlScheme.SplitLaserJetpack
+                         && InputControlSchema.IsXrActive();
+            if (split)
+            {
+                splitJetpackAction?.Enable();
+                splitLaserAction?.Enable();
+            }
+            else
+            {
+                splitJetpackAction?.Disable();
+                splitLaserAction?.Disable();
+            }
         }
 
         private void OnEnable()
@@ -327,6 +392,7 @@ namespace VellumRift.Control
             xrRenameAction.Enable();
             xrDeleteAction.Enable();
             xrHelpAction.Enable();
+            SyncSplitActionEnablement();
         }
 
         private void OnDisable()
@@ -342,6 +408,8 @@ namespace VellumRift.Control
             xrRenameAction.Disable();
             xrDeleteAction.Disable();
             xrHelpAction.Disable();
+            splitJetpackAction?.Disable();
+            splitLaserAction?.Disable();
         }
 
         private void OnDestroy()
@@ -357,6 +425,8 @@ namespace VellumRift.Control
             xrRenameAction.Dispose();
             xrDeleteAction.Dispose();
             xrHelpAction.Dispose();
+            splitJetpackAction?.Dispose();
+            splitLaserAction?.Dispose();
         }
 
         private void Update()
@@ -376,32 +446,50 @@ namespace VellumRift.Control
 
             if (InputEnabled)
             {
-                // Read feature inputs
-                LaserPressed = laserAction.IsPressed();
-                RightClicked = lookHoldAction.WasPressedThisFrame();
-                LeftClicked = laserAction.WasPressedThisFrame();
-                WaypointTriggered = waypointAction.WasPressedThisFrame();
-                SummonTriggered = summonAction.WasPressedThisFrame();
-                XrRenameTriggered = xrRenameAction.WasPressedThisFrame();
-                XrDeleteTriggered = xrDeleteAction.WasPressedThisFrame();
-                XrHelpTriggered = xrHelpAction.WasPressedThisFrame();
+                bool xrSplit = InputControlSchema.IsXrActive()
+                               && XrTrackingSource.Mode == XrInputMode.Controllers
+                               && QuestScheme == QuestControlScheme.SplitLaserJetpack;
 
-                if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.Hands)
+                if (xrSplit)
                 {
-                    LaserPressed = XrTrackingSource.RightPinchHeld;
-                    bool pinchEdge = XrTrackingSource.RightPinchPressed;
-                    XrRenameTriggered = pinchEdge;
-                    WaypointTriggered = pinchEdge;
-                    XrDeleteTriggered = false;
-                    XrHelpTriggered = false;
-                }
-                else if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.None)
-                {
-                    LaserPressed = false;
+                    LaserPressed = splitLaserAction != null && splitLaserAction.IsPressed();
+                    RightClicked = false;
+                    LeftClicked = false;
                     WaypointTriggered = false;
+                    SummonTriggered = false;
                     XrRenameTriggered = false;
                     XrDeleteTriggered = false;
                     XrHelpTriggered = false;
+                }
+                else
+                {
+                    // Read feature inputs (laptop + default Quest + gamepad)
+                    LaserPressed = laserAction.IsPressed();
+                    RightClicked = lookHoldAction.WasPressedThisFrame();
+                    LeftClicked = laserAction.WasPressedThisFrame();
+                    WaypointTriggered = waypointAction.WasPressedThisFrame();
+                    SummonTriggered = summonAction.WasPressedThisFrame();
+                    XrRenameTriggered = xrRenameAction.WasPressedThisFrame();
+                    XrDeleteTriggered = xrDeleteAction.WasPressedThisFrame();
+                    XrHelpTriggered = xrHelpAction.WasPressedThisFrame();
+
+                    if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.Hands)
+                    {
+                        LaserPressed = XrTrackingSource.RightPinchHeld;
+                        bool pinchEdge = XrTrackingSource.RightPinchPressed;
+                        XrRenameTriggered = pinchEdge;
+                        WaypointTriggered = pinchEdge;
+                        XrDeleteTriggered = false;
+                        XrHelpTriggered = false;
+                    }
+                    else if (InputControlSchema.IsXrActive() && XrTrackingSource.Mode == XrInputMode.None)
+                    {
+                        LaserPressed = false;
+                        WaypointTriggered = false;
+                        XrRenameTriggered = false;
+                        XrDeleteTriggered = false;
+                        XrHelpTriggered = false;
+                    }
                 }
 
                 // Process the movement calculations every frame
@@ -454,6 +542,13 @@ namespace VellumRift.Control
                     planar = Vector2.zero;
                     yaw = 0f;
                     vertical = 0f;
+                }
+                else if (QuestScheme == QuestControlScheme.SplitLaserJetpack)
+                {
+                    // Sticks off; any left button drives look-direction jetpack (#322).
+                    planar = Vector2.zero;
+                    yaw = 0f;
+                    vertical = (splitJetpackAction != null && splitJetpackAction.IsPressed()) ? 1f : 0f;
                 }
                 else
                 {

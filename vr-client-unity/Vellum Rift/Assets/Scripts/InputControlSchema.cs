@@ -16,8 +16,23 @@ namespace VellumRift
         XR,
     }
 
+    /// <summary>Quest Touch scheme selected from the museum dashboard (#322).</summary>
+    public enum QuestControlScheme
+    {
+        Default,
+        SplitLaserJetpack,
+    }
+
     public static class InputControlSchema
     {
+        /// <summary>Parse dashboard controlScheme string; unknown → Default.</summary>
+        public static QuestControlScheme ParseQuestScheme(string raw)
+        {
+            if (string.Equals(raw, "splitLaserJetpack", System.StringComparison.Ordinal))
+                return QuestControlScheme.SplitLaserJetpack;
+            return QuestControlScheme.Default;
+        }
+
         /// <summary>Desktop MENU row label (H toggles <see cref="SessionHudStack"/>).</summary>
         public const string ToggleMenuAction = "Toggle menu";
 
@@ -83,7 +98,13 @@ namespace VellumRift
         public static BindingRow[] GuideRows(ControlSchema schema) =>
             GuideRows(schema, XrInputMode.Controllers);
 
-        public static BindingRow[] GuideRows(ControlSchema schema, XrInputMode xrMode)
+        public static BindingRow[] GuideRows(ControlSchema schema, XrInputMode xrMode) =>
+            GuideRows(schema, xrMode, QuestControlScheme.Default);
+
+        public static BindingRow[] GuideRows(
+            ControlSchema schema,
+            XrInputMode xrMode,
+            QuestControlScheme questScheme)
         {
             switch (schema)
             {
@@ -95,6 +116,13 @@ namespace VellumRift
                         new BindingRow("Drop a pin", "Pinch once"),
                         new BindingRow("Change a pin", "Pinch the pin"),
                         new BindingRow("Menu", "Look at left wrist"),
+                    };
+                case ControlSchema.XR when questScheme == QuestControlScheme.SplitLaserJetpack:
+                    return new[]
+                    {
+                        new BindingRow("Jetpack", "ANY L BUTTON (look)"),
+                        new BindingRow("Laser Pointer", "ANY R BUTTON"),
+                        new BindingRow("Toggle menu", "LOOK AT L-WRIST"),
                     };
                 case ControlSchema.XR:
                     return new[]

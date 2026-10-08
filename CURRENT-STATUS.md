@@ -39,6 +39,7 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 ### Web Dashboard (`web-dashboard/`)
 
 - Vite + React shell with early session chat / spatial room wiring
+- Lobby manuscript playlist scrolls under host tools; museum path (event + kiosk) host tools can **Respawn** guests to manuscript-facing spawn and set **Quest** control schemes (`default` / `splitLaserJetpack`); kiosk guests can self-serve the same on the join page (#322). Laptop/WebGL keeps its own bindings — schemes apply on Quest XR only.
 - not yet a full upload, invite, auth/EULA, or WebGL-hosting control surface
 
 ### Unity Client (`vr-client-unity/Vellum Rift`)
@@ -46,6 +47,7 @@ GlyphWitch integration is **not** a current expectation. Auth for Vellum Rift AP
 - multiplayer demo path (HTTP polling), flight/controls work, remote glTF loading, session link overlays
 - additional session UX (chat, summon, lasers, artifacts, Bluekey client helpers) present in the project tree; treat maturity as demo / WIP rather than production-complete
 - Quest 2 presentation: side-slot world-space visor HUDs (`XrHudFollow`) with Quest scale tokens and ≥64 px hit targets (`VrTheme`); procedural visuals (laser, wireframes, pins) resolve project-owned shaders from `Assets/Resources/Shaders/` via `VellumShaders` and hide rather than draw untinted geometry
+- `MuseumLocalCommands` applies dashboard `pendingRespawn` + Quest `controlScheme` from game-state polls (#322); non-XR clients ignore scheme changes
 - verification surfaces: `pnpm run verify:quest`, `vr-client-unity/scripts/run-editmode-tests.sh`, and the on-headset smoke test in [docs/qa/quest-museum-verify.md](docs/qa/quest-museum-verify.md)
 
 ### Speech (`infra/speech/`)

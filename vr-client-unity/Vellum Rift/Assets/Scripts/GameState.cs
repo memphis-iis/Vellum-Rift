@@ -22,6 +22,18 @@ namespace VellumRift
         }
     }
 
+    /// <summary>Museum dashboard respawn command (#322). JsonUtility nested object.</summary>
+    [Serializable]
+    public class PendingRespawn
+    {
+        public int seq;
+        public float x;
+        public float y;
+        public float z;
+        /// <summary>Yaw degrees (Unity euler Y) facing manuscript origin.</summary>
+        public float yaw;
+    }
+
     /// <summary>
     /// Represents a single participant's state within a session.
     /// </summary>
@@ -37,6 +49,13 @@ namespace VellumRift
         public string joinedAt;
         /// <summary>ISO last activity from position/laser heartbeats (preferred for presence).</summary>
         public string lastSeenAt;
+        /// <summary>Museum dashboard respawn; applied by local XR/desktop client (#322).</summary>
+        public PendingRespawn pendingRespawn;
+        /// <summary>
+        /// Quest VR scheme id from dashboard (#322): "default" or "splitLaserJetpack".
+        /// Laptop / gamepad clients ignore this field.
+        /// </summary>
+        public string controlScheme;
 
         public PlayerState(string id, string displayName)
         {
@@ -47,6 +66,7 @@ namespace VellumRift
             this.isHost = false;
             this.isConnected = true;
             this.joinedAt = DateTime.UtcNow.ToString("o");
+            this.controlScheme = "default";
         }
     }
 

@@ -33,6 +33,12 @@ import {
   pruneStalePlayers,
   touchPlayerLaser,
 } from "../lib/sessionPresence.js";
+import {
+  computeGallerySpawnSlot,
+  isMuseumPath,
+  parseControlScheme,
+  readSpawnRadius,
+} from "../lib/museumControls.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -78,6 +84,26 @@ function rejectKioskGuest(req: Request, res: Response): boolean {
     res.status(403).json({ error: "Kiosk guests cannot do that" });
     return true;
   }
+  return false;
+}
+
+/** Museum path only: host may target any player; kiosk/public may target self (#322). */
+function requireMuseumHostOrSelf(
+  req: Request,
+  res: Response,
+  state: GameState,
+  targetPlayerId: string,
+): boolean {
+  if (!isMuseumPath(state.metadata)) {
+    res.status(403).json({
+      error: "Respawn and Quest control schemes are only available on museum (event + kiosk) spaces",
+    });
+    return false;
+  }
+  if (isSessionHost(req.user, state)) return true;
+  const selfId = resolveRequestPlayerId(state, req.user);
+  if (selfId && selfId === targetPlayerId) return true;
+  res.status(403).json({ error: "Only the host or the target player can do that" });
   return false;
 }
 
@@ -955,6 +981,137 @@ router.post("/:sessionId/players/:playerId/unmute", async (req: Request, res: Re
   await repo.save(state);
   res.json({ muted: false, player });
 });
+
+// ---------------------------------------------------------------
+// Museum respawn + Quest control schemes (#322)
+// ---------------------------------------------------------------
+router.post(
+  "/:sessionId/players/:playerId/respawn",
+  async (req: Request, res: Response) => {
+    const sessionId = param(req, "sessionId");
+    const playerId = param(req, "playerId");
+    const state = await loadAccessibleSession(req, res, sessionId);
+    if (!state) return;
+    if (!requireMuseumHostOrSelf(req, res, state, playerId)) return;
+
+    const player = state.getPlayer(playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const slotIndex = Math.max(
+      0,
+      state.players.findIndex((p) => p.id === playerId),
+    );
+    const pose = computeGallerySpawnSlot(slotIndex, {
+      radius: readSpawnRadius(state.metadata),
+    });
+    state.setPendingRespawn(playerId, {
+      x: pose.x,
+      y: pose.y,
+      z: pose.z,
+      yaw: pose.yaw,
+    });
+    // Also stamp server pose so remotes snap via MultiplayerController.
+    state.updatePosition(playerId, { x: pose.x, y: pose.y, z: pose.z });
+    state.updateRotation(playerId, { x: 0, y: pose.yaw, z: 0 });
+    await repo.save(state);
+    res.json({ ok: true, player: state.getPlayer(playerId), session: state.toJSON() });
+  },
+);
+
+router.post("/:sessionId/respawn-all", async (req: Request, res: Response) => {
+  const state = await loadAccessibleSession(req, res, param(req, "sessionId"));
+  if (!state) return;
+  if (!isMuseumPath(state.metadata)) {
+    res.status(403).json({
+      error: "Respawn and Quest control schemes are only available on museum (event + kiosk) spaces",
+    });
+    return;
+  }
+  if (!requireHost(req, res, state)) return;
+
+  const radius = readSpawnRadius(state.metadata);
+  let count = 0;
+  state.players.forEach((player, index) => {
+    if (!player.isConnected) return;
+    const pose = computeGallerySpawnSlot(index, { radius });
+    state.setPendingRespawn(player.id, {
+      x: pose.x,
+      y: pose.y,
+      z: pose.z,
+      yaw: pose.yaw,
+    });
+    state.updatePosition(player.id, { x: pose.x, y: pose.y, z: pose.z });
+    state.updateRotation(player.id, { x: 0, y: pose.yaw, z: 0 });
+    count += 1;
+  });
+  await repo.save(state);
+  res.json({ ok: true, count, session: state.toJSON() });
+});
+
+router.post(
+  "/:sessionId/players/:playerId/respawn/ack",
+  async (req: Request, res: Response) => {
+    const sessionId = param(req, "sessionId");
+    const playerId = param(req, "playerId");
+    const state = await loadAccessibleSession(req, res, sessionId);
+    if (!state) return;
+
+    const seqRaw = (req.body as { seq?: unknown })?.seq;
+    const seq = typeof seqRaw === "number" ? seqRaw : Number(seqRaw);
+    if (!Number.isFinite(seq) || seq < 1) {
+      res.status(400).json({ error: "seq is required" });
+      return;
+    }
+
+    // Local client ACKs its own teleport; host may clear any.
+    const selfId = resolveRequestPlayerId(state, req.user);
+    const isSelf = selfId === playerId;
+    if (!isSelf && !isSessionHost(req.user, state)) {
+      res.status(403).json({ error: "Only the target player or host can acknowledge respawn" });
+      return;
+    }
+
+    const cleared = state.clearPendingRespawn(playerId, seq);
+    if (!cleared) {
+      res.status(409).json({ error: "No matching pending respawn" });
+      return;
+    }
+    await repo.save(state);
+    res.json({ ok: true, player: state.getPlayer(playerId) });
+  },
+);
+
+router.patch(
+  "/:sessionId/players/:playerId/control-scheme",
+  async (req: Request, res: Response) => {
+    const sessionId = param(req, "sessionId");
+    const playerId = param(req, "playerId");
+    const state = await loadAccessibleSession(req, res, sessionId);
+    if (!state) return;
+    if (!requireMuseumHostOrSelf(req, res, state, playerId)) return;
+
+    const scheme = parseControlScheme((req.body as { scheme?: unknown })?.scheme);
+    if (!scheme) {
+      res.status(400).json({
+        error: "scheme must be 'default' or 'splitLaserJetpack'",
+      });
+      return;
+    }
+
+    const player = state.getPlayer(playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    state.setControlScheme(playerId, scheme);
+    await repo.save(state);
+    res.json({ ok: true, player: state.getPlayer(playerId), session: state.toJSON() });
+  },
+);
 
 // ---------------------------------------------------------------
 // PATCH /api/game-state/:sessionId/connection  —  Set player connection status

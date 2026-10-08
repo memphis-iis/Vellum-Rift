@@ -33,6 +33,42 @@ namespace VellumRift.Tests
         }
 
         [Test]
+        public void GuideRows_Xr_SplitScheme_UsesAnyButtonBindings()
+        {
+            var rows = InputControlSchema.GuideRows(
+                ControlSchema.XR, XrInputMode.Controllers, QuestControlScheme.SplitLaserJetpack);
+            string joined = string.Join(" | ", System.Array.ConvertAll(rows, r => $"{r.Action}={r.Binding}"));
+            Assert.That(joined, Does.Contain("Jetpack=ANY L BUTTON"));
+            Assert.That(joined, Does.Contain("Laser Pointer=ANY R BUTTON"));
+            Assert.That(joined, Does.Not.Contain("L-STICK"));
+            Assert.That(joined, Does.Not.Contain("Place Pin"));
+        }
+
+        [Test]
+        public void GuideRows_Keyboard_IgnoresQuestScheme()
+        {
+            var def = InputControlSchema.GuideRows(
+                ControlSchema.KeyboardMouse, XrInputMode.Controllers, QuestControlScheme.Default);
+            var split = InputControlSchema.GuideRows(
+                ControlSchema.KeyboardMouse, XrInputMode.Controllers, QuestControlScheme.SplitLaserJetpack);
+            Assert.That(
+                string.Join("|", System.Array.ConvertAll(split, r => r.Binding)),
+                Is.EqualTo(string.Join("|", System.Array.ConvertAll(def, r => r.Binding))));
+            Assert.That(string.Join(" ", System.Array.ConvertAll(split, r => r.Binding)), Does.Contain("WASD"));
+        }
+
+        [Test]
+        public void ParseQuestScheme_MapsDashboardIds()
+        {
+            Assert.That(InputControlSchema.ParseQuestScheme("splitLaserJetpack"),
+                Is.EqualTo(QuestControlScheme.SplitLaserJetpack));
+            Assert.That(InputControlSchema.ParseQuestScheme("default"),
+                Is.EqualTo(QuestControlScheme.Default));
+            Assert.That(InputControlSchema.ParseQuestScheme(null),
+                Is.EqualTo(QuestControlScheme.Default));
+        }
+
+        [Test]
         public void GuideRows_Keyboard_IncludesWasd()
         {
             var rows = InputControlSchema.GuideRows(ControlSchema.KeyboardMouse);

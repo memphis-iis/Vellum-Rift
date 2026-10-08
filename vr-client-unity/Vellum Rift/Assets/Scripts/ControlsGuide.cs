@@ -36,8 +36,6 @@ namespace VellumRift
         [SerializeField] private bool startVisible = true;
         [SerializeField] private KeyCode toggleKey = KeyCode.H;
 
-        private SessionHudStack hudStack;
-
         // ---------------------------------------------------------------
         // Material 3 palette (Vellum Rift HUD design tokens)
         // ---------------------------------------------------------------
@@ -89,6 +87,17 @@ namespace VellumRift
         private bool isHost;
         private bool isVisible = true;
         private SessionHudStack hudStack;
+        private QuestControlScheme questScheme = QuestControlScheme.Default;
+
+        /// <summary>Quest scheme for XR guide rows; ignored for laptop/gamepad (#322).</summary>
+        public void SetQuestControlScheme(QuestControlScheme scheme)
+        {
+            if (questScheme == scheme)
+                return;
+            questScheme = scheme;
+            if (canvasGO != null)
+                RebuildRows();
+        }
 
         private void Awake()
         {
@@ -364,11 +373,28 @@ namespace VellumRift
             var schema = InputControlSchema.Detect();
             bool handsCard = schema == ControlSchema.XR && XrTrackingSource.Mode == XrInputMode.Hands;
             var xrMode = handsCard ? XrInputMode.Hands : XrInputMode.Controllers;
-            var guideRows = InputControlSchema.GuideRows(schema, xrMode);
+            // Prefer field set by MuseumLocalCommands; fall back to PlayerController (#322).
+            var schemeForRows = questScheme;
+            if (schema == ControlSchema.XR)
+            {
+                var pc = FindFirstObjectByType<VellumRift.Control.PlayerController>();
+                if (pc != null)
+                    schemeForRows = pc.QuestScheme;
+            }
+            else
+                schemeForRows = QuestControlScheme.Default;
+            var guideRows = InputControlSchema.GuideRows(schema, xrMode, schemeForRows);
             if (titleText != null)
             {
                 if (schema == ControlSchema.XR)
-                    titleText.text = handsCard ? "HOW TO PLAY  ·  HANDS" : "HOW TO PLAY  ·  TOUCH";
+                {
+                    if (handsCard)
+                        titleText.text = "HOW TO PLAY  ·  HANDS";
+                    else if (schemeForRows == QuestControlScheme.SplitLaserJetpack)
+                        titleText.text = "HOW TO PLAY  ·  LASER+JETPACK";
+                    else
+                        titleText.text = "HOW TO PLAY  ·  TOUCH";
+                }
                 else
                     titleText.text = "H O W   T O   P L A Y";
             }
