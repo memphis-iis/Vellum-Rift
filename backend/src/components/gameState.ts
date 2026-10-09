@@ -4,6 +4,7 @@ import { readKioskEnabled } from "../lib/sessionKiosk.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
 import { readSessionRotation } from "../lib/sessionRotation.js";
 import { touchPlayerSeen } from "../lib/sessionPresence.js";
+import type { ControlSchemeId, PendingRespawn } from "../lib/museumControls.js";
 
 /** Metadata key that stores persisted chat messages for a session. */
 const CHAT_MESSAGES_KEY = "messages";
@@ -46,6 +47,10 @@ export interface PlayerState {
   lastSeenAt?: string;
   /** Last laser PATCH while held — lasers expire without fresh heartbeats. */
   lastLaserAt?: string;
+  /** Museum dashboard respawn command for Unity clients (#322). */
+  pendingRespawn?: PendingRespawn;
+  /** Quest VR control scheme; ignored by laptop/desktop clients (#322). */
+  controlScheme?: ControlSchemeId;
 }
 
 export type SessionVisibility = "public" | "private";
@@ -388,6 +393,35 @@ export class GameState {
       player.laserActive = false;
       player.lastLaserAt = undefined;
     }
+    this._touch();
+    return true;
+  }
+
+  /** Queue a manuscript-facing gallery respawn for a player (#322). */
+  setPendingRespawn(playerId: string, pose: Omit<PendingRespawn, "seq">): boolean {
+    const player = this.getPlayer(playerId);
+    if (!player) return false;
+    const prevSeq = player.pendingRespawn?.seq ?? 0;
+    player.pendingRespawn = { ...pose, seq: prevSeq + 1 };
+    this._touch();
+    return true;
+  }
+
+  /** Clear a consumed respawn command when seq matches (#322). */
+  clearPendingRespawn(playerId: string, seq: number): boolean {
+    const player = this.getPlayer(playerId);
+    if (!player?.pendingRespawn) return false;
+    if (player.pendingRespawn.seq !== seq) return false;
+    delete player.pendingRespawn;
+    this._touch();
+    return true;
+  }
+
+  /** Set Quest control scheme for a player (#322). */
+  setControlScheme(playerId: string, scheme: ControlSchemeId): boolean {
+    const player = this.getPlayer(playerId);
+    if (!player) return false;
+    player.controlScheme = scheme;
     this._touch();
     return true;
   }

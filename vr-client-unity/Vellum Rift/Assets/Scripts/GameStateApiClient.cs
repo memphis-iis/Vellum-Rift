@@ -58,6 +58,7 @@ namespace VellumRift
         [Serializable] private class HostBody { public string playerId; }
         [Serializable] private class ConnectionBody { public string playerId; public bool connected; }
         [Serializable] private class HelpRequestBody { public string playerId; }
+        [Serializable] private class RespawnAckBody { public int seq; }
 
         // ---------------------------------------------------------------
         // GetSession result
@@ -396,6 +397,25 @@ namespace VellumRift
                 return false;
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// POST …/players/:playerId/respawn/ack — clear consumed museum respawn (#322).
+        /// </summary>
+        public async Task<bool> AckRespawn(string sessionId, string playerId, int seq)
+        {
+            string body = JsonUtility.ToJson(new RespawnAckBody { seq = seq });
+            ApiResponse res = await SendRequest(
+                UnityWebRequest.kHttpVerbPOST,
+                BuildUrl(
+                    $"/{Uri.EscapeDataString(sessionId)}/players/{Uri.EscapeDataString(playerId)}/respawn/ack"),
+                body);
+            if (!res.IsSuccess)
+            {
+                LogFailure("AckRespawn", res);
+                return false;
+            }
             return true;
         }
 

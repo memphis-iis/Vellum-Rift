@@ -22,6 +22,7 @@ Complete this while you can reach GitHub, Docker Hub, Unity build machines, and 
 - [ ] Build and **sideload Quest APKs** on each headset (`VELLUM_BUILD_BACKEND_URL` = LAN API, insecure HTTP allowed for LAN). Rebuild after MENU stack / help / leave / turn-timer soft-end (passthrough) lands — see [quest-museum-verify.md](quest-museum-verify.md).
 - [ ] **Ingest manuscripts** into a demo Space (upload while stack is up); confirm assets in MinIO before you copy volumes or re-upload on the LAN.
 - [ ] Dry run on the LAN (or same router at school): `docker compose up -d`, health checks, host **local developer** → create/open Space → **Kiosk on** → mark **Event** → Quest sees event → one laptop joins WebGL. Host tools **Turn timer** Start / Reset smoke-tested against one headset.
+- [ ] Museum path only (Event + Kiosk): Lobby **Participants** shows **Respawn** / **Respawn all** and **Quest** scheme select (Default vs Laser+Jetpack). Confirm a Quest guest teleports facing the manuscript; confirm laptop WebGL locomotion is unchanged when scheme flips. Kiosk join page **Respawn me** + scheme select self-serves the same guest (#322).
 
 ### Pack list
 

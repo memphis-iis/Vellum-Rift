@@ -8,11 +8,15 @@ import {
   kickPlayer,
   mutePlayer,
   removeAllowlistEntry,
+  respawnAllPlayers,
+  respawnPlayer,
+  setPlayerControlScheme,
   setSessionKiosk,
   setSessionVisibility,
   transferHost,
   unmutePlayer,
   type AllowlistEntry,
+  type ControlSchemeId,
   type GameSession,
   type HelpRequest,
 } from "../api/gameState";
@@ -176,6 +180,8 @@ export default function Enter({
     session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
   );
   const spaceKind = sessionKind(session);
+  /** Event + kiosk: museum path for respawn / Quest schemes (#322). */
+  const isMuseumPath = spaceKind === "event" && kioskEnabled;
   const eventWindow = formatEventWindow(sessionStartsAt(session), sessionEndsAt(session));
   const primaryShareUrl = sessionId
     ? buildPrimaryShareUrl(sessionId, kioskEnabled)
@@ -566,6 +572,52 @@ export default function Enter({
       await refreshRoom();
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Mute update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onRespawn = async (playerId: string) => {
+    if (!sessionId || !isHost || !isMuseumPath || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await respawnPlayer(sessionId, playerId);
+      await refreshRoom();
+      setInviteStatus("Player respawned at manuscript");
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Respawn failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onRespawnAll = async () => {
+    if (!sessionId || !isHost || !isMuseumPath || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const result = await respawnAllPlayers(sessionId);
+      await refreshRoom();
+      setInviteStatus(`Respawned ${result.count} player(s) at manuscript`);
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Respawn all failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onControlScheme = async (playerId: string, scheme: ControlSchemeId) => {
+    if (!sessionId || !isHost || !isMuseumPath || hostBusy) return;
+    setHostBusy(true);
+    try {
+      await setPlayerControlScheme(sessionId, playerId, scheme);
+      await refreshRoom();
+      setInviteStatus(
+        scheme === "splitLaserJetpack"
+          ? "Quest scheme: Laser+Jetpack"
+          : "Quest scheme: Default",
+      );
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Control scheme update failed");
     } finally {
       setHostBusy(false);
     }
@@ -1067,10 +1119,30 @@ export default function Enter({
               <MaterialIcon name="group" />
               Participants
             </h2>
+            {isMuseumPath ? (
+              <div className="vr-enter__roster-museum-bar">
+                <button
+                  type="button"
+                  className="vr-enter__text-btn"
+                  disabled={hostBusy}
+                  onClick={() => void onRespawnAll()}
+                  title="Teleport all connected players to manuscript-facing spawn"
+                >
+                  Respawn all
+                </button>
+                <span className="vr-enter__host-ops-hint">
+                  Quest schemes apply on headset only — laptop controls stay unchanged
+                </span>
+              </div>
+            ) : null}
             <ul className="vr-enter__roster" aria-label="Participants">
               {visiblePlayers.map((player) => {
                 const isMe = player.id === me?.playerId;
                 const canModerate = !player.isHost && !isMe;
+                const scheme: ControlSchemeId =
+                  player.controlScheme === "splitLaserJetpack"
+                    ? "splitLaserJetpack"
+                    : "default";
                 return (
                   <li key={player.id} className="vr-enter__roster-row">
                     <span className="vr-enter__roster-name">
@@ -1078,34 +1150,67 @@ export default function Enter({
                       {player.isHost ? " · host" : ""}
                       {player.chatMuted ? " · muted" : ""}
                     </span>
-                    {canModerate ? (
-                      <span className="vr-enter__roster-actions">
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
-                        >
-                          {player.chatMuted ? "Unmute" : "Mute"}
-                        </button>
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onMakeHost(player.id)}
-                        >
-                          Make host
-                        </button>
-                        <button
-                          type="button"
-                          className="vr-enter__text-btn"
-                          disabled={hostBusy}
-                          onClick={() => void onKick(player.id)}
-                        >
-                          Kick
-                        </button>
-                      </span>
-                    ) : null}
+                    <span className="vr-enter__roster-actions">
+                      {isMuseumPath ? (
+                        <>
+                          <button
+                            type="button"
+                            className="vr-enter__text-btn"
+                            disabled={hostBusy}
+                            onClick={() => void onRespawn(player.id)}
+                            title="Teleport to manuscript-facing spawn"
+                          >
+                            Respawn
+                          </button>
+                          <label className="vr-enter__scheme-label">
+                            <span className="vr-enter__scheme-label-text">Quest</span>
+                            <select
+                              className="vr-enter__scheme-select"
+                              value={scheme}
+                              disabled={hostBusy}
+                              aria-label={`Quest control scheme for ${player.displayName}`}
+                              onChange={(e) =>
+                                void onControlScheme(
+                                  player.id,
+                                  e.target.value as ControlSchemeId,
+                                )
+                              }
+                            >
+                              <option value="default">Quest: Default</option>
+                              <option value="splitLaserJetpack">Quest: Laser+Jetpack</option>
+                            </select>
+                          </label>
+                        </>
+                      ) : null}
+                      {canModerate ? (
+                        <>
+                          <button
+                            type="button"
+                            className="vr-enter__text-btn"
+                            disabled={hostBusy}
+                            onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
+                          >
+                            {player.chatMuted ? "Unmute" : "Mute"}
+                          </button>
+                          <button
+                            type="button"
+                            className="vr-enter__text-btn"
+                            disabled={hostBusy}
+                            onClick={() => void onMakeHost(player.id)}
+                          >
+                            Make host
+                          </button>
+                          <button
+                            type="button"
+                            className="vr-enter__text-btn"
+                            disabled={hostBusy}
+                            onClick={() => void onKick(player.id)}
+                          >
+                            Kick
+                          </button>
+                        </>
+                      ) : null}
+                    </span>
                   </li>
                 );
               })}

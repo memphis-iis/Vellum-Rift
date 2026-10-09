@@ -1,5 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { addPlayer, getSession } from "../api/gameState";
+import {
+  addPlayer,
+  getSession,
+  respawnPlayer,
+  setPlayerControlScheme,
+  type ControlSchemeId,
+} from "../api/gameState";
 import { fetchKioskStatus, mintKioskToken } from "../api/kiosk";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { VELLUM_LOGO_URL } from "../auth/config";
@@ -22,6 +28,7 @@ type Phase = "loading" | "ready" | "launching" | "blocked" | "error";
 /**
  * Museum public join (#145 / #182): no Bluekey.
  * One primary CTA: nametag → join Space → open 3D (with popup-blocked fallback).
+ * After join: self respawn + Quest control scheme (#322).
  */
 export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -31,12 +38,17 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [busy, setBusy] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [controlScheme, setControlScheme] = useState<ControlSchemeId>("default");
+  const [opsBusy, setOpsBusy] = useState(false);
+  const [opsStatus, setOpsStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setPhase("loading");
     setError(null);
     setFallbackUrl(null);
+    setPlayerId(null);
 
     void (async () => {
       try {
@@ -94,7 +106,9 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setFallbackUrl(null);
     const name = nametag.trim() || "Guest";
     try {
-      await addPlayer(sessionId, name, false);
+      const player = await addPlayer(sessionId, name, false);
+      setPlayerId(player.id);
+      setControlScheme(player.controlScheme === "splitLaserJetpack" ? "splitLaserJetpack" : "default");
       await getSession(sessionId);
 
       const url = buildWebGlLaunchUrl({
@@ -117,7 +131,6 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
         setError("Your browser blocked the 3D window. Use Open 3D below (or allow popups and try again).");
         return;
       }
-      // Stay on launching — guest is in 3D; keep a quiet status if they return.
       setPhase("launching");
     } catch (err) {
       setPhase("ready");
@@ -138,6 +151,41 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setPhase("launching");
     setFallbackUrl(null);
   };
+
+  const onRespawnMe = async () => {
+    if (!playerId || opsBusy) return;
+    setOpsBusy(true);
+    setOpsStatus(null);
+    try {
+      await respawnPlayer(sessionId, playerId);
+      setOpsStatus("Respawned at the manuscript — look for the 3D view to update.");
+    } catch (err) {
+      setOpsStatus(err instanceof Error ? err.message : "Respawn failed");
+    } finally {
+      setOpsBusy(false);
+    }
+  };
+
+  const onSchemeChange = async (scheme: ControlSchemeId) => {
+    if (!playerId || opsBusy) return;
+    setOpsBusy(true);
+    setOpsStatus(null);
+    try {
+      await setPlayerControlScheme(sessionId, playerId, scheme);
+      setControlScheme(scheme);
+      setOpsStatus(
+        scheme === "splitLaserJetpack"
+          ? "Quest scheme set: left buttons jetpack, right buttons laser"
+          : "Quest scheme set: Default Touch",
+      );
+    } catch (err) {
+      setOpsStatus(err instanceof Error ? err.message : "Could not change control scheme");
+    } finally {
+      setOpsBusy(false);
+    }
+  };
+
+  const showMuseumOps = Boolean(playerId) && (phase === "launching" || phase === "blocked");
 
   return (
     <div className="vr-app vr-app--shell">
@@ -255,6 +303,41 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
                   This uses a browser popup. If nothing opens, allow popups for this site and tap
                   Open 3D again.
                 </p>
+              </div>
+            ) : null}
+
+            {showMuseumOps ? (
+              <div className="vr-kiosk__museum-ops" aria-label="Museum Quest controls">
+                <p className="vr-kiosk__hint">
+                  Quest headset only — laptop/WebGL keeps its own controls.
+                </p>
+                <button
+                  type="button"
+                  className="vr-btn vr-btn--outline"
+                  disabled={opsBusy}
+                  onClick={() => void onRespawnMe()}
+                >
+                  <MaterialIcon name="my_location" />
+                  Respawn me
+                </button>
+                <label className="vr-kiosk__label" htmlFor="kiosk-quest-scheme">
+                  Quest control scheme
+                </label>
+                <select
+                  id="kiosk-quest-scheme"
+                  className="vr-kiosk__input"
+                  value={controlScheme}
+                  disabled={opsBusy}
+                  onChange={(e) => void onSchemeChange(e.target.value as ControlSchemeId)}
+                >
+                  <option value="default">Quest: Default</option>
+                  <option value="splitLaserJetpack">Quest: Laser+Jetpack</option>
+                </select>
+                {opsStatus ? (
+                  <p className="vr-kiosk__status" role="status">
+                    {opsStatus}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </section>

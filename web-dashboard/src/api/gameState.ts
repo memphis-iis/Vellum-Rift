@@ -8,6 +8,17 @@ export interface Vec3 {
   z: number;
 }
 
+/** Quest VR control schemes set from the museum dashboard (#322). */
+export type ControlSchemeId = "default" | "splitLaserJetpack";
+
+export type PendingRespawn = {
+  seq: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+};
+
 export interface PlayerState {
   id: string;
   displayName: string;
@@ -22,6 +33,10 @@ export interface PlayerState {
   bluekeySub?: string | null;
   bluekeyEmail?: string | null;
   chatMuted?: boolean;
+  /** Museum respawn command for Unity (#322). */
+  pendingRespawn?: PendingRespawn;
+  /** Quest-only control scheme (#322); laptop clients ignore. */
+  controlScheme?: ControlSchemeId;
 }
 
 export interface HelpRequest {
@@ -273,6 +288,42 @@ export function transferHost(sessionId: string, playerId: string): Promise<GameS
     {
       method: "PATCH",
       body: JSON.stringify({ playerId }),
+    },
+  );
+}
+
+/** Museum path: respawn a player to manuscript-facing gallery spawn (#322). */
+export function respawnPlayer(
+  sessionId: string,
+  playerId: string,
+): Promise<{ ok: boolean; player: PlayerState; session: GameSession }> {
+  return request(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/respawn`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+/** Museum path host: respawn every connected player (#322). */
+export function respawnAllPlayers(
+  sessionId: string,
+): Promise<{ ok: boolean; count: number; session: GameSession }> {
+  return request(`/api/game-state/${encodeURIComponent(sessionId)}/respawn-all`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/** Museum path: set Quest VR control scheme for a player (#322). */
+export function setPlayerControlScheme(
+  sessionId: string,
+  playerId: string,
+  scheme: ControlSchemeId,
+): Promise<{ ok: boolean; player: PlayerState; session: GameSession }> {
+  return request(
+    `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/control-scheme`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ scheme }),
     },
   );
 }

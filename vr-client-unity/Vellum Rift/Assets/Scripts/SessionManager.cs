@@ -74,6 +74,8 @@ namespace VellumRift
         [SerializeField] private VellumRift.Control.PlayerController playerController;
         [SerializeField] private PinNamePrompt pinNamePrompt;
 
+        private MuseumLocalCommands museumLocalCommands;
+
         public string SessionId { get; private set; }
         public string LocalPlayerId { get; private set; }
         public bool IsHost { get; private set; }
@@ -565,6 +567,15 @@ namespace VellumRift
                 multiplayerController.Initialize(SessionId, LocalPlayerId);
             }
 
+            // Museum dashboard respawn + Quest control schemes (#322).
+            if (!spectator && playerController != null)
+            {
+                museumLocalCommands = GetComponent<MuseumLocalCommands>()
+                    ?? gameObject.AddComponent<MuseumLocalCommands>();
+                museumLocalCommands.Initialize(
+                    apiClient, playerController, SessionId, LocalPlayerId, controlsGuide);
+            }
+
             // Soft-end is for immersive guests only — skip HTML-shell embeds and
             // Gallery screen / spectator walls (unityHud=1) to avoid WebGL recursion.
             if (!spectator && !WebGlShellMode.UsesExternalShell)
@@ -755,6 +766,7 @@ namespace VellumRift
             TurnCountdown.Apply(state.experiencePhase, state.rotationEndsAt);
             if (phaseController != null && phaseController.enabled)
                 phaseController.Apply(state);
+            museumLocalCommands?.HandleGameState(state);
             // Recompose chat/pin/soft-end onto the managed PlayerController after
             // phase changes so Start turn after Reset restores locomotion (#324).
             ApplyGameplayInputGate();
