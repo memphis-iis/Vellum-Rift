@@ -101,10 +101,19 @@ namespace VellumRift
                 string next = (experiencePhase ?? "").Trim().ToLowerInvariant();
                 if (string.IsNullOrEmpty(next))
                     next = PhasePlaying;
-                if (next == Phase)
-                    return;
-                Phase = next;
 
+                // Same phase string can still leave InputFrozen desynced after
+                // dashboard Reset → Start turn (#324). Reconcile every poll.
+                if (next == Phase)
+                {
+                    if (IsEnded(next) && !InputFrozen)
+                        Freeze();
+                    else if (!IsEnded(next) && InputFrozen)
+                        Restore();
+                    return;
+                }
+
+                Phase = next;
                 if (IsEnded(next))
                     Freeze();
                 else
@@ -133,13 +142,13 @@ namespace VellumRift
 
         private void Restore()
         {
-            bool wasFrozen = InputFrozen;
             InputFrozen = false;
             DisablePassthrough();
             PassthroughActive = false;
             ShowOverlay(false);
-            if (wasFrozen)
-                SetPlayerInput(true);
+            // Always re-enable locomotion when leaving ended — do not rely on
+            // wasFrozen; SessionManager also re-applies its input gate (#324).
+            SetPlayerInput(true);
         }
 
         private static void SetPlayerInput(bool enabled)
