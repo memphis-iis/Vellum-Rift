@@ -91,6 +91,7 @@ function buildDesktopCommand(
   playerName: string,
   isHost: boolean,
   accessToken: string | null,
+  playerId?: string | null,
 ): string {
   const parts = [
     "./VellumRift",
@@ -99,6 +100,7 @@ function buildDesktopCommand(
     `-playerName=${playerName}`,
     `-isHost=${isHost ? "true" : "false"}`,
   ];
+  if (playerId) parts.push(`-playerId=${playerId}`);
   if (accessToken) parts.push(`-accessToken=${accessToken}`);
   return parts.join(" ");
 }
@@ -290,6 +292,8 @@ export default function Enter({
       sessionId,
       playerName: me.displayName,
       isHost: me.isHost,
+      playerId: me.playerId,
+      connectionId: me.connectionId,
     });
   }, [sessionId, me]);
 
@@ -299,6 +303,8 @@ export default function Enter({
       sessionId,
       playerName: me.displayName,
       isHost: me.isHost,
+      playerId: me.playerId,
+      connectionId: me.connectionId,
       embed: true,
     });
   }, [sessionId, me]);
@@ -324,6 +330,7 @@ export default function Enter({
       me.displayName,
       me.isHost,
       readDashboardAccessToken(),
+      me.playerId,
     );
   }, [sessionId, me]);
 

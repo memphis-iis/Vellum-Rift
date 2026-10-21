@@ -72,6 +72,13 @@ describe("GameState", () => {
       expect(player.isConnected).toBe(true);
     });
 
+    it("mints a connectionId for the new seat", () => {
+      const state = new GameState();
+      const player = state.addPlayer("Conn");
+      expect(player.connectionId).toBeTruthy();
+      expect(player.connectionId).not.toBe(state.addPlayer("Other").connectionId);
+    });
+
     it("sets the added player as host when isHost is true", () => {
       const state = new GameState();
       const player = state.addPlayer("Dave", true);

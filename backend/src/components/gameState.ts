@@ -51,6 +51,11 @@ export interface PlayerState {
   pendingRespawn?: PendingRespawn;
   /** Quest VR control scheme; ignored by laptop/desktop clients (#322). */
   controlScheme?: ControlSchemeId;
+  /**
+   * Live client token for this seat. Minted on every join/rejoin so a takeover
+   * or second window can force-logout stale clients holding the same playerId.
+   */
+  connectionId?: string;
 }
 
 export type SessionVisibility = "public" | "private";
@@ -162,6 +167,11 @@ export class GameState {
   // Player management
   // ---------------------------------------------------------------
 
+  /** Mint a fresh connection token for seat takeover / force-logout. */
+  static mintConnectionId(): string {
+    return crypto.randomUUID();
+  }
+
   /** Add a player to the session. Returns the new PlayerState. */
   addPlayer(displayName: string, isHost = false): PlayerState {
     const player: PlayerState = {
@@ -176,6 +186,7 @@ export class GameState {
       laserOrigin: { x: 0, y: 0, z: 0 },
       laserDirection: { dx: 0, dy: 0, dz: 0 },
       chatMuted: false,
+      connectionId: GameState.mintConnectionId(),
     };
 
     this.players.push(player);

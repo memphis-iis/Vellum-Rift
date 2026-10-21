@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Join Vellum Exhibit
-Comment=Autostart museum client after login
-Exec=bash -lc 'sleep 8; /opt/vellum-client/join-exhibit.sh join'
+Comment=Autostart museum client after login (LAN discover or campus.env)
+Exec=bash -lc 'sleep 8; [[ -f /opt/vellum-client/campus.env ]] && set -a && . /opt/vellum-client/campus.env && set +a; /opt/vellum-client/join-exhibit.sh join'
 X-GNOME-Autostart-enabled=true
 Hidden=false

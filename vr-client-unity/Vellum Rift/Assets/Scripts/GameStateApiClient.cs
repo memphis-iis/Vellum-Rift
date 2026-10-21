@@ -52,7 +52,13 @@ namespace VellumRift
         }
 
         [Serializable] private class SessionListWrapper { public SessionListItem[] items; }
-        [Serializable] private class AddPlayerBody { public string displayName; public bool isHost; }
+        [Serializable] private class AddPlayerBody
+        {
+            public string displayName;
+            public bool isHost;
+            public string playerId;
+            public string connectionId;
+        }
         [Serializable] private class PositionBody { public string playerId; public Vector3Data position; }
         [Serializable] private class RotationBody { public string playerId; public Vector3Data rotation; }
         [Serializable] private class HostBody { public string playerId; }
@@ -262,10 +268,24 @@ namespace VellumRift
         /// <param name="sessionId">The session ID</param>
         /// <param name="displayName">Player's display name</param>
         /// <param name="isHost">Whether this player is the host</param>
+        /// <param name="playerId">Optional existing seat to reclaim (lobby handoff)</param>
+        /// <param name="connectionId">Optional live token to resume without takeover</param>
         /// <returns>The created PlayerState, or null on failure</returns>
-        public async Task<PlayerState> AddPlayer(string sessionId, string displayName, bool isHost = false)
+        public async Task<PlayerState> AddPlayer(
+            string sessionId,
+            string displayName,
+            bool isHost = false,
+            string playerId = null,
+            string connectionId = null)
         {
-            string body = JsonUtility.ToJson(new AddPlayerBody { displayName = displayName, isHost = isHost });
+            var payload = new AddPlayerBody
+            {
+                displayName = displayName,
+                isHost = isHost,
+                playerId = string.IsNullOrEmpty(playerId) ? "" : playerId,
+                connectionId = string.IsNullOrEmpty(connectionId) ? "" : connectionId,
+            };
+            string body = JsonUtility.ToJson(payload);
             ApiResponse res = await SendRequest(
                 UnityWebRequest.kHttpVerbPOST,
                 BuildUrl($"/{Uri.EscapeDataString(sessionId)}/players"),

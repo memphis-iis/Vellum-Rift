@@ -78,8 +78,11 @@ namespace VellumRift
 
         public string SessionId { get; private set; }
         public string LocalPlayerId { get; private set; }
+        /// <summary>Seat connection token from join; mismatch vs poll = takeover.</summary>
+        public string LocalConnectionId { get; private set; }
         public bool IsHost { get; private set; }
         public bool IsReady { get; private set; }
+        private bool _forceLeft;
 
         private string _backendUrl = "";
         /// <summary>Sticky launch override from CLI/env/query; when set, ignores session activeModelId.</summary>
@@ -292,15 +295,37 @@ namespace VellumRift
                 // Kiosk guests and wall spectators never adopt host.
                 bool joinAsHost = !KioskMode.IsActive && !SpectatorMode.IsActive
                     && (createdSession || adoptHost || (launchHost == true));
-                var player = await apiClient.AddPlayer(SessionId, resolvedPlayerName, isHost: joinAsHost);
+#if UNITY_WEBGL
+                string pagePlayerId = BackendUrlResolver.FromQueryStringParam(
+                    Application.absoluteURL, SessionIdResolver.PlayerIdQueryParamName, "");
+                string pageConnectionId = BackendUrlResolver.FromQueryStringParam(
+                    Application.absoluteURL, SessionIdResolver.ConnectionIdQueryParamName, "");
+                string reclaimPlayerId = SessionIdResolver.ResolvePlayerId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable, pagePlayerId);
+                string resumeConnectionId = SessionIdResolver.ResolveConnectionId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable, pageConnectionId);
+#else
+                string reclaimPlayerId = SessionIdResolver.ResolvePlayerId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable);
+                string resumeConnectionId = SessionIdResolver.ResolveConnectionId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable);
+#endif
+                var player = await apiClient.AddPlayer(
+                    SessionId,
+                    resolvedPlayerName,
+                    isHost: joinAsHost,
+                    playerId: reclaimPlayerId,
+                    connectionId: resumeConnectionId);
                 if (player == null)
                 {
                     Debug.LogError("[SessionManager] Failed to add player.");
                     return;
                 }
                 LocalPlayerId = player.id;
+                LocalConnectionId = player.connectionId;
                 IsHost = player.isHost;
-                Debug.Log($"[SessionManager] Player {LocalPlayerId} added (host={IsHost})");
+                _forceLeft = false;
+                Debug.Log($"[SessionManager] Player {LocalPlayerId} added (host={IsHost}, connection={LocalConnectionId})");
 
                 // Wall observer joins for manuscript sync only — never appear as a remote avatar.
                 if (SpectatorMode.IsActive)
@@ -763,6 +788,15 @@ namespace VellumRift
         {
             if (state == null || !IsReady)
                 return;
+
+            SeatEvictionReason eviction = SeatEviction.Evaluate(
+                state, LocalPlayerId, LocalConnectionId);
+            if (eviction != SeatEvictionReason.None)
+            {
+                ForceLeaveAsEvicted(eviction);
+                return;
+            }
+
             TurnCountdown.Apply(state.experiencePhase, state.rotationEndsAt);
             if (phaseController != null && phaseController.enabled)
                 phaseController.Apply(state);
@@ -777,6 +811,33 @@ namespace VellumRift
             if (next == _loadedModelId)
                 return;
             _ = ApplyActiveModelAsync(next);
+        }
+
+        /// <summary>
+        /// Kick / seat-takeover: stop local systems without DELETE (seat already
+        /// gone or owned by another connectionId).
+        /// </summary>
+        private void ForceLeaveAsEvicted(SeatEvictionReason reason)
+        {
+            if (_forceLeft || !IsReady)
+                return;
+            _forceLeft = true;
+            string message = SeatEviction.Message(reason);
+            Debug.LogWarning($"[SessionManager] Force leave ({reason}): {message}");
+
+            if (gameStatePoller != null)
+                gameStatePoller.StopPolling();
+            if (positionSender != null)
+                positionSender.gameObject.SetActive(false);
+            if (multiplayerController != null)
+                multiplayerController.enabled = false;
+            if (playerController != null)
+                playerController.enabled = false;
+
+            IsReady = false;
+            LocalPlayerId = null;
+            LocalConnectionId = null;
+            IsHost = false;
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -819,7 +880,9 @@ namespace VellumRift
 
         public async Task LeaveSession()
         {
-            if (!IsReady) return;
+            if (!IsReady && !_forceLeft) return;
+            // Superseded/kicked clients must not DELETE — that would drop the live seat.
+            bool skipDelete = _forceLeft;
             IsReady = false;
             try
             {
@@ -831,10 +894,19 @@ namespace VellumRift
                     _testPlayerId = null;
                 }
 #endif
+                if (skipDelete || string.IsNullOrEmpty(LocalPlayerId))
+                {
+                    Debug.Log("[SessionManager] Leave skipped DELETE (evicted or no local seat)");
+                    return;
+                }
                 bool removed = await apiClient.RemovePlayer(SessionId, LocalPlayerId);
                 Debug.Log(removed ? $"[SessionManager] Left session {SessionId}" : "[SessionManager] Player not found on server");
             }
             catch (Exception ex) { Debug.LogWarning($"[SessionManager] Leave failed: {ex.Message}"); }
+            finally
+            {
+                LocalConnectionId = null;
+            }
         }
 
         /// <summary>
@@ -890,8 +962,10 @@ namespace VellumRift
             // 8. Clear session identity so a re-login bootstraps fresh.
             SessionId = null;
             LocalPlayerId = null;
+            LocalConnectionId = null;
             IsHost = false;
             IsReady = false;
+            _forceLeft = false;
 
             Debug.Log("[SessionManager] Logout complete — all systems stopped.");
         }

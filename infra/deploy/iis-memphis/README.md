@@ -110,10 +110,13 @@ tar czf - -C .deploy/backend . | ssh rusty@ramiel \
 Required backend env (on the ramiel container / `~/vellumrift/backend/.env`):
 
 - `AUTH_REQUIRED=true`
+- `KIOSK_JWT_SECRET` (museum / kiosk guest JWTs on event Spaces)
 - `BLUEKEY_SOFTWARE_ID` (catalog UUID)
 - `BLUEKEY_API_TOKEN` (= Bluekey `API_TOKEN` — app notification send)
 - `BLUEKEY_API_BASE_URL=https://iis.memphis.edu/apis/bluekey`
 - `DASHBOARD_PUBLIC_URL=https://iis.memphis.edu/static/vellum-dashboard`
+
+Preserve `~/vellumrift/backend/.env` across artifact transfers (`rm -rf` the tree wipes it). The process loads dotenv from that file on start.
 
 ### Dashboard static (iis box)
 
@@ -138,6 +141,15 @@ Do **not** rsync into `/assets/static/vellumrift/` — that tree is the Unity We
 2. Lobby → **Set active** on a manuscript — stays Active across several seconds (poll race fixed).
 3. Participants list shows ~one row per live client (not dozens of host/Gallery ghosts). Rejoin clears stale `isHost`.
 4. Enter 3D on Mona Lisa / painted manuscripts — albedo visible (not grey relief only). If still grey, download `GET /api/models/{id}` and confirm the GLB texture is color vs IR.
+
+**Campus museum (#322) smoke** (event Space with **kiosk enabled** — not the offline lan-party profile):
+
+1. Host tools on the lobby: **Respawn** a guest to manuscript-facing spawn; set Quest scheme `default` / `splitLaserJetpack`.
+2. Kiosk join page: guest can self-serve the same controls for their seat.
+3. WebGL/Quest: `pendingRespawn` teleports; scheme rebinds only when XR is active (laptop/WebGL keep their own bindings).
+4. Do **not** deploy `infra/deploy/lan-party` on ramiel/iis — campus stays `AUTH_REQUIRED=true` + Bluekey.
+
+**Classroom / USB lockdown (campus visit):** [docs/qa/classroom-museum-runbook.md § Campus](../../../docs/qa/classroom-museum-runbook.md#campus--iismemphisedu). Client sticks: `infra/deploy/museum-kit/client-usb/campus.env.example` (firewall allowlists `iis.memphis.edu` only). Quest: Meta managed single-app/kiosk with the **IIS** APK. If a whole class hits kiosk token **429**, raise `KIOSK_RATE_LIMIT` on ramiel (default ~30/5 min per IP+session).
 
 **Backend presence fixes** (player reconnect / prune) must be deployed to **ramiel** with the usual artifact transfer — dashboard-only rsync is not enough for duplicate participants.
 

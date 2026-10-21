@@ -1,0 +1,16 @@
+[Unit]
+Description=Vellum museum kiosk outbound allowlist (early boot)
+DefaultDependencies=no
+After=network-online.target
+Wants=network-online.target
+Before=graphical.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Prefer pinned campus URL; fall back to last join cache / firewall.cache host.
+ExecStart=/bin/bash -c 'ROOT=/opt/vellum-client; [[ -f $ROOT/campus.env ]] && set -a && . $ROOT/campus.env && set +a; URL="${VELLUM_MUSEUM_URL:-}"; [[ -z "$URL" && -f $ROOT/server.url ]] && URL=$(tr -d "[:space:]" < $ROOT/server.url); [[ -z "$URL" && -f $ROOT/firewall.cache ]] && . $ROOT/firewall.cache && URL="https://${VELLUM_FIREWALL_HOST}/"; [[ -n "$URL" ]] && exec $ROOT/apply-kiosk-firewall.sh "$URL" || exit 0'
+ExecStop=/bin/bash -c 'iptables -D OUTPUT -j VELLUM_KIOSK 2>/dev/null; iptables -F VELLUM_KIOSK 2>/dev/null; iptables -X VELLUM_KIOSK 2>/dev/null; true'
+
+[Install]
+WantedBy=multi-user.target

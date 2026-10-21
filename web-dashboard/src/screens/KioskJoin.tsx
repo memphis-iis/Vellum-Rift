@@ -115,6 +115,8 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
         sessionId,
         playerName: name,
         isHost: false,
+        playerId: player.id,
+        connectionId: player.connectionId,
         kiosk: true,
       });
       if (!url) {
@@ -270,6 +272,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
                       sessionId,
                       playerName: nametag.trim() || "Guest",
                       isHost: false,
+                      playerId,
                       kiosk: true,
                     });
                     if (!url || !accessToken) return;

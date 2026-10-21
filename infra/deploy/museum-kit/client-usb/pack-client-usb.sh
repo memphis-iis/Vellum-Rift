@@ -14,7 +14,10 @@ cp -f "${ROOT}/write-firefox-policies.sh" "${OUT}/"
 cp -f "${ROOT}/lock-desktop.sh" "${OUT}/"
 cp -f "${ROOT}/unlock-desktop.sh" "${OUT}/"
 cp -f "${ROOT}/kit-wifi.env.example" "${OUT}/"
+cp -f "${ROOT}/campus.env.example" "${OUT}/"
 cp -f "${ROOT}/firefox-policies.template.json" "${OUT}/"
+cp -f "${ROOT}/vellum-kiosk-firewall.service" "${OUT}/"
+cp -f "${ROOT}/smoke-campus-resolve.sh" "${OUT}/"
 cp -f "${ROOT}/vellum-join.desktop" "${OUT}/"
 cp -f "${ROOT}/vellum-observer.desktop" "${OUT}/"
 cp -f "${ROOT}/autostart/vellum-join.desktop" "${OUT}/autostart/"
@@ -31,12 +34,23 @@ sudo cp -a "${SRC}/." /opt/vellum-client/
 sudo chmod +x /opt/vellum-client/*.sh
 if [[ -f /opt/vellum-client/kit-wifi.env.example && ! -f /opt/vellum-client/kit-wifi.env ]]; then
   sudo cp /opt/vellum-client/kit-wifi.env.example /opt/vellum-client/kit-wifi.env
-  echo "Edit /opt/vellum-client/kit-wifi.env with the kit SSID (and PSK if any)."
+  echo "LAN kit: edit /opt/vellum-client/kit-wifi.env with the kit SSID (and PSK if any)."
+fi
+if [[ -f /opt/vellum-client/campus.env.example && ! -f /opt/vellum-client/campus.env ]]; then
+  echo "Campus: sudo cp /opt/vellum-client/campus.env.example /opt/vellum-client/campus.env"
+  echo "  then set VELLUM_MUSEUM_URL (session id) — skips kit Wi‑Fi + UDP discover."
 fi
 mkdir -p "${HOME}/.config/autostart"
 cp -f /opt/vellum-client/autostart/vellum-join.desktop "${HOME}/.config/autostart/"
 # LXDE / LXQt lockdown (no panel, no desktop icons, blocked terminal shortcuts)
 bash /opt/vellum-client/lock-desktop.sh
+# Optional early-boot firewall (before browser) — enable after campus.env or first successful join
+if [[ -f /opt/vellum-client/vellum-kiosk-firewall.service ]]; then
+  sudo cp /opt/vellum-client/vellum-kiosk-firewall.service /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable vellum-kiosk-firewall.service || true
+  echo "Enabled vellum-kiosk-firewall.service (applies allowlist at boot when campus.env/server.url present)."
+fi
 echo "Installed (elementary kiosk + desktop lock). Reboot, then verify kiosk."
 echo "Staff unlock desktop: /opt/vellum-client/unlock-desktop.sh"
 EOF

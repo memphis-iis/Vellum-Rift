@@ -37,6 +37,8 @@ export interface PlayerState {
   pendingRespawn?: PendingRespawn;
   /** Quest-only control scheme (#322); laptop clients ignore. */
   controlScheme?: ControlSchemeId;
+  /** Live seat token; mismatch vs local copy means another client took over. */
+  connectionId?: string;
 }
 
 export interface HelpRequest {
@@ -129,6 +131,7 @@ export function addPlayer(
   displayName: string,
   isHost = false,
   playerId?: string | null,
+  connectionId?: string | null,
 ): Promise<PlayerState> {
   return request<PlayerState>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players`,
@@ -138,6 +141,7 @@ export function addPlayer(
         displayName,
         isHost,
         ...(playerId ? { playerId } : {}),
+        ...(connectionId ? { connectionId } : {}),
       }),
     },
   );

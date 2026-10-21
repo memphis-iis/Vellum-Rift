@@ -18,6 +18,14 @@ public static class SessionIdResolver
     public const string PlayerNameEnvVarName = "VELLUM_PLAYER_NAME";
     public const string PlayerNameQueryParamName = "playerName";
 
+    public const string PlayerIdCliFlagKey = "-playerId";
+    public const string PlayerIdEnvVarName = "VELLUM_PLAYER_ID";
+    public const string PlayerIdQueryParamName = "playerId";
+
+    public const string ConnectionIdCliFlagKey = "-connectionId";
+    public const string ConnectionIdEnvVarName = "VELLUM_CONNECTION_ID";
+    public const string ConnectionIdQueryParamName = "connectionId";
+
     public const string IsHostCliFlagKey = "-isHost";
     public const string AdminCliFlagKey = "-admin";
     public const string IsHostEnvVarName = "VELLUM_IS_HOST";
@@ -153,6 +161,80 @@ public static class SessionIdResolver
         {
             log($"Host/admin set via page query (?isHost={fromPage.Value}).");
             return fromPage;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves an existing seat id to reclaim, in priority order:
+    ///   1. <c>-playerId=</c> CLI flag
+    ///   2. <c>VELLUM_PLAYER_ID</c> environment variable
+    ///   3. <paramref name="pageQueryPlayerId"/> (WebGL <c>?playerId=</c>)
+    /// </summary>
+    public static string ResolvePlayerId(
+        Func<string, string> getCliArg,
+        Func<string, string> getEnvVar,
+        string pageQueryPlayerId = null,
+        Action<string> log = null)
+    {
+        log ??= _ => { };
+
+        string cli = Clean(getCliArg?.Invoke(PlayerIdCliFlagKey));
+        if (!string.IsNullOrEmpty(cli))
+        {
+            log("Player id set via CLI flag -playerId.");
+            return cli;
+        }
+
+        string env = Clean(getEnvVar?.Invoke(PlayerIdEnvVarName));
+        if (!string.IsNullOrEmpty(env))
+        {
+            log("Player id set via env var VELLUM_PLAYER_ID.");
+            return env;
+        }
+
+        string page = Clean(pageQueryPlayerId);
+        if (!string.IsNullOrEmpty(page))
+        {
+            log("Player id set via page query (?playerId=).");
+            return page;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves a live connection token to resume without seat takeover.
+    /// Same priority as <see cref="ResolvePlayerId"/>.
+    /// </summary>
+    public static string ResolveConnectionId(
+        Func<string, string> getCliArg,
+        Func<string, string> getEnvVar,
+        string pageQueryConnectionId = null,
+        Action<string> log = null)
+    {
+        log ??= _ => { };
+
+        string cli = Clean(getCliArg?.Invoke(ConnectionIdCliFlagKey));
+        if (!string.IsNullOrEmpty(cli))
+        {
+            log("Connection id set via CLI flag -connectionId.");
+            return cli;
+        }
+
+        string env = Clean(getEnvVar?.Invoke(ConnectionIdEnvVarName));
+        if (!string.IsNullOrEmpty(env))
+        {
+            log("Connection id set via env var VELLUM_CONNECTION_ID.");
+            return env;
+        }
+
+        string page = Clean(pageQueryConnectionId);
+        if (!string.IsNullOrEmpty(page))
+        {
+            log("Connection id set via page query (?connectionId=).");
+            return page;
         }
 
         return null;

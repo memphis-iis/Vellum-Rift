@@ -26,7 +26,7 @@
 >
 > **Vellum** is an old word for parchment — the material ancient books were written on. A **rift** is like an opening. We’re opening a window into **real manuscript pages**, but in **three dimensions**, so you can look closely and explore together.
 >
-> Some of you will use **VR headsets** — the Meta Quest — and some will use **laptops** in the browser. Everyone is visiting the **same exhibit space** on our classroom network. You’re not on the public internet today; it’s just our room and our server — like a private field trip inside the building.”
+> Some of you will use **VR headsets** — the Meta Quest — and some will use **laptops** in the browser. Everyone is visiting the **same exhibit space**. *(LAN:)* You’re not on the public internet today; it’s just our room and our server — like a private field trip inside the building. *(Campus:)* Your laptop or headset only opens our museum site — not the rest of the web.”
 
 *(Point to taped areas and tables.)*
 

@@ -56,6 +56,11 @@ namespace VellumRift
         /// Laptop / gamepad clients ignore this field.
         /// </summary>
         public string controlScheme;
+        /// <summary>
+        /// Live seat token from join/rejoin. If the polled value differs from the
+        /// local copy, another window took over this seat — force leave.
+        /// </summary>
+        public string connectionId;
 
         public PlayerState(string id, string displayName)
         {
@@ -67,6 +72,7 @@ namespace VellumRift
             this.isConnected = true;
             this.joinedAt = DateTime.UtcNow.ToString("o");
             this.controlScheme = "default";
+            this.connectionId = null;
         }
     }
 

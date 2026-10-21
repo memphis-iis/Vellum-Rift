@@ -163,6 +163,8 @@ MonoBehaviour:
   modelLoader: {fileID: 0}
   chatManager: {fileID: 0}
   controlsGuide: {fileID: 0}
+  helpRequestButton: {fileID: 0}
+  sessionHudStack: {fileID: 0}
   playerSpawner: {fileID: 0}
   gameStatePoller: {fileID: 0}
   multiplayerController: {fileID: 0}

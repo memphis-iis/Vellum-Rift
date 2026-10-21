@@ -298,7 +298,27 @@ namespace VellumRift
                 bool adoptHost = !createdSession && string.IsNullOrEmpty(session.hostId);
                 bool joinAsHost = launchIsHost ?? (createdSession || adoptHost);
 
-                PlayerState local = await apiClient.AddPlayer(SessionId, playerName, isHost: joinAsHost);
+#if UNITY_WEBGL
+                string pagePlayerId = BackendUrlResolver.FromQueryStringParam(
+                    Application.absoluteURL, SessionIdResolver.PlayerIdQueryParamName, null);
+                string pageConnectionId = BackendUrlResolver.FromQueryStringParam(
+                    Application.absoluteURL, SessionIdResolver.ConnectionIdQueryParamName, null);
+                string reclaimPlayerId = SessionIdResolver.ResolvePlayerId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable, pagePlayerId);
+                string resumeConnectionId = SessionIdResolver.ResolveConnectionId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable, pageConnectionId);
+#else
+                string reclaimPlayerId = SessionIdResolver.ResolvePlayerId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable);
+                string resumeConnectionId = SessionIdResolver.ResolveConnectionId(
+                    GetCliArg, System.Environment.GetEnvironmentVariable);
+#endif
+                PlayerState local = await apiClient.AddPlayer(
+                    SessionId,
+                    playerName,
+                    isHost: joinAsHost,
+                    playerId: reclaimPlayerId,
+                    connectionId: resumeConnectionId);
                 if (local == null)
                 {
                     throw new InvalidOperationException(

@@ -11,6 +11,10 @@ import {
 } from "../api/gameState";
 import { CHAT_ENABLED } from "../auth/config";
 import { useAuth } from "../auth/AuthContext";
+import {
+  evaluateSeatEviction,
+  seatEvictionMessage,
+} from "../lib/seatEviction";
 
 const POLL_INTERVAL_MS = 2000;
 const PLAYER_ID_PREFIX = "vellum_rift_player:";
@@ -21,15 +25,34 @@ function playerIdStorageKey(sessionId: string): string {
 
 function readStoredPlayerId(sessionId: string): string | null {
   try {
-    return sessionStorage.getItem(playerIdStorageKey(sessionId));
+    const fromLocal = localStorage.getItem(playerIdStorageKey(sessionId));
+    if (fromLocal) return fromLocal;
+    // Migrate legacy per-tab sessionStorage keys.
+    const legacy = sessionStorage.getItem(playerIdStorageKey(sessionId));
+    if (legacy) {
+      localStorage.setItem(playerIdStorageKey(sessionId), legacy);
+      sessionStorage.removeItem(playerIdStorageKey(sessionId));
+      return legacy;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+/** Persist seat id only — connectionId stays in memory so a new tab takeovers. */
 function writeStoredPlayerId(sessionId: string, playerId: string): void {
   try {
-    sessionStorage.setItem(playerIdStorageKey(sessionId), playerId);
+    localStorage.setItem(playerIdStorageKey(sessionId), playerId);
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearStoredPlayerId(sessionId: string): void {
+  try {
+    localStorage.removeItem(playerIdStorageKey(sessionId));
+    sessionStorage.removeItem(playerIdStorageKey(sessionId));
   } catch {
     /* ignore */
   }
@@ -64,6 +87,7 @@ export type LocalIdentity = {
   playerId: string;
   displayName: string;
   isHost: boolean;
+  connectionId?: string | null;
 };
 
 export type SessionRoomStatus = "idle" | "connecting" | "ready" | "error";
@@ -86,6 +110,8 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
   const pollPausedRef = useRef(false);
   const sessionRef = useRef<GameSession | null>(null);
   const joinInFlightRef = useRef(false);
+  /** True after kick/takeover — skip DELETE on unmount so we don't drop the live seat. */
+  const forceLeftRef = useRef(false);
 
   const meRef = useRef<LocalIdentity | null>(null);
   meRef.current = me;
@@ -108,6 +134,17 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     pollPausedRef.current = busy;
   }, []);
 
+  const applyForceLeave = useCallback(
+    (reason: "kick" | "takeover") => {
+      forceLeftRef.current = true;
+      if (sessionId) clearStoredPlayerId(sessionId);
+      setMe(null);
+      setStatus("error");
+      setError(seatEvictionMessage(reason));
+    },
+    [sessionId],
+  );
+
   const join = useCallback(async () => {
     if (!sessionId) {
       setSession(null);
@@ -120,6 +157,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
 
     if (joinInFlightRef.current) return;
     joinInFlightRef.current = true;
+    forceLeftRef.current = false;
 
     const name = displayName.trim() || "Learner";
     setStatus("connecting");
@@ -142,6 +180,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
         );
       const adoptHost = !existing.hostId || creatorHost;
       const storedId = readStoredPlayerId(sessionId);
+      // Do not send a stored connectionId — a new tab must takeover.
       const player = await addPlayer(sessionId, name, adoptHost, storedId);
       writeStoredPlayerId(sessionId, player.id);
       const refreshed = await getSession(sessionId);
@@ -150,6 +189,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
         playerId: player.id,
         displayName: player.displayName || name,
         isHost: resolveIsHost(player, refreshed, userEmail, userSub),
+        connectionId: player.connectionId ?? null,
       });
       setMessages(CHAT_ENABLED ? await fetchChat(sessionId) : []);
       setStatus("ready");
@@ -165,6 +205,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     void join();
     return () => {
       if (!sessionId) return;
+      if (forceLeftRef.current) return;
       const id = meRef.current?.playerId ?? readStoredPlayerId(sessionId);
       if (!id) return;
       void removePlayer(sessionId, id).catch(() => {
@@ -203,6 +244,18 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
           : [];
         if (cancelled || pollPausedRef.current) return;
         if (sessionUpdatedMs(nextSession) < knownMs) return;
+
+        const identity = meRef.current;
+        const eviction = evaluateSeatEviction(
+          nextSession.players,
+          identity?.playerId,
+          identity?.connectionId,
+        );
+        if (eviction) {
+          applyForceLeave(eviction);
+          return;
+        }
+
         setSession(nextSession);
         setMessages(nextMessages);
         const self = nextSession.players?.find((p) => p.id === meRef.current?.playerId);
@@ -211,6 +264,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
             playerId: self.id,
             displayName: self.displayName || meRef.current.displayName,
             isHost: resolveIsHost(self, nextSession, userEmail, userSub),
+            connectionId: meRef.current.connectionId ?? self.connectionId ?? null,
           });
         }
       } catch {
@@ -223,7 +277,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [session?.sessionId, status, userEmail, userSub, mutationEpoch]);
+  }, [session?.sessionId, status, userEmail, userSub, mutationEpoch, applyForceLeave]);
 
   return {
     session,

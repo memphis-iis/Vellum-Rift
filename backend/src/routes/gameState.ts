@@ -299,10 +299,17 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName: rawName, isHost, playerId: clientPlayerId } = req.body as {
+  const {
+    displayName: rawName,
+    isHost,
+    playerId: clientPlayerId,
+    connectionId: clientConnectionId,
+  } = req.body as {
     displayName?: string;
     isHost?: boolean;
     playerId?: string;
+    /** When reclaiming, matching connectionId resumes the seat without ejecting peers. */
+    connectionId?: string;
   };
 
   const displayName = sanitizeDisplayName(rawName, kiosk);
@@ -351,6 +358,16 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     player.bluekeySub = req.user?.sub ?? player.bluekeySub ?? null;
     player.bluekeyEmail =
       normalizeEmail(req.user?.email) || player.bluekeyEmail || null;
+    const resumeConn =
+      typeof clientConnectionId === "string" && clientConnectionId.trim()
+        ? clientConnectionId.trim()
+        : null;
+    // Same connectionId = lobby→WebGL handoff (keep). Otherwise takeover.
+    if (resumeConn && player.connectionId && resumeConn === player.connectionId) {
+      /* keep connectionId */
+    } else {
+      player.connectionId = GameState.mintConnectionId();
+    }
   } else {
     player = state.addPlayer(displayName, wantHost);
     player.bluekeySub = req.user?.sub ?? null;

@@ -1,19 +1,32 @@
 #!/usr/bin/env bash
-# Lightweight client: find museum-kit server on LAN, open dashboard/WebGL in a browser.
+# Lightweight client: find museum server (LAN discover or pinned campus URL), open kiosk browser.
 # Elementary default: full-screen kiosk + optional firewall allowlist to museum host only.
-# No Docker, no Unity — WebGL loads from the server over Wi‑Fi.
+# No Docker, no Unity — WebGL loads from the server over the network.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# Load campus.env then optional local overrides (stick-local secrets / session id).
+load_env_file() {
+  local f="$1"
+  [[ -f "${f}" ]] || return 0
+  set -a
+  # shellcheck disable=SC1090
+  . "${f}"
+  set +a
+}
+load_env_file "${ROOT}/campus.env"
+load_env_file "${ROOT}/client.env"
+
 DISCOVER_PORT="${DISCOVER_PORT:-41234}"
 LISTEN_SECONDS="${LISTEN_SECONDS:-4}"
 MODE="${1:-join}" # join | observer | unlock
 OVERRIDE_URL="${VELLUM_MUSEUM_URL:-}"
 CACHE_FILE="${ROOT}/server.url"
-# Elementary lockdown on by default for join/observer
 KIOSK="${VELLUM_KIOSK:-1}"
 APPLY_FIREWALL="${VELLUM_KIOSK_FIREWALL:-1}"
 CONNECT_WIFI="${VELLUM_CONNECT_WIFI:-1}"
+SKIP_DISCOVER="${VELLUM_SKIP_DISCOVER:-0}"
 
 pick_browser() {
   for b in chromium-browser chromium google-chrome firefox brave-browser; do
@@ -68,9 +81,11 @@ resolve_url() {
     printf '%s' "${OVERRIDE_URL}"
     return 0
   fi
-  if url="$(discover_via_udp 2>/dev/null)"; then
-    printf '%s' "${url}"
-    return 0
+  if [[ "${SKIP_DISCOVER}" != "1" ]]; then
+    if url="$(discover_via_udp 2>/dev/null)"; then
+      printf '%s' "${url}"
+      return 0
+    fi
   fi
   if [[ -f "${CACHE_FILE}" ]]; then
     local cached
@@ -97,7 +112,6 @@ open_kiosk() {
 
   case "${browser}" in
     chromium*|google-chrome*|brave-browser)
-      # App/kiosk: no address bar; students stay on the launched URL surface.
       "${browser}" \
         --kiosk \
         --app="${url}" \
@@ -108,7 +122,6 @@ open_kiosk() {
         >/dev/null 2>&1 &
       ;;
     firefox)
-      # Full-screen kiosk; pair with policies.json when installed under /etc/firefox/policies
       firefox --kiosk "${url}" >/dev/null 2>&1 &
       ;;
     *)
@@ -142,19 +155,23 @@ if [[ "${CONNECT_WIFI}" == "1" && -f "${ROOT}/kit-wifi.env" ]]; then
   bash "${ROOT}/connect-kit-wifi.sh" || true
 fi
 
-echo "[client-usb] mode=${MODE} kiosk=${KIOSK} — looking for museum server (UDP ${DISCOVER_PORT})…"
+if [[ -n "${OVERRIDE_URL}" ]]; then
+  echo "[client-usb] mode=${MODE} kiosk=${KIOSK} — pinned URL (campus/manual)"
+else
+  echo "[client-usb] mode=${MODE} kiosk=${KIOSK} — looking for museum server (UDP ${DISCOVER_PORT})…"
+fi
 
 URL=""
 if URL="$(resolve_url)"; then
   echo "${URL}" > "${CACHE_FILE}"
   echo "[client-usb] server: ${URL}"
 else
-  echo "[client-usb] No beacon yet."
-  echo "  1) Join the kit Wi‑Fi"
-  echo "  2) Wait for the server READY banner, then re-run"
-  echo "  3) Or: VELLUM_MUSEUM_URL=http://192.168.x.y/ $0 ${MODE}"
+  echo "[client-usb] No server URL."
+  echo "  Campus: copy campus.env.example → campus.env and set VELLUM_MUSEUM_URL"
+  echo "  LAN kit: join kit Wi‑Fi, wait for READY, or:"
+  echo "    VELLUM_MUSEUM_URL=http://192.168.x.y/ $0 ${MODE}"
   if [[ -t 0 && "${KIOSK}" != "1" ]]; then
-    read -r -p "Server URL (http://…/): " URL || true
+    read -r -p "Server URL: " URL || true
   fi
   if [[ -z "${URL:-}" ]]; then
     exit 1

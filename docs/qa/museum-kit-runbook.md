@@ -9,7 +9,7 @@
 | **Museum kit (USB)** | Server DHCP IP may change | `http://<detected-ip>/` (edge :80) — printed by `start-museum-kit.sh` |
 | **Lan-party (current)** | You pin `SERVER_LAN_IP` | `http://<SERVER_LAN_IP>:5173` — [lan-party-runbook.md](lan-party-runbook.md) |
 
-Guest join / observer deep links: [museum-guest-entry.md](museum-guest-entry.md). Classroom tape/rotation: [classroom-museum-runbook.md](classroom-museum-runbook.md).
+Guest join / observer deep links: [museum-guest-entry.md](museum-guest-entry.md). Classroom tape/rotation: [classroom-museum-runbook.md](classroom-museum-runbook.md). **Campus (iis.memphis.edu) instead of local stack:** [classroom-museum-runbook.md § Campus](classroom-museum-runbook.md#campus--iismemphisedu) + client USB `campus.env`.
 
 Deploy code: [infra/deploy/museum-kit/README.md](../../infra/deploy/museum-kit/README.md).
 
@@ -51,17 +51,17 @@ Then every show:
 
 **Preferred:** lightweight **client USB** — [infra/deploy/museum-kit/client-usb/README.md](../../infra/deploy/museum-kit/client-usb/README.md) (**elementary kiosk** by default: full-screen browser + firewall allowlist to the museum host only; kit router should have **no WAN**):
 
-1. Boot client USB → joins **kit SSID** only (`kit-wifi.env`).
-2. Autostart discovers the server → **kiosk** (no address bar / general browsing).
-3. Nametag → **Enter 3D** (WebGL streams from the server over Wi‑Fi).
+1. Boot client USB → joins **kit SSID** only (`kit-wifi.env`) **or** campus Wi‑Fi with `campus.env` pinned to IIS.
+2. Autostart discovers the server **or** opens pinned `VELLUM_MUSEUM_URL` → **kiosk** (no address bar / general browsing).
+3. Nametag → **Enter 3D** (WebGL streams from the server).
 
 Staff unlock: `Alt+F4`, then `/opt/vellum-client/join-exhibit.sh unlock`.
 
 **Without client USB:** any browser on kit Wi‑Fi → open today’s URL/QR (not recommended for elementary).
 
-| Kit | Lan-party |
-|-----|-----------|
-| `http://<detected-ip>/` (or discovery) | `http://<SERVER_LAN_IP>:5173` |
+| Kit | Lan-party | Campus |
+|-----|-----------|--------|
+| `http://<detected-ip>/` (or discovery) | `http://<SERVER_LAN_IP>:5173` | `campus.env` → `https://iis.memphis.edu/static/vellum-dashboard/?session=…&kiosk=1` |
 
 **Smoke:** one laptop loads WebGL and joins the Space.
 

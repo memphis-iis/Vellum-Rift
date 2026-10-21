@@ -9,6 +9,10 @@ export function buildWebGlLaunchUrl(options: {
   sessionId: string;
   playerName: string;
   isHost: boolean;
+  /** Existing seat to reclaim (lobby → WebGL handoff). */
+  playerId?: string | null;
+  /** Resume same live connection (avoids ejecting the lobby tab). */
+  connectionId?: string | null;
   kiosk?: boolean;
   /** Canvas-only mode for dashboard iframe embed */
   embed?: boolean;
@@ -32,6 +36,12 @@ export function buildWebGlLaunchUrl(options: {
   url.searchParams.set("playerName", options.playerName);
   url.searchParams.set("isHost", options.isHost ? "true" : "false");
   url.searchParams.set("backendUrl", API_BASE_URL);
+  if (options.playerId && !options.spectator) {
+    url.searchParams.set("playerId", options.playerId);
+  }
+  if (options.connectionId && !options.spectator) {
+    url.searchParams.set("connectionId", options.connectionId);
+  }
   if (!CHAT_ENABLED) url.searchParams.set("chat", "0");
   if (options.kiosk) url.searchParams.set("kiosk", "1");
   if (options.embed) url.searchParams.set("embed", "1");
