@@ -13,6 +13,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - `compliance/`: EULA, accessibility, and policy-oriented engineering guidance.
 - `governance/`: policy, provenance, contribution guardrails, and IP rules.
 - `dev-onboarding/`: setup instructions by discipline.
+- `user/`: end-player manuals (browser and Quest).
 - `reference/`: stable references copied or distilled from implementation surfaces.
 - `art/`: concept notes and art-direction documents.
 
@@ -28,6 +29,7 @@ This directory is the source of truth for product, architecture, delivery planni
 - [../CURRENT-STATUS.md](../CURRENT-STATUS.md)
 - [../ONBOARDING.md](../ONBOARDING.md)
 - [product-summary.md](product-summary.md)
+- [user/player-manual.md](user/player-manual.md) - Player manual (web + Quest)
 - [qa/multiplayer-demo-runbook.md](qa/multiplayer-demo-runbook.md) - Demo 1: two-client moving-cubes POC (issue #44)
 - [qa/museum-vr-usability-a11y-cicd-audit.md](qa/museum-vr-usability-a11y-cicd-audit.md) - Museum/VR usability, a11y, and CI/CD triage (issues #180–#215)
 - [qa/space-vocabulary.md](qa/space-vocabulary.md) - Dashboard IA: Space vs session (#181)
