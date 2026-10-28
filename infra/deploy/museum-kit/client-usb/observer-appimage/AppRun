@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# Vellum Wall Observer — UDP discovery only, HTTP, no preset API/URL.
+# Optional: VELLUM_OUTPUT=HDMI-1 (default: first connected HDMI*) or --hdmi
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+export PATH="${HERE}/usr/bin:${PATH}"
+export DISCOVER_PORT="${DISCOVER_PORT:-41234}"
+export LISTEN_SECONDS="${LISTEN_SECONDS:-5}"
+unset VELLUM_MUSEUM_URL || true
+export VELLUM_SKIP_DISCOVER=0
+export VELLUM_CONNECT_WIFI=0
+export VELLUM_KIOSK_FIREWALL=0
+export VELLUM_KIOSK="${VELLUM_KIOSK:-1}"
+
+for arg in "$@"; do
+  case "$arg" in
+    --hdmi|hdmi) export VELLUM_OUTPUT="${VELLUM_OUTPUT:-HDMI}" ;;
+  esac
+done
+
+CACHE_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/vellum-observer"
+mkdir -p "${CACHE_DIR}"
+CACHE_FILE="${CACHE_DIR}/server.url"
+
+# Prints: NAME WxH+X+Y  (logical pixels from xrandr)
+detect_hdmi_geom() {
+  local want="${VELLUM_OUTPUT:-HDMI}"
+  python3 - "$want" <<'PY'
+import re, subprocess, sys
+want = sys.argv[1].upper()
+try:
+    out = subprocess.check_output(["xrandr", "--query"], text=True, stderr=subprocess.DEVNULL)
+except Exception:
+    sys.exit(1)
+# HDMI-1 connected primary 3840x2160+3840+0 or without primary
+pat = re.compile(
+    r"^(\S+)\s+connected(?:\s+primary)?\s+(\d+)x(\d+)\+(\d+)\+(\d+)",
+    re.M,
+)
+cands = []
+for m in pat.finditer(out):
+    name, w, h, x, y = m.group(1), *map(int, m.groups()[1:])
+    cands.append((name, w, h, x, y))
+if not cands:
+    sys.exit(1)
+# Prefer matching HDMI* / name prefix; else first non-eDP
+pick = None
+for name, w, h, x, y in cands:
+    if want in ("HDMI", "HDMI*") and name.upper().startswith("HDMI"):
+        pick = (name, w, h, x, y)
+        break
+    if name.upper() == want or name.upper().startswith(want):
+        pick = (name, w, h, x, y)
+        break
+if pick is None:
+    for name, w, h, x, y in cands:
+        if not name.upper().startswith("EDP"):
+            pick = (name, w, h, x, y)
+            break
+if pick is None:
+    pick = cands[0]
+name, w, h, x, y = pick
+print(f"{name} {w}x{h}+{x}+{y}")
+PY
+}
+
+discover_via_udp() {
+  python3 - "$DISCOVER_PORT" "$LISTEN_SECONDS" <<'PY'
+import json, socket, sys, time
+port = int(sys.argv[1])
+seconds = float(sys.argv[2])
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("", port))
+except OSError as e:
+    sys.stderr.write(f"bind failed: {e}\n")
+    sys.exit(2)
+sock.settimeout(0.25)
+deadline = time.time() + seconds
+while time.time() < deadline:
+    try:
+        data, _ = sock.recvfrom(4096)
+    except socket.timeout:
+        continue
+    try:
+        msg = json.loads(data.decode("utf-8", errors="ignore"))
+    except Exception:
+        continue
+    if msg.get("service") != "vellum-rift":
+        continue
+    dash = (msg.get("dashboard") or "").strip()
+    webgl = (msg.get("webgl") or "").strip()
+    api = (msg.get("apiBase") or "").strip().rstrip("/")
+    for cand in (dash, webgl, (f"http://{api.split('://',1)[-1].split('/')[0]}/" if api else "")):
+        if not cand or not cand.startswith("http://"):
+            continue
+        print(cand)
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+append_observer() {
+  local u="$1"
+  case "$u" in
+    *observer=*|*spectator=*) printf '%s' "$u" ;;
+    *\?*) printf '%s&observer=1' "$u" ;;
+    *) printf '%s?observer=1' "$u" ;;
+  esac
+}
+
+pick_browser() {
+  # Chromium supports --window-position for HDMI placement; prefer it for wall.
+  if command -v flatpak >/dev/null 2>&1; then
+    if flatpak info org.chromium.Chromium >/dev/null 2>&1; then
+      printf '%s' "flatpak-chromium"
+      return 0
+    fi
+    if flatpak info com.google.Chrome >/dev/null 2>&1; then
+      printf '%s' "flatpak-chrome"
+      return 0
+    fi
+    if flatpak info org.mozilla.firefox >/dev/null 2>&1; then
+      printf '%s' "flatpak-firefox"
+      return 0
+    fi
+  fi
+  for b in chromium-browser google-chrome chromium firefox; do
+    command -v "$b" >/dev/null 2>&1 && { printf '%s' "$b"; return 0; }
+  done
+  return 1
+}
+
+open_kiosk() {
+  local url="$1" browser geom name w h x y
+  geom="$(detect_hdmi_geom 2>/dev/null || true)"
+  if [[ -n "$geom" ]]; then
+    read -r name whxy <<<"$geom"
+    w="${whxy%%x*}"; rest="${whxy#*x}"; h="${rest%%+*}"; rest="${rest#*+}"; x="${rest%%+*}"; y="${rest#*+}"
+    echo "[vellum-observer] display ${name} ${w}x${h}+${x}+${y}"
+  else
+    echo "[vellum-observer] WARN: no HDMI geom from xrandr; using primary"
+    x=0; y=0; w=1920; h=1080
+  fi
+
+  if browser="$(pick_browser)"; then
+    case "${browser}" in
+      flatpak-chromium)
+        exec flatpak run org.chromium.Chromium \
+          --kiosk --app="${url}" --no-first-run \
+          --window-position="${x},${y}" --window-size="${w},${h}" \
+          --start-fullscreen
+        ;;
+      flatpak-chrome)
+        exec flatpak run com.google.Chrome \
+          --kiosk --app="${url}" --no-first-run \
+          --window-position="${x},${y}" --window-size="${w},${h}" \
+          --start-fullscreen
+        ;;
+      flatpak-firefox)
+        # Firefox has no reliable multi-monitor kiosk flag; open then hope WM places it.
+        # Prefer Chromium above when available.
+        exec flatpak run org.mozilla.firefox --kiosk "${url}"
+        ;;
+      chromium*|google-chrome*)
+        exec "${browser}" --kiosk --app="${url}" --no-first-run \
+          --window-position="${x},${y}" --window-size="${w},${h}" --start-fullscreen
+        ;;
+      firefox)
+        exec firefox --kiosk "${url}"
+        ;;
+      *)
+        exec "${browser}" --new-window "${url}"
+        ;;
+    esac
+  fi
+  echo "[vellum-observer] No browser. Open on HDMI: ${url}" >&2
+  exit 1
+}
+
+# Stop prior observer kiosk windows
+pkill -f 'org.chromium.Chromium.*observer=1' 2>/dev/null || true
+pkill -f 'org.mozilla.firefox.*observer=1' 2>/dev/null || true
+pkill -f 'com.google.Chrome.*observer=1' 2>/dev/null || true
+
+echo "[vellum-observer] UDP discover :${DISCOVER_PORT} (${LISTEN_SECONDS}s), HTTP only…"
+URL=""
+if URL="$(discover_via_udp)"; then
+  echo "${URL}" > "${CACHE_FILE}"
+else
+  echo "[vellum-observer] No beacon. Is lan-discover running on the gateway?" >&2
+  exit 1
+fi
+
+URL="$(append_observer "${URL}")"
+echo "[vellum-observer] ${URL}"
+export VELLUM_OUTPUT="${VELLUM_OUTPUT:-HDMI}"
+open_kiosk "${URL}"

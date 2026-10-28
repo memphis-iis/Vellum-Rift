@@ -5,16 +5,27 @@ namespace VellumRift
     /// <summary>
     /// Shared MENU chrome coordinator (#315): desktop H and Quest wrist sticky
     /// toggle the same panel set — ControlsGuide + Space Status + Chat (if enabled).
+    /// On Quest it also surfaces Call for help (#316) and Leave (#317), whose screen HUDs
+    /// are otherwise hidden in XR.
     /// </summary>
     public sealed class SessionHudStack : MonoBehaviour
     {
         private ControlsGuide guide;
         private BackendHealthChecker status;
         private ChatManager chat;
+        private HelpRequestButton help;
+        private LogoutButton leave;
         private bool stickyOn;
         private bool bound;
 
         public bool IsStickyOpen => stickyOn;
+
+        /// <summary>
+        /// Guest actions (Call for help, Leave) are always on screen for desktop/WebGL.
+        /// On Quest the screen HUD is hidden, so they show only while the wrist MENU is open.
+        /// </summary>
+        public static bool ShouldShowGuestAction(bool xrActive, bool stickyOpen) =>
+            !xrActive || stickyOpen;
 
         public static SessionHudStack FindOrCreate(GameObject host)
         {
@@ -59,6 +70,25 @@ namespace VellumRift
 
             if (chat != null && ChatEnabled.IsEnabled())
                 chat.SetHudVisible(on);
+
+            ApplyGuestActions();
+        }
+
+        private void ApplyGuestActions()
+        {
+            // Desktop/WebGL keep their always-visible HUD buttons untouched.
+            if (!InputControlSchema.IsXrActive())
+                return;
+
+            if (help == null) help = FindFirstObjectByType<HelpRequestButton>();
+            if (leave == null) leave = FindFirstObjectByType<LogoutButton>();
+
+            bool show = ShouldShowGuestAction(true, stickyOn);
+            // Hosts/spectators have these components disabled; never resurrect their HUD.
+            if (help != null && help.isActiveAndEnabled)
+                help.SetHudVisible(show);
+            if (leave != null && leave.isActiveAndEnabled)
+                leave.SetHudVisible(show);
         }
 
         private void EnsureRefs()

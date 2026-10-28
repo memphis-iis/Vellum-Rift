@@ -214,6 +214,36 @@ describe("Game State — seat takeover connectionId + kick", () => {
     expect(res.body.connectionId).toBeTruthy();
   });
 
+  it("shared LAN acct:dev stub does not collapse onto an existing seat", async () => {
+    savedPlayers = [
+      playerRow("player-host", "Host", {
+        isHost: true,
+        sub: "acct:dev",
+        email: "dev@memphis.edu",
+        connectionId: "conn-host",
+      }),
+    ];
+    currentUser = { sub: "acct:dev", email: "dev@memphis.edu", exp: 9999999999 };
+
+    const a = await request(app)
+      .post("/api/game-state/session-1/players")
+      .send({ displayName: "Quest A" });
+    expect(a.status).toBe(201);
+    expect(a.body.id).not.toBe("player-host");
+
+    const b = await request(app)
+      .post("/api/game-state/session-1/players")
+      .send({ displayName: "Quest B" });
+    expect(b.status).toBe(201);
+    expect(b.body.id).not.toBe("player-host");
+    expect(b.body.id).not.toBe(a.body.id);
+
+    const roster = (savedPlayers ?? []) as Array<{ id: string; connectionId?: string }>;
+    expect(roster).toHaveLength(3);
+    const host = roster.find((p) => p.id === "player-host");
+    expect(host?.connectionId).toBe("conn-host");
+  });
+
   it("kick removes the player and records a ban for Bluekey identity", async () => {
     currentUser = HOST;
     const res = await request(app)

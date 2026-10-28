@@ -117,12 +117,27 @@ function sanitizeDisplayName(raw: string | undefined, kiosk: boolean): string {
   return kiosk ? "Guest" : "";
 }
 
+/**
+ * Shared LAN / AUTH_REQUIRED=false stub. Every browser gets the same sub, so
+ * identity-based seat reclaim would collapse the whole room onto one player
+ * and mint a new connectionId (dashboard "Another window took your seat").
+ */
+function isSharedDevStub(
+  user: Pick<{ sub?: string; email?: string }, "sub" | "email"> | undefined,
+): boolean {
+  if (!user) return false;
+  if (user.sub === "acct:dev") return true;
+  return normalizeEmail(user.email) === "dev@memphis.edu";
+}
+
 /** Player row for the authenticated user in this session, if any. */
 function resolveRequestPlayerId(
   state: GameState,
   user: Request["user"],
 ): string | null {
   if (!user) return null;
+  // LAN stub is not a unique identity — only explicit playerId reconnects.
+  if (isSharedDevStub(user)) return null;
   const email = normalizeEmail(user.email);
   for (const p of state.players) {
     if (user.sub && p.bluekeySub && p.bluekeySub === user.sub) return p.id;
@@ -318,17 +333,6 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
     return;
   }
 
-  // Durable creator / current host reclaiming the desk: always become host on
-  // join so Lobby Host tools (turn timer, etc.) appear even when a stale
-  // hostId row is still on the roster.
-  const reclaimHost = !kiosk && isSessionHost(req.user, state);
-  const wantHost =
-    reclaimHost ||
-    (!kiosk &&
-      ((!state.hostId &&
-        (isSessionHost(req.user, state) || state.visibility === "public")) ||
-        (Boolean(isHost) && isSessionHost(req.user, state))));
-
   // Reconnect: same Bluekey identity, explicit playerId, or kiosk nametag match.
   const requestedId =
     typeof clientPlayerId === "string" && clientPlayerId.trim()
@@ -337,6 +341,25 @@ router.post("/:sessionId/players", async (req: Request, res: Response) => {
   let existingId =
     (requestedId && state.getPlayer(requestedId) ? requestedId : null) ||
     resolveRequestPlayerId(state, req.user);
+
+  const sharedStub = isSharedDevStub(req.user);
+  // Durable creator / current host reclaiming the desk: always become host on
+  // join so Lobby Host tools appear even when a stale hostId row remains.
+  // Shared LAN stub is not unique — do not auto-reclaim/steal host via acct:dev.
+  const reclaimHost = !kiosk && !sharedStub && isSessionHost(req.user, state);
+  const wantHost =
+    reclaimHost ||
+    (!kiosk &&
+      ((!state.hostId &&
+        (isSessionHost(req.user, state) ||
+          state.visibility === "public" ||
+          sharedStub)) ||
+        (Boolean(isHost) &&
+          (sharedStub
+            ? !state.hostId ||
+              state.hostId === existingId ||
+              state.hostId === requestedId
+            : isSessionHost(req.user, state)))));
 
   if (!existingId && kiosk) {
     const match = state.players.find(

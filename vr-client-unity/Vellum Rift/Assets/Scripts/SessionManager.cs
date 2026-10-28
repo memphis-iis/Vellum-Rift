@@ -36,6 +36,9 @@ namespace VellumRift
         [Tooltip("Allow plain-http backend URLs.")]
         [SerializeField] private bool allowInsecureHttp = false;
 
+        /// <summary>Museum / LAN party builds: skip Bluekey gate when backend is AUTH_REQUIRED=false.</summary>
+        public bool AllowInsecureHttp => allowInsecureHttp;
+
         [Header("Model")]
         [Tooltip("Dev-only fallback model id when the session has no activeModelId and no -modelId / ?modelId= override. Leave empty in production so clients follow the session playlist (#144).")]
         [SerializeField] private string modelId = "";
@@ -88,6 +91,8 @@ namespace VellumRift
         /// <summary>Sticky launch override from CLI/env/query; when set, ignores session activeModelId.</summary>
         private string _modelIdOverride = "";
         private string _loadedModelId = "";
+        /// <summary>Last playlist fingerprint we kicked a preload for.</summary>
+        private string _playlistPreloadKey = "";
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         /// <summary>ID of the debug test player, or null when not spawned.</summary>
@@ -367,6 +372,9 @@ namespace VellumRift
                         "Library / playlist (Set active for everyone).");
                 }
 
+                // Background: keep the rest of the playlist resident for instant host switches.
+                KickPlaylistPreload(session.playlist);
+
                 // After mesh bounds are known, push spawn out if the book is huge.
                 AdjustSpawnForModelBounds();
                 RefreshManuscriptPlaySpace();
@@ -393,8 +401,12 @@ namespace VellumRift
             if (bluekeyAuth == null || bluekeyAuth.IsAuthenticated)
                 return;
 
-            Debug.Log("[SessionManager] Waiting for Bluekey authentication (popup or paste-token)...");
-            const float timeoutSeconds = 300f;
+            // LAN party / museum http builds: brief handoff wait, then continue without Bluekey.
+            float timeoutSeconds = allowInsecureHttp ? 3f : 300f;
+            Debug.Log(
+                allowInsecureHttp
+                    ? "[SessionManager] LAN mode — waiting briefly for dashboard handoff, then continuing without Bluekey."
+                    : "[SessionManager] Waiting for Bluekey authentication (popup or paste-token)...");
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
 
             while (!bluekeyAuth.IsAuthenticated && Time.realtimeSinceStartup < deadline)
@@ -404,6 +416,13 @@ namespace VellumRift
 
             if (!bluekeyAuth.IsAuthenticated)
             {
+                if (allowInsecureHttp)
+                {
+                    Debug.LogWarning(
+                        "[SessionManager] No Bluekey/kiosk token — continuing on LAN (AUTH_REQUIRED=false).");
+                    return;
+                }
+
                 throw new InvalidOperationException(
                     "Timed out waiting for Bluekey authentication. Complete the popup login or paste a valid token.");
             }
@@ -723,14 +742,17 @@ namespace VellumRift
             modelLoader.allowInsecureHttp = allowInsecureHttp;
             modelLoader.modelUrl = $"{_backendUrl.TrimEnd('/')}/api/models/{desired}";
             modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
-            if (string.IsNullOrEmpty(modelLoader.authToken))
+            if (string.IsNullOrEmpty(modelLoader.authToken) && !allowInsecureHttp)
             {
                 Debug.LogError(
                     "[SessionManager] Cannot load manuscript — not authenticated (missing Bluekey/kiosk token). " +
                     "Sign in or join as guest first (#285).");
                 return;
             }
-            Debug.Log($"[SessionManager] Loading manuscript model {desired}");
+            Debug.Log(
+                string.IsNullOrEmpty(modelLoader.authToken)
+                    ? $"[SessionManager] Loading manuscript model {desired} (LAN, no Bearer)"
+                    : $"[SessionManager] Loading manuscript model {desired}");
             await modelLoader.Load();
             // Only mark loaded when the mesh that ended up on screen is this id —
             // a superseded in-flight load must not block future host switches.
@@ -804,6 +826,8 @@ namespace VellumRift
             // Recompose chat/pin/soft-end onto the managed PlayerController after
             // phase changes so Start turn after Reset restores locomotion (#324).
             ApplyGameplayInputGate();
+            KickPlaylistPreload(state.playlist);
+
             // Sticky launch override: do not follow host playlist switches.
             if (!string.IsNullOrEmpty(_modelIdOverride))
                 return;
@@ -811,6 +835,36 @@ namespace VellumRift
             if (next == _loadedModelId)
                 return;
             _ = ApplyActiveModelAsync(next);
+        }
+
+        /// <summary>
+        /// Preload every manuscript on the session playlist into
+        /// <see cref="RemoteModelLoader"/> memory (inactive) for fast swaps.
+        /// </summary>
+        private void KickPlaylistPreload(string[] playlist)
+        {
+            if (modelLoader == null || string.IsNullOrEmpty(_backendUrl))
+                return;
+            if (playlist == null || playlist.Length == 0)
+                return;
+
+            string key = string.Join("\n", playlist);
+            if (key == _playlistPreloadKey)
+                return;
+            _playlistPreloadKey = key;
+
+            modelLoader.allowInsecureHttp = allowInsecureHttp;
+            modelLoader.authToken = bluekeyAuth != null ? bluekeyAuth.AccessToken : "";
+            if (string.IsNullOrEmpty(modelLoader.authToken) && !allowInsecureHttp)
+            {
+                Debug.LogWarning(
+                    "[SessionManager] Playlist preload deferred — not authenticated yet (#285)");
+                _playlistPreloadKey = "";
+                return;
+            }
+
+            Debug.Log($"[SessionManager] Preloading {playlist.Length} playlist model(s)");
+            _ = modelLoader.PreloadModelsAsync(playlist, _backendUrl);
         }
 
         /// <summary>

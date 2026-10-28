@@ -71,8 +71,17 @@ namespace VellumRift.Control
             jetpackVelocity = Vector3.zero;
         }
 
+        /// <summary>Zero freefly pitch after a yaw-only respawn / loopback.</summary>
+        public void ResetLookPitch()
+        {
+            accumulatedPitch = 0f;
+        }
+
         public void Tick(MovementIntent intent, float deltaTime)
         {
+            if (PlaySpaceLoopback.IsBusy)
+                return;
+
             // --- Translation ---
             if (InputControlSchema.IsXrActive())
             {
@@ -105,6 +114,15 @@ namespace VellumRift.Control
                 // Move relative to the camera's current facing direction (Space.Self)
                 body.Translate(intent.Move.normalized * MoveSpeed * deltaTime, Space.Self);
                 jetpackVelocity = Vector3.zero;
+            }
+
+            // Hard gallery wall + fog loopback facing the manuscript.
+            Vector3 clamped = body.position;
+            if (ManuscriptPlaySpace.ClampHorizontal(ref clamped))
+            {
+                body.position = clamped;
+                jetpackVelocity = ManuscriptPlaySpace.CancelOutwardVelocity(clamped, jetpackVelocity);
+                PlaySpaceLoopback.Request(body);
             }
 
             // --- Rotation ---
@@ -360,7 +378,10 @@ namespace VellumRift.Control
             transform.position = position;
             transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
             if (mover is FreeFlyMover ffm)
+            {
                 ffm.ClearJetpack();
+                ffm.ResetLookPitch();
+            }
         }
 
         private void SyncSplitActionEnablement()

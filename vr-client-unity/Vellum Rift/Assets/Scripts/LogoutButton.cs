@@ -30,6 +30,8 @@ namespace VellumRift
 
         private GameObject canvasGO;
         private Button button;
+        private UnityEngine.UI.Text labelText;
+        private double confirmArmedUntil;
 
         private void Awake()
         {
@@ -47,11 +49,31 @@ namespace VellumRift
             if (canvasGO != null) Destroy(canvasGO);
         }
 
-        /// <summary>Screen HUD only — logout logic unchanged (#312).</summary>
+        /// <summary>
+        /// Screen HUD only. On Quest the wrist MENU shows it as LEAVE (#317) and hiding it
+        /// disarms a pending confirm.
+        /// </summary>
         public void SetHudVisible(bool visible)
         {
             if (canvasGO != null)
                 canvasGO.SetActive(visible);
+            confirmArmedUntil = 0d;
+            RefreshLabel();
+        }
+
+        private void Update()
+        {
+            if (confirmArmedUntil > 0d && Time.unscaledTimeAsDouble >= confirmArmedUntil)
+            {
+                confirmArmedUntil = 0d;
+                RefreshLabel();
+            }
+        }
+
+        private void RefreshLabel()
+        {
+            if (labelText != null)
+                labelText.text = LeaveSessionPolicy.RestingLabel(InputControlSchema.IsXrActive());
         }
 
         private void BuildLogoutUI()
@@ -103,9 +125,11 @@ namespace VellumRift
             button.onClick.AddListener(OnLogoutClicked);
 
             // Label text.
-            var label = CreateText("Label", bg.transform, "LOG OUT", 18, TextAnchor.MiddleCenter, COLOR_ON_SURFACE);
-            label.fontStyle = FontStyle.Bold;
-            var labelRect = label.GetComponent<RectTransform>();
+            labelText = CreateText("Label", bg.transform,
+                LeaveSessionPolicy.RestingLabel(InputControlSchema.IsXrActive()),
+                18, TextAnchor.MiddleCenter, COLOR_ON_SURFACE);
+            labelText.fontStyle = FontStyle.Bold;
+            var labelRect = labelText.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
             labelRect.anchorMax = Vector2.one;
             labelRect.sizeDelta = Vector2.zero;
@@ -113,13 +137,27 @@ namespace VellumRift
 
         private void OnLogoutClicked()
         {
-            Debug.Log("[LogoutButton] Logout requested.");
+            // Quest guests: two taps to leave (#317). Desktop/WebGL stays one tap.
+            bool leaveOnly = InputControlSchema.IsXrActive();
+            if (!LeaveSessionPolicy.RegisterTap(leaveOnly, Time.unscaledTimeAsDouble, ref confirmArmedUntil))
+            {
+                if (labelText != null)
+                    labelText.text = LeaveSessionPolicy.ConfirmLabel;
+                return;
+            }
+
+            Debug.Log(leaveOnly ? "[LogoutButton] Leave session requested." : "[LogoutButton] Logout requested.");
 
             // 0. CRITICAL: Clear credentials SYNCHRONOUSLY FIRST.  This must happen
             //    before any async work so that if the user closes the app immediately,
             //    PlayerPrefs are already flushed and auto-login won't trigger on restart.
             var auth = FindObjectOfType<BluekeyAuth>();
-            if (auth != null) auth.Logout();
+            if (auth != null)
+            {
+                // Leave drops only the in-memory guest token and shows the event picker (#317).
+                if (leaveOnly) auth.LeaveToEventPicker();
+                else auth.Logout();
+            }
 
             // 1. Disable all gameplay input (movement, laser, waypoint, summon).
             var pc = FindObjectOfType<PlayerController>();
@@ -132,7 +170,7 @@ namespace VellumRift
             //    cleared (step 0) so auto-login won't trigger on restart.
             var sm = FindObjectOfType<SessionManager>();
             if (sm != null)
-                _ = sm.Logout();
+                _ = sm.Logout(LeaveSessionPolicy.ShouldEndSessionIfHost(leaveOnly));
 
             // 3. Hide all uGUI canvases AND disable the EventSystem input module so
             //    the IMGUI login card can receive mouse events.
@@ -154,7 +192,8 @@ namespace VellumRift
             }
 #else
             // World-space Login lobby (#187) needs EventSystem + its canvas.
-            if (auth != null)
+            // Leave already shows the event picker; the Bluekey lobby would sit on top of it.
+            if (auth != null && !leaveOnly)
                 auth.ShowLoginLobby("Signed out. Sign in with Bluekey or join as a guest.");
             Debug.Log("[LogoutButton] Controls disabled — Bluekey Login lobby will appear.");
 #endif
@@ -167,7 +206,7 @@ namespace VellumRift
         {
             foreach (var canvas in FindObjectsOfType<Canvas>())
             {
-                if (canvas != null && canvas.gameObject.name == "BluekeyLoginLobbyCanvas")
+                if (canvas != null && LeaveSessionPolicy.IsLoginFlowCanvas(canvas.gameObject.name))
                     continue;
                 canvas.gameObject.SetActive(false);
             }

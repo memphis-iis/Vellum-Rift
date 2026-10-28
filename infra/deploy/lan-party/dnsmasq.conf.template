@@ -1,0 +1,8 @@
+# LAN party DNS sinkhole — all names → party server (Quest captive-portal checks).
+# Party server IP is substituted at container start (see docker-compose dnsmasq command).
+
+port=53
+listen-address=0.0.0.0
+bind-interfaces
+no-resolv
+address=/#/__SERVER_LAN_IP__

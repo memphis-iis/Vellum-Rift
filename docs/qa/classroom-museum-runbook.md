@@ -2,11 +2,9 @@
 
 **Audience:** teachers, museum educators, and volunteers running Vellum Rift with **elementary and middle school** students.
 
-**Scenario (LAN — default below):** one **offline LAN server**, student/staff **laptops**, **2–3 Meta Quest 2** headsets, classroom with tables, taped play boundaries, and **no internet on show day** after prep.
+**Scenario:** one **offline LAN server**, student/staff **laptops**, **2–3 Meta Quest 2** headsets, classroom with tables, taped play boundaries, and **no internet on show day** after prep.
 
-**Scenario (campus):** same room layout, but clients hit **live** `iis.memphis.edu` / ramiel — see [Campus / iis.memphis.edu](#campus--iismemphisedu).
-
-Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md). Scored guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md) ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314)). **USB / dynamic IP / four-station set-and-forget:** [museum-kit-runbook.md](museum-kit-runbook.md). **Client USB lockdown:** [infra/deploy/museum-kit/client-usb/README.md](../../infra/deploy/museum-kit/client-usb/README.md).
+Technical stack and ports: [lan-party-runbook.md](lan-party-runbook.md). Guest join paths: [museum-guest-entry.md](museum-guest-entry.md). Scored guest UX audit (Phase 0): [museum-guest-ux-audit.md](museum-guest-ux-audit.md) ([#314](https://github.com/memphis-iis/Vellum-Rift/issues/314)). **USB / dynamic IP / four-station set-and-forget:** [museum-kit-runbook.md](museum-kit-runbook.md).
 
 ---
 
@@ -106,7 +104,7 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 5. Confirm manuscript playlist; run a **30-second Quest + one laptop** smoke test.
 6. If you have a wall display or projector, open the **observer / spectator link** so peer observers can watch the same view during rotations ([museum-guest-entry.md](museum-guest-entry.md)).
 7. Keep host **Enter** tab open — **Call for help** banners appear here ([#294](https://github.com/memphis-iis/Vellum-Rift/issues/294)).
-8. Remind staff: **chat is off** on this profile; Quest guests use **left Y** only for **Call for help** (see wrist **MENU** → ControlsGuide). **Call for help** and **Log out** appear in VR only while wrist **MENU** is open ([#312](https://github.com/memphis-iis/Vellum-Rift/issues/312), [#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
+8. Remind staff: **chat is off** on this profile; Quest guests use **left Y** only for **Call for help** (see wrist **MENU** → ControlsGuide). **Call for help** and **Leave** appear in VR only while wrist **MENU** is open ([#312](https://github.com/memphis-iis/Vellum-Rift/issues/312), [#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
 
 ### How students join
 
@@ -117,7 +115,7 @@ curl -I "http://<SERVER_LAN_IP>:8080/"
 
 Share only **LAN URLs** (`http://<SERVER_LAN_IP>:…`). Do not promise internet-only features.
 
-**Quest leave:** open wrist **MENU** (raise left wrist, look at the pad) → laser-select **LOG OUT**. A guest leaves their own seat and returns to the event picker; the shared Space stays running for the next student. Only the host ending a session archives it.
+**Quest leave:** open wrist **MENU** (raise left wrist, look at the pad) → laser-select **LEAVE**, then select **TAP AGAIN TO LEAVE** within ~4 s (guards against stray taps). A guest leaves their own seat and returns to the event picker; the shared Space stays running for the next student. Only the host ending a session archives it.
 
 ---
 
@@ -188,75 +186,9 @@ Full LAN party table: [lan-party-runbook.md](lan-party-runbook.md) §7.
 
 ---
 
-## Campus / iis.memphis.edu
-
-Use this when students reach the **real** server (not lan-party / museum-kit Docker on a local box). Keep tape, hygiene, turn timer, Call for help, and observer wall from the sections above.
-
-Deploy / smoke: [infra/deploy/iis-memphis/README.md](../../infra/deploy/iis-memphis/README.md). Guests: [museum-guest-entry.md](museum-guest-entry.md). Client USB: [infra/deploy/museum-kit/client-usb/README.md](../../infra/deploy/museum-kit/client-usb/README.md) (**Campus USB** section).
-
-### What changes vs LAN
-
-| Area | LAN | Campus |
-|------|-----|--------|
-| Bring-up | `docker compose up` on local server | Stack already live — **no** lan-party compose on ramiel/iis |
-| Host login | Continue as local developer | **Sign in with Bluekey** |
-| Guest join | Kiosk QR / JWT | Same — **no Bluekey for students** |
-| URLs | `http://<SERVER_LAN_IP>:…` | `https://iis.memphis.edu/static/vellum-dashboard/`, `/vellumrift/`, `/apis/vellumrift/` |
-| Chat | Off | **On** unless you disable it |
-| Laptops | Kit Wi‑Fi + discovery | Persistent Ubuntu USB + `campus.env` → IIS only |
-| Quest | LAN APK | **IIS-pointing** APK via Meta managed org (single-app/kiosk) |
-
-### Prep — laptop USB batch
-
-1. `cd infra/deploy/museum-kit/client-usb && ./pack-client-usb.sh` → copy `dist/vellum-client/` onto each Ventoy persistence volume.
-2. Boot stick → `./install-to-live.sh` (desktop lock + enable `vellum-kiosk-firewall.service`).
-3. `sudo cp /opt/vellum-client/campus.env.example /opt/vellum-client/campus.env` and set `VELLUM_MUSEUM_URL` with today’s Space id (`?session=…&kiosk=1`).
-4. Smoke: blocked open web; kiosk → nametag → Enter 3D; staff `Alt+F4` then `join-exhibit.sh unlock`.
-
-### Prep — Meta managed Quest
-
-1. In Meta Admin / Horizon managed console: pin the **campus** Vellum APK as **single-app / kiosk**; block Browser if policy allows.
-2. Staff-prejoin campus Wi‑Fi; keep org **admin exit** for staff (do not rely on in-app LOG OUT to leave the OS).
-3. Between students: wrist **MENU → LOG OUT** frees the *seat*; MDM keeps kids out of Meta home/Store.
-4. Never sideload the LAN `SERVER_LAN_IP` APK on these headsets.
-
-`KioskMode` in the app is guest-auth only — OS lockdown is Meta managed config.
-
-### Day-of (campus)
-
-1. Host: Bluekey → Space → **Kiosk on** + **Event** → keep **Enter** tab open (Call for help + turn timer).
-2. Optional wall: Observer / spectator link.
-3. Students: campus Wi‑Fi → locked laptop autostart **or** Quest event list → explore.
-4. Stagger QR / joins if many laptops share one school NAT (**kiosk token 429** — default ~30/5 min; raise `KIOSK_RATE_LIMIT` on ramiel if needed).
-5. One browser tab per student (seat takeover if a second tab rejoins the same nametag).
-6. Popup blocked → **Open 3D** on the kiosk page.
-7. Tear-down: students exit; disable kiosk if policy requires — **do not** `docker compose down` on the campus stack.
-
-### Staff brief (campus)
-
-- Host laptop unlocked (Bluekey). Student sticks locked: **Alt+F4** → `join-exhibit.sh unlock` only for staff.
-- Chat may be visible — brief accordingly (LAN script “chat is off” does **not** apply).
-- Signage: “Scan to join — no account needed” ([museum-guest-entry.md](museum-guest-entry.md)).
-- Quest: teach LOG OUT for rotations; staff use Meta admin to leave kiosk mode.
-- WebGL URL needs trailing slash: `…/vellumrift/`.
-
-### Preflight curls
-
-```bash
-curl -sk https://iis.memphis.edu/apis/vellumrift/api/health
-curl -sk -o /dev/null -w '%{http_code}\n' https://iis.memphis.edu/vellumrift/
-curl -sk -o /dev/null -w '%{http_code}\n' https://iis.memphis.edu/static/vellum-dashboard/
-```
-
-Confirm ramiel backend `.env` has `AUTH_REQUIRED=true`, `KIOSK_JWT_SECRET`, Bluekey vars, `DASHBOARD_PUBLIC_URL` (preserve `.env` across artifact deploys).
-
----
-
 ## References
 
 - [lan-party-runbook.md](lan-party-runbook.md) — ports, prep, air-gap bring-up, verification
 - [museum-guest-entry.md](museum-guest-entry.md) — kiosk QR, guest join, observer display
 - [classroom-museum-presenter-script.md](classroom-museum-presenter-script.md) — spoken script for the class
 - Deploy: [infra/deploy/lan-party/README.md](../../infra/deploy/lan-party/README.md)
-- Campus deploy: [infra/deploy/iis-memphis/README.md](../../infra/deploy/iis-memphis/README.md)
-- Client USB lockdown: [infra/deploy/museum-kit/client-usb/README.md](../../infra/deploy/museum-kit/client-usb/README.md)

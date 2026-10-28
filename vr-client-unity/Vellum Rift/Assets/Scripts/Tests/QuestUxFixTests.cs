@@ -25,6 +25,20 @@ namespace VellumRift.Tests
         }
 
         [Test]
+        public void ExtractModelId_StripsQueryAndMetaSuffix()
+        {
+            Assert.That(
+                RemoteModelLoader.ExtractModelId(
+                    "https://host/api/models/abc-123?tier=quest"),
+                Is.EqualTo("abc-123"));
+            Assert.That(
+                RemoteModelLoader.ExtractModelId("http://lan:4100/api/models/abc-123/meta"),
+                Is.EqualTo("abc-123"));
+            Assert.That(RemoteModelLoader.ExtractModelId("https://cdn/mesh.glb"), Is.EqualTo(""));
+            Assert.That(RemoteModelLoader.ExtractModelId(""), Is.EqualTo(""));
+        }
+
+        [Test]
         public void ShouldApplyChaseCam_FalseWhenXrActive()
         {
             Assert.That(SessionManager.ShouldApplyChaseCam(xrActive: true), Is.False);
@@ -325,6 +339,50 @@ namespace VellumRift.Tests
             Assert.That(
                 ManuscriptPlaySpace.GetMoveSpeedMultiplierAtDistance(pastHard),
                 Is.GreaterThan(0f));
+
+            ManuscriptPlaySpace.Clear();
+        }
+
+        [Test]
+        public void ManuscriptPlaySpace_ClampHorizontal_StopsPastHardRadius()
+        {
+            ManuscriptPlaySpace.Clear();
+            ManuscriptPlaySpace.Configure(new Bounds(Vector3.zero, Vector3.one * 10f), gallerySpawnRadius: 8f);
+
+            Vector3 inside = new Vector3(1f, 1.6f, 0f);
+            Assert.That(ManuscriptPlaySpace.ClampHorizontal(ref inside), Is.False);
+
+            Vector3 outside = new Vector3(ManuscriptPlaySpace.HardRadius + 5f, 1.6f, 0f);
+            Assert.That(ManuscriptPlaySpace.ClampHorizontal(ref outside), Is.True);
+            Assert.That(outside.y, Is.EqualTo(1.6f).Within(0.001f));
+            Assert.That(
+                ManuscriptPlaySpace.HorizontalDistance(outside),
+                Is.EqualTo(ManuscriptPlaySpace.HardRadius).Within(0.01f));
+
+            Vector3 outward = ManuscriptPlaySpace.CancelOutwardVelocity(
+                outside, new Vector3(3f, 1f, 0f));
+            Assert.That(outward.x, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(outward.y, Is.EqualTo(1f).Within(0.001f));
+
+            ManuscriptPlaySpace.Clear();
+        }
+
+        [Test]
+        public void ManuscriptPlaySpace_LoopbackPose_FacesManuscriptCenter()
+        {
+            ManuscriptPlaySpace.Clear();
+            ManuscriptPlaySpace.Configure(new Bounds(Vector3.zero, Vector3.one * 10f), gallerySpawnRadius: 12f);
+
+            Vector3 from = new Vector3(ManuscriptPlaySpace.HardRadius, 1.5f, 0f);
+            Assert.That(
+                ManuscriptPlaySpace.TryGetLoopbackPose(from, out Vector3 pos, out Quaternion rot),
+                Is.True);
+            Assert.That(ManuscriptPlaySpace.HorizontalDistance(pos), Is.LessThan(ManuscriptPlaySpace.SoftRadius));
+            Assert.That(pos.x, Is.GreaterThan(0f));
+
+            Vector3 forward = rot * Vector3.forward;
+            forward.y = 0f;
+            Assert.That(Vector3.Dot(forward.normalized, -Vector3.right), Is.GreaterThan(0.95f));
 
             ManuscriptPlaySpace.Clear();
         }

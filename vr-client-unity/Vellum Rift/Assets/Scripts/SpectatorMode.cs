@@ -73,7 +73,14 @@ namespace VellumRift
                         if (ParseFlag(v))
                             return true;
                     }
-                    if (arg == "-spectator" || arg == "--spectator")
+                    if (arg.StartsWith("-observer=", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        string v = arg.Substring("-observer=".Length);
+                        if (ParseFlag(v))
+                            return true;
+                    }
+                    if (arg == "-spectator" || arg == "--spectator"
+                        || arg == "-observer" || arg == "--observer")
                         return true;
                 }
             }

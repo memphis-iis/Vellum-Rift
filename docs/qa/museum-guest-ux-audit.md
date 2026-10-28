@@ -84,7 +84,7 @@
 
 | Guest type | Score | Notes |
 |------------|-------|-------|
-| Elementary | **Friction** | Quest: **logout HUD hidden on XR** (`logoutButton.SetHudVisible(false)`). Rotation = staff removes headset; no in-VR “I’m done.” WebGL/dashboard: leave via embed chrome. |
+| Elementary | **Friction** | Quest: **LEAVE** lives in the wrist MENU stack with tap-again confirm ([#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)); returns to the event picker without archiving the shared Space. WebGL/dashboard: leave via embed chrome. |
 | General museum | **Friction** | `LogoutButton` revokes Bluekey + reload — appropriate for staff, heavy for kiosk guests. |
 
 ---
@@ -107,7 +107,7 @@
 | Elementary | **Friction** | Raise left wrist + look at **MENU** pad → sticky MENU stack (How to Play + Space Status + Chat if enabled); **CLOSE** to dismiss (`WristHudGesture` → `SessionHudStack`). Desktop/WebGL Unity HUD: **H** toggles the same stack (#315). Motor + gaze skill varies by age; first-run teach helps. |
 | General museum | **Pass** | Documented in quest verify + [vr-ux-playmode-verify.md](vr-ux-playmode-verify.md). |
 
-**Not in sticky stack today:** Help, Logout ([#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
+Call for help and Leave join the sticky stack on Quest while MENU is open ([#316](https://github.com/memphis-iis/Vellum-Rift/issues/316), [#317](https://github.com/memphis-iis/Vellum-Rift/issues/317)).
 
 ---
 
@@ -118,7 +118,7 @@
 | Elementary | **Friction** | Default: **HTML shell owns HUD** (`WebGlShellMode.UsesExternalShell` — Unity chat/logout/guide disabled). Dashboard **embed=1** parent owns chat/nav (`WebGlEmbed`). `?unityHud=1` restores legacy Unity HUD for observer/wall modes. |
 | General museum | **Pass** | Kiosk one-step join + auth handoff documented in museum-guest-entry. |
 
-**Gap:** One remembered “hide all chrome” across embed vs standalone — [#318](https://github.com/memphis-iis/Vellum-Rift/issues/318).
+**Hide chrome:** **H** toggles the shell chrome in both the dashboard embed and standalone `/vellumrift/` (`shell-chrome.js`, `WebGlEmbed.tsx`; remembered per browser session) — [#318](https://github.com/memphis-iis/Vellum-Rift/issues/318).
 
 ---
 

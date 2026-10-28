@@ -150,8 +150,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: VellumRift::VellumRift.SessionManager
   sessionIdOverride: 
   playerName: Player
-  defaultBackendUrl: https://iis.memphis.edu/apis/vellumrift
-  allowInsecureHttp: 0
+  defaultBackendUrl: http://192.168.1.184:4000
+  allowInsecureHttp: 1
   modelId: 
   apiClient: {fileID: 0}
   bluekeyAuth: {fileID: 0}
@@ -484,7 +484,7 @@ MonoBehaviour:
   modelUrl: 
   modelScale: 0.01
   loadOnStart: 0
-  allowInsecureHttp: 0
+  allowInsecureHttp: 1
   authToken: 
 --- !u!4 &803260840
 Transform:
@@ -626,8 +626,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c7ed8deb001dd48b68c0c770fc76c5fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VellumRift::initialMenu
-  menuRoot: {fileID: 0}
-  movementGate: {fileID: 0}
 --- !u!4 &1500439039
 Transform:
   m_ObjectHideFlags: 0

@@ -47,6 +47,11 @@ namespace VellumRift.Environment
         public float SpawnRadius => spawnRadius;
         public float FloorSize => floorSize;
         public int SpawnSlotCount => Mathf.Max(1, spawnSlotCount);
+        /// <summary>Inspector fog density (baseline for void-fade boosts).</summary>
+        public float ConfiguredFogDensity => fogDensity;
+
+        /// <summary>Re-apply plate fog after a temporary void-fade override.</summary>
+        public void RestoreFogSettings() => ApplyFog();
 
         /// <summary>True when the outer deck edge glow object exists (tests / verify).</summary>
         public bool HasDeckEdgeGlow => transform.Find(DeckEdgeName) != null;

@@ -15,12 +15,14 @@ namespace VellumRift.Editor
     /// Headless build entries for museum publish and Quest APK (#193 / #209 / #275 / #295).
     /// WebGL:  Unity -batchmode -nographics -projectPath "…" -executeMethod VellumRift.Editor.CIBuild.BuildWebGL -quit
     /// Android: Unity -batchmode -nographics -projectPath "…" -executeMethod VellumRift.Editor.CIBuild.BuildAndroid -quit
+    /// Linux:  Unity -batchmode -nographics -projectPath "…" -buildTarget StandaloneLinux64 -executeMethod VellumRift.Editor.CIBuild.BuildLinuxStandalone -quit
     /// Optional env (#295): VELLUM_BUILD_BACKEND_URL, VELLUM_BUILD_ALLOW_INSECURE_HTTP
     /// </summary>
     public static class CIBuild
     {
         private const string WebGlOutputDir = "web build";
         private const string DefaultAndroidApk = "build/VellumRift-Quest.apk";
+        private const string DefaultLinuxPlayer = "build/linux/VellumRift.x86_64";
         private const string BuildBackendUrlEnv = "VELLUM_BUILD_BACKEND_URL";
         private const string BuildAllowInsecureHttpEnv = "VELLUM_BUILD_ALLOW_INSECURE_HTTP";
 
@@ -68,6 +70,99 @@ namespace VellumRift.Editor
                 }
 
                 Debug.Log($"[CIBuild] WebGL build OK ({report.summary.totalSize} bytes)");
+                if (Application.isBatchMode)
+                    EditorApplication.Exit(0);
+            }
+            finally
+            {
+                if (stagedBackend)
+                    RestoreStagedBuildBackendOverrides();
+            }
+        }
+
+        [MenuItem("Vellum Rift/Build/Linux Standalone")]
+        public static void BuildLinuxStandalone()
+        {
+            bool stagedBackend = TryStageBuildBackendOverrides();
+            try
+            {
+                string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
+                string relativeOrAbsolute = GetArg("-customBuildPath") ?? DefaultLinuxPlayer;
+                string outputPath = Path.IsPathRooted(relativeOrAbsolute)
+                    ? relativeOrAbsolute
+                    : Path.Combine(projectRoot, relativeOrAbsolute);
+                bool isDev = HasFlag("-developmentBuild");
+
+                string[] scenes = GetEnabledScenes();
+                if (scenes.Length == 0)
+                {
+                    Debug.LogError("[CIBuild] No enabled scenes in Build Settings.");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                bool linuxSupported = BuildPipeline.IsBuildTargetSupported(
+                    BuildTargetGroup.Standalone, BuildTarget.StandaloneLinux64);
+                var active = EditorUserBuildSettings.activeBuildTarget;
+                Debug.Log($"[CIBuild] Active build target: {active}; Linux64 module supported: {linuxSupported}");
+                if (!linuxSupported)
+                {
+                    Debug.LogError(
+                        "[CIBuild] Linux Standalone Build Support is not available " +
+                        "(IsBuildTargetSupported=false). Install Linux Build Support via Unity Hub.");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                if (active != BuildTarget.StandaloneLinux64 && !Application.isBatchMode)
+                {
+                    bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
+                        NamedBuildTarget.Standalone, BuildTarget.StandaloneLinux64);
+                    Debug.Log(switched
+                        ? "[CIBuild] Switched active build target to StandaloneLinux64."
+                        : "[CIBuild] SwitchActiveBuildTarget returned false.");
+                }
+
+                // Desktop museum wall — OpenXR is Android/Quest only (removed from Standalone providers).
+                PlayerSettings.runInBackground = true;
+                PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+                PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.StandaloneLinux64, false);
+                PlayerSettings.SetGraphicsAPIs(BuildTarget.StandaloneLinux64, new[]
+                {
+                    GraphicsDeviceType.Vulkan,
+                    GraphicsDeviceType.OpenGLCore,
+                });
+
+                string outDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(outDir))
+                    Directory.CreateDirectory(outDir);
+
+                var options = new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = outputPath,
+                    target = BuildTarget.StandaloneLinux64,
+                    subtarget = (int)StandaloneBuildSubtarget.Player,
+                    options = isDev ? BuildOptions.Development : BuildOptions.None,
+                };
+
+                Debug.Log($"[CIBuild] Building Linux Standalone → {outputPath} (Dev: {isDev})");
+                BuildReport report = BuildPipeline.BuildPlayer(options);
+                if (report.summary.result != BuildResult.Succeeded)
+                {
+                    Debug.LogError($"[CIBuild] Linux Standalone build failed: {report.summary.result}");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                if (!File.Exists(outputPath))
+                {
+                    Debug.LogError($"[CIBuild] Linux build reported success but binary missing at {outputPath}");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                Debug.Log($"[CIBuild] Linux Standalone OK → {outputPath} ({new FileInfo(outputPath).Length} bytes)");
                 if (Application.isBatchMode)
                     EditorApplication.Exit(0);
             }

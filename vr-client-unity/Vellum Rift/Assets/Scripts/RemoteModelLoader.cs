@@ -40,10 +40,23 @@ namespace VellumRift
         /// <summary>Last successfully loaded model URL (empty after Clear).</summary>
         public string LoadedModelUrl { get; private set; } = "";
 
+        /// <summary>Number of manuscripts held in the in-memory preload cache.</summary>
+        public int CachedModelCount => cache.Count;
+
         private bool loadInProgress;
+        private bool preloadInProgress;
         /// <summary>Latest requested URL while a load is in flight (host playlist sync).</summary>
         private string pendingLoadUrl;
         private GameObject emptyStateGo;
+        private string visibleModelId = "";
+        private readonly Dictionary<string, CachedEntry> cache = new Dictionary<string, CachedEntry>();
+        private readonly HashSet<string> cachingIds = new HashSet<string>();
+
+        private sealed class CachedEntry
+        {
+            public GameObject Root;
+            public string Url;
+        }
 
         private async void Start()
         {
@@ -62,6 +75,7 @@ namespace VellumRift
         /// Host playlist switches arrive while a prior GLB is still downloading.
         /// Queue the latest <see cref="modelUrl"/> and load it when the current
         /// attempt finishes so every client converges on the active manuscript.
+        /// Cached playlist meshes swap instantly without a re-download.
         /// </summary>
         public async Task Load()
         {
@@ -92,7 +106,7 @@ namespace VellumRift
                         continue;
                     }
 
-                    if (RequiresBearerAuth(modelUrl) && string.IsNullOrEmpty(authToken))
+                    if (RequiresBearerAuth(modelUrl) && string.IsNullOrEmpty(authToken) && !allowInsecureHttp)
                     {
                         Debug.LogError(
                             "[RemoteModelLoader] Missing Bluekey/kiosk Bearer for /api/models — " +
@@ -100,102 +114,20 @@ namespace VellumRift
                         continue;
                     }
 
-                    ShowEmptyState(true);
-                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    try
+                    string modelId = ExtractModelId(modelUrl);
+                    if (string.IsNullOrEmpty(modelId))
+                        modelId = modelUrl;
+
+                    if (TryActivateCached(modelId))
                     {
-                        string effectiveUrl = AppendLodTierIfNeeded(modelUrl);
-                        Debug.Log($"[RemoteModelLoader] Loading {effectiveUrl}");
-                        var gltf = new GltfImport();
-                        SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
-                        bool loaded;
-                        if (!string.IsNullOrEmpty(authToken))
-                        {
-                            byte[] glb = await DownloadWithAuthAsync(effectiveUrl, authToken);
-                            if (glb == null)
-                                continue;
-                            Debug.Log($"[QuestVerify] download bytes={glb.Length} tier={(effectiveUrl.Contains("tier=quest") ? "quest" : "none")} url={effectiveUrl}");
-                            loaded = await gltf.LoadGltfBinary(glb);
-                        }
-                        else
-                        {
-                            loaded = await gltf.Load(effectiveUrl);
-                        }
-
-                        stopwatch.Stop();
-                        float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
-
-                        // A newer host switch arrived while we waited — discard this mesh.
-                        if (!string.IsNullOrEmpty(pendingLoadUrl) && pendingLoadUrl != modelUrl)
-                        {
-                            Debug.Log("[RemoteModelLoader] Discarding stale load — newer manuscript requested");
-                            continue;
-                        }
-
-                        if (!loaded)
-                        {
-                            Debug.LogError($"[RemoteModelLoader] Failed to load model from {modelUrl} — check the URL and that the backend is reachable");
-                            continue;
-                        }
-
-                        var parent = new GameObject("LoadedModel").transform;
-                        parent.SetParent(transform, false);
-                        parent.localPosition = Vector3.zero;
-                        parent.localScale = Vector3.one * modelScale;
-
-                        bool instantiated = await gltf.InstantiateMainSceneAsync(parent);
-                        if (!instantiated)
-                        {
-                            Destroy(parent.gameObject);
-                            if (indicators != null) indicators.UnregisterEdgeTarget("manuscript");
-                            Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
-                            continue;
-                        }
-
-                        if (!string.IsNullOrEmpty(pendingLoadUrl) && pendingLoadUrl != modelUrl)
-                        {
-                            Destroy(parent.gameObject);
-                            Debug.Log("[RemoteModelLoader] Discarding instantiated stale manuscript");
-                            continue;
-                        }
-
-                        foreach (Transform child in transform)
-                        {
-                            if (child != parent && child.gameObject != emptyStateGo)
-                                Destroy(child.gameObject);
-                        }
-
-                        ShowEmptyState(false);
-#if UNITY_ANDROID && !UNITY_EDITOR
-                        DecimateOversizedMeshes(parent);
-#endif
-                        AttachMeshColliders(parent);
-                        Texture importedTexture = gltf.TextureCount > 0 ? gltf.GetTexture(0) : null;
-                        Debug.Log($"[QuestVerify] gltf textures={gltf.TextureCount}");
-                        EnsureQuestReadableMaterials(parent, importedTexture);
-
-                        if (indicators != null)
-                        {
-                            indicators.UnregisterEdgeTarget("manuscript");
-                            indicators.RegisterEdgeTarget("manuscript", parent, "MANUSCRIPT");
-                        }
-
-                        IsLoaded = true;
-                        LoadedModelUrl = modelUrl;
-#if UNITY_EDITOR
-                        var meshRenderer = parent.GetComponentInChildren<Renderer>(true);
-                        if (meshRenderer != null)
-                            UnityEditor.Selection.activeGameObject = meshRenderer.gameObject;
-#endif
-                        LogModelStats(parent, loadSeconds);
-                        LogQuestVerify(parent, effectiveUrl);
-                        // NOTE: GltfImport.Dispose() is NOT called here — glTFast
-                        // would destroy shared meshes and blank the scene.
+                        Debug.Log($"[RemoteModelLoader] Cache hit — showing {modelId}");
+                        continue;
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"[RemoteModelLoader] Error loading model: {ex.Message}");
-                    }
+
+                    if (!IsLoaded)
+                        ShowEmptyState(true);
+
+                    await EnsureCachedAsync(modelId, modelUrl, activate: true);
                 }
             }
             finally
@@ -209,7 +141,81 @@ namespace VellumRift
         }
 
         /// <summary>
-        /// Remove any instantiated mesh and reset load state (#144 empty playlist).
+        /// Download and keep every playlist manuscript in memory (inactive) so
+        /// host switches are an activate/deactivate swap instead of a GLB fetch.
+        /// Safe to call repeatedly; already-cached ids are skipped.
+        /// </summary>
+        public async Task PreloadModelsAsync(IEnumerable<string> modelIds, string backendBaseUrl)
+        {
+            if (modelIds == null || string.IsNullOrEmpty(backendBaseUrl))
+                return;
+
+            if (preloadInProgress)
+            {
+                // Coalesce: wait for the in-flight pass, then a later Kick will re-run.
+                while (preloadInProgress)
+                    await Task.Yield();
+            }
+
+            preloadInProgress = true;
+            string baseUrl = backendBaseUrl.TrimEnd('/');
+            int preloaded = 0;
+            int skipped = 0;
+            try
+            {
+                foreach (string raw in modelIds)
+                {
+                    string id = raw?.Trim();
+                    if (string.IsNullOrEmpty(id))
+                        continue;
+
+                    if (cache.TryGetValue(id, out CachedEntry hit) && hit?.Root != null)
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Prefer an interactive Load() over background preload bandwidth.
+                    while (loadInProgress)
+                        await Task.Yield();
+
+                    if (cache.TryGetValue(id, out hit) && hit?.Root != null)
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    string url = $"{baseUrl}/api/models/{Uri.EscapeDataString(id)}";
+                    if (url.StartsWith("http://", StringComparison.Ordinal) && !allowInsecureHttp)
+                    {
+                        Debug.LogError(
+                            $"[RemoteModelLoader] Preload skipped {id} — plain http blocked (allowInsecureHttp off)");
+                        continue;
+                    }
+                    if (RequiresBearerAuth(url) && string.IsNullOrEmpty(authToken) && !allowInsecureHttp)
+                    {
+                        Debug.LogError(
+                            $"[RemoteModelLoader] Preload skipped {id} — missing Bearer token");
+                        continue;
+                    }
+
+                    Debug.Log($"[RemoteModelLoader] Preloading {id}");
+                    if (await EnsureCachedAsync(id, url, activate: false))
+                        preloaded++;
+                }
+            }
+            finally
+            {
+                preloadInProgress = false;
+                Debug.Log(
+                    $"[RemoteModelLoader] Preload done — new={preloaded}, alreadyCached={skipped}, " +
+                    $"totalCached={cache.Count}");
+            }
+        }
+
+        /// <summary>
+        /// Hide the active manuscript but keep preloaded meshes in memory
+        /// (#144 empty playlist).
         /// </summary>
         public void Clear()
         {
@@ -217,19 +223,212 @@ namespace VellumRift
             if (indicators != null)
                 indicators.UnregisterEdgeTarget("manuscript");
 
+            foreach (var kv in cache)
+            {
+                if (kv.Value?.Root != null)
+                    kv.Value.Root.SetActive(false);
+            }
+
+            // Tear down any non-cache children (legacy / failed partials).
             foreach (Transform child in transform)
             {
                 if (child.gameObject == emptyStateGo)
                     continue;
-                Destroy(child.gameObject);
+                bool cached = false;
+                foreach (var kv in cache)
+                {
+                    if (kv.Value?.Root == child.gameObject)
+                    {
+                        cached = true;
+                        break;
+                    }
+                }
+                if (!cached)
+                    Destroy(child.gameObject);
             }
 
+            visibleModelId = "";
             IsLoaded = false;
             LoadedModelUrl = "";
             modelUrl = "";
             pendingLoadUrl = null;
             ShowEmptyState(true);
-            Debug.Log("[RemoteModelLoader] Cleared manuscript mesh");
+            Debug.Log("[RemoteModelLoader] Cleared manuscript mesh (cache retained)");
+        }
+
+        /// <summary>Model id segment from an <c>/api/models/{id}</c> URL.</summary>
+        public static string ExtractModelId(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return "";
+            const string marker = "/api/models/";
+            int idx = url.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+                return "";
+            string rest = url.Substring(idx + marker.Length);
+            int cut = rest.IndexOfAny(new[] { '?', '#', '/' });
+            if (cut >= 0)
+                rest = rest.Substring(0, cut);
+            return rest.Trim();
+        }
+
+        private bool TryActivateCached(string modelId)
+        {
+            if (string.IsNullOrEmpty(modelId))
+                return false;
+            if (!cache.TryGetValue(modelId, out CachedEntry entry) || entry?.Root == null)
+                return false;
+            ActivateCached(modelId);
+            return true;
+        }
+
+        private void ActivateCached(string modelId)
+        {
+            if (!cache.TryGetValue(modelId, out CachedEntry entry) || entry?.Root == null)
+                return;
+
+            foreach (var kv in cache)
+            {
+                if (kv.Value?.Root == null)
+                    continue;
+                kv.Value.Root.SetActive(kv.Key == modelId);
+            }
+
+            visibleModelId = modelId;
+            modelUrl = entry.Url ?? modelUrl;
+            LoadedModelUrl = entry.Url ?? "";
+            IsLoaded = true;
+            ShowEmptyState(false);
+
+            SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
+            if (indicators != null)
+            {
+                indicators.UnregisterEdgeTarget("manuscript");
+                indicators.RegisterEdgeTarget("manuscript", entry.Root.transform, "MANUSCRIPT");
+            }
+
+#if UNITY_EDITOR
+            var meshRenderer = entry.Root.GetComponentInChildren<Renderer>(true);
+            if (meshRenderer != null)
+                UnityEditor.Selection.activeGameObject = meshRenderer.gameObject;
+#endif
+        }
+
+        /// <summary>
+        /// Download + instantiate into the cache. When <paramref name="activate"/>
+        /// is true and no newer Load superseded this id, make it visible.
+        /// </summary>
+        private async Task<bool> EnsureCachedAsync(string modelId, string url, bool activate)
+        {
+            if (string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(url))
+                return false;
+
+            if (cache.TryGetValue(modelId, out CachedEntry existing) && existing?.Root != null)
+            {
+                if (activate)
+                    ActivateCached(modelId);
+                return true;
+            }
+
+            if (cachingIds.Contains(modelId))
+            {
+                while (cachingIds.Contains(modelId))
+                    await Task.Yield();
+                if (cache.TryGetValue(modelId, out existing) && existing?.Root != null)
+                {
+                    if (activate)
+                        ActivateCached(modelId);
+                    return true;
+                }
+                return false;
+            }
+
+            cachingIds.Add(modelId);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                string effectiveUrl = AppendLodTierIfNeeded(url);
+                Debug.Log($"[RemoteModelLoader] Caching {effectiveUrl}");
+                var gltf = new GltfImport();
+                bool loaded;
+                if (!string.IsNullOrEmpty(authToken))
+                {
+                    byte[] glb = await DownloadWithAuthAsync(effectiveUrl, authToken);
+                    if (glb == null)
+                        return false;
+                    Debug.Log(
+                        $"[QuestVerify] download bytes={glb.Length} " +
+                        $"tier={(effectiveUrl.Contains("tier=quest") ? "quest" : "none")} url={effectiveUrl}");
+                    loaded = await gltf.LoadGltfBinary(glb);
+                }
+                else
+                {
+                    loaded = await gltf.Load(effectiveUrl);
+                }
+
+                stopwatch.Stop();
+                float loadSeconds = stopwatch.ElapsedMilliseconds / 1000f;
+
+                if (!loaded)
+                {
+                    Debug.LogError(
+                        $"[RemoteModelLoader] Failed to load model from {url} — " +
+                        "check the URL and that the backend is reachable");
+                    return false;
+                }
+
+                var parent = new GameObject("CachedModel_" + modelId).transform;
+                parent.SetParent(transform, false);
+                parent.localPosition = Vector3.zero;
+                parent.localScale = Vector3.one * modelScale;
+
+                bool instantiated = await gltf.InstantiateMainSceneAsync(parent);
+                if (!instantiated)
+                {
+                    Destroy(parent.gameObject);
+                    Debug.LogError("[RemoteModelLoader] Model loaded but failed to instantiate");
+                    return false;
+                }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+                DecimateOversizedMeshes(parent);
+#endif
+                AttachMeshColliders(parent);
+                Texture importedTexture = gltf.TextureCount > 0 ? gltf.GetTexture(0) : null;
+                Debug.Log($"[QuestVerify] gltf textures={gltf.TextureCount}");
+                EnsureQuestReadableMaterials(parent, importedTexture);
+
+                parent.gameObject.SetActive(false);
+                cache[modelId] = new CachedEntry { Root = parent.gameObject, Url = url };
+
+                bool stillWanted = activate &&
+                    (string.IsNullOrEmpty(pendingLoadUrl) ||
+                     ExtractModelId(pendingLoadUrl) == modelId ||
+                     pendingLoadUrl == url);
+                if (stillWanted)
+                    ActivateCached(modelId);
+                else
+                    Debug.Log($"[RemoteModelLoader] Cached {modelId} (not active — newer request pending)");
+
+                // Stats use modelUrl; temporarily align for the log line.
+                string prevUrl = modelUrl;
+                modelUrl = url;
+                LogModelStats(parent, loadSeconds);
+                LogQuestVerify(parent, effectiveUrl);
+                modelUrl = prevUrl;
+                // NOTE: GltfImport.Dispose() is NOT called here — glTFast
+                // would destroy shared meshes and blank the scene.
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[RemoteModelLoader] Error caching model {modelId}: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                cachingIds.Remove(modelId);
+            }
         }
 
         /// <summary>World AABB of the loaded manuscript, or false if nothing is loaded.</summary>
@@ -239,11 +438,22 @@ namespace VellumRift
             if (!IsLoaded)
                 return false;
 
-            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+            Transform root = transform;
+            if (!string.IsNullOrEmpty(visibleModelId) &&
+                cache.TryGetValue(visibleModelId, out CachedEntry entry) &&
+                entry?.Root != null)
+            {
+                root = entry.Root.transform;
+            }
+
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
             bool any = false;
             foreach (var r in renderers)
             {
                 if (r == null || r.gameObject == emptyStateGo || !r.enabled)
+                    continue;
+                // Skip inactive cache siblings when scanning the loader root.
+                if (!r.gameObject.activeInHierarchy)
                     continue;
                 if (!any)
                 {

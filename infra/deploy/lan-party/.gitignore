@@ -1,3 +1,6 @@
 # Unity WebGL museum artifacts (copy build output here before compose up).
 webgl/*
 !webgl/.gitkeep
+
+# Written by start-with-dns.sh (live SERVER_LAN_IP / DNSMASQ_BIND_IP).
+.env.runtime

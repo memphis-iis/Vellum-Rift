@@ -92,8 +92,8 @@ Then walk the flow below **while watching for untextured geometry**:
 - [ ] **First XR join:** sticky Menu (How to Play + Space Status + Chat if enabled) opens once with coach “Look at your left wrist anytime for Menu.”
 - [ ] **Wrist MENU:** raise left wrist + look at the pad labeled **MENU** → HUD sticks open; pad flips to **CLOSE**; look again dismisses
 - [ ] **Desktop H parity (#315):** with Unity HUD, **H** toggles the same MENU stack as wrist (guide + status + chat-if-enabled)
-- [ ] **MENU open (guest):** lower-right **Call for help** (≥64 px tall) and lower-left **LOG OUT** appear with the stack; both hide again on **CLOSE**. Left **Y** still calls for help with MENU closed. Host/spectator never see Call for help
-- [ ] **LOG OUT (guest):** returns to the event picker / login lobby and does **not** archive the shared Space (others stay connected)
+- [ ] **MENU open (guest):** lower-right **Call for help** (≥64 px tall) and lower-left **LEAVE** appear with the stack; both hide again on **CLOSE**. Left **Y** still calls for help with MENU closed. Host/spectator never see Call for help
+- [ ] **LEAVE (guest):** first tap shows **TAP AGAIN TO LEAVE** (reverts after ~4 s); second tap returns to the event picker (not a single-event auto-rejoin) and does **not** archive the shared Space (others stay connected). Closing MENU disarms the confirm
 - [ ] **Turn timer (host laptop Lobby → Host tools):** Start turn with **5 / 8 / 10 / 12 min**; countdown ticks; on expiry or **Reset**, Quest freezes + passthrough (or turn-over overlay fallback); **Start turn** again restores locomotion for the next person (thumbstick / jetpack work — #324). Space stays up; pins kept
 - [ ] Later joins (after teach): FOV starts quiet; wrist opens/closes the same sticky HUD
 - [ ] **Jetpack:** left grip thrusts along **look direction** (not world-up); Right A only renames when aiming a pin

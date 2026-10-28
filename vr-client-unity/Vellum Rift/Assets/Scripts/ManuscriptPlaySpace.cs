@@ -3,9 +3,10 @@ using UnityEngine;
 namespace VellumRift
 {
     /// <summary>
-    /// Soft play boundary around the loaded manuscript: HUD distance cues,
-    /// locomotion damping when guests wander too far in XR, and always-visible
-    /// gallery orientation chevrons (floor / eye / upper) aimed at the manuscript.
+    /// Play boundary around the loaded manuscript: HUD distance cues,
+    /// locomotion damping past the soft ring, a hard max radius clamp so
+    /// players cannot leave the gallery, and orientation chevrons aimed
+    /// at the manuscript.
     /// </summary>
     public static class ManuscriptPlaySpace
     {
@@ -53,6 +54,7 @@ namespace VellumRift
 
         public static bool IsConfigured => configured;
         public static float SoftRadius => softRadius;
+        public static float HardRadius => hardRadius;
         public static Vector3 Center => center;
 
         /// <summary>True when all orientation chevron bands exist.</summary>
@@ -109,6 +111,86 @@ namespace VellumRift
             Vector3 flat = worldPosition - center;
             flat.y = 0f;
             return flat.magnitude;
+        }
+
+        /// <summary>
+        /// Clamp horizontal position to <see cref="HardRadius"/> around the
+        /// manuscript. Y is preserved. Returns true when the position was clipped.
+        /// </summary>
+        public static bool ClampHorizontal(ref Vector3 worldPosition)
+        {
+            if (!configured || hardRadius <= 0f)
+                return false;
+
+            Vector3 flat = worldPosition - center;
+            flat.y = 0f;
+            float d = flat.magnitude;
+            if (d <= hardRadius || d < 1e-5f)
+                return false;
+
+            Vector3 clipped = center + flat * (hardRadius / d);
+            clipped.y = worldPosition.y;
+            worldPosition = clipped;
+            return true;
+        }
+
+        /// <summary>
+        /// Pose just inside the soft ring along the guest's radial line, yaw
+        /// toward the manuscript — used after the fog loopback wash peaks.
+        /// </summary>
+        public static bool TryGetLoopbackPose(
+            Vector3 fromPosition, out Vector3 position, out Quaternion rotation)
+        {
+            position = fromPosition;
+            rotation = Quaternion.identity;
+            if (!configured)
+                return false;
+
+            Vector3 flat = fromPosition - center;
+            flat.y = 0f;
+            if (flat.sqrMagnitude < 1e-6f)
+                flat = Vector3.forward;
+            else
+                flat.Normalize();
+
+            float r = softRadius * 0.7f;
+            r = Mathf.Max(r, manuscriptRadius + 2f);
+            if (softRadius > 1f)
+                r = Mathf.Min(r, softRadius - 0.5f);
+            r = Mathf.Max(2f, r);
+
+            position = center + flat * r;
+            position.y = Mathf.Max(0.05f, fromPosition.y);
+
+            Vector3 look = center - position;
+            look.y = 0f;
+            if (look.sqrMagnitude < 1e-6f)
+                look = -flat;
+            rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
+            return true;
+        }
+
+        /// <summary>
+        /// Remove the outward (away-from-manuscript) horizontal component of
+        /// <paramref name="velocity"/> when the body is on the hard edge.
+        /// </summary>
+        public static Vector3 CancelOutwardVelocity(Vector3 bodyPosition, Vector3 velocity)
+        {
+            if (!configured || hardRadius <= 0f)
+                return velocity;
+
+            Vector3 flat = bodyPosition - center;
+            flat.y = 0f;
+            if (flat.sqrMagnitude < 1e-6f)
+                return velocity;
+            if (flat.magnitude < hardRadius - 0.02f)
+                return velocity;
+
+            Vector3 outward = flat.normalized;
+            float outwardSpeed = Vector3.Dot(velocity, outward);
+            if (outwardSpeed <= 0f)
+                return velocity;
+            return velocity - outward * outwardSpeed;
         }
 
         /// <summary>1 inside soft radius; eases down to <see cref="MinMoveMultiplier"/> at hard edge (never 0).</summary>

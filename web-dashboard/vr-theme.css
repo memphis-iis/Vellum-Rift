@@ -1,0 +1,3381 @@
+/**
+ * Vellum Rift post-login VR / spatial theme (Stitch home template → CSS).
+ * Scoped under `.vr-app` so Bluekey login stays on its own chrome.
+ */
+
+.vr-app {
+  /* Solid black shell (upload + post-login chrome) */
+  --vr-background: #000000;
+  --vr-surface: #000000;
+  --vr-surface-low: #0a0a0a;
+  --vr-surface-container: #121212;
+  --vr-surface-high: #1a1a1a;
+  --vr-surface-highest: #242424;
+  --vr-on-background: #e8e1db;
+  --vr-on-surface: #e8e1db;
+  --vr-on-surface-variant: #d1c5b7;
+  --vr-primary: #f1cf9c;
+  --vr-primary-container: #d4b483;
+  --vr-on-primary-container: #5c451e;
+  --vr-primary-fixed: #ffdeac;
+  /* Logo wordmark cyan — primary CTA fill */
+  --vr-accent: #6bb7c4;
+  --vr-accent-bright: #7dd1db;
+  --vr-on-accent: #0a242b;
+  --vr-outline: #998f82;
+  --vr-outline-variant: #4d463b;
+  --vr-gutter: 24px;
+  --vr-radius: 0.125rem;
+
+  --font-display: "Epilogue", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-label: "JetBrains Mono", ui-monospace, monospace;
+
+  min-height: 100vh;
+  color: var(--vr-on-background);
+  background-color: var(--vr-background);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.vr-app ::selection {
+  background: color-mix(in srgb, var(--vr-primary) 20%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.vr-ambient__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+}
+
+.vr-ambient__fog {
+  position: absolute;
+  inset: 0;
+  /* Light vignette only — no muddy hero plate */
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.65) 100%);
+}
+
+/* Brand lockup */
+.vr-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vr-brand__logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  flex-shrink: 0;
+  /* no rounded plate — asset is transparent */
+  background: transparent;
+}
+
+.vr-header__brand-btn {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.vr-header__brand-btn .vr-brand__logo {
+  max-height: 40px;
+}
+
+.vr-home__logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.vr-home__logo .vr-brand__logo {
+  max-height: 140px;
+  width: auto;
+}
+
+
+
+.vr-app__material-icon {
+  font-family: "Material Symbols Outlined", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  -webkit-font-smoothing: antialiased;
+}
+
+.vr-app__material-icon--fill {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* —— Top header (md+) —— */
+.vr-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem var(--vr-gutter);
+  background: color-mix(in srgb, var(--vr-background) 80%, transparent);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-header {
+    display: flex;
+  }
+}
+
+.vr-header__brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-primary);
+}
+
+
+.vr-header__nav {
+  display: flex;
+  gap: var(--vr-gutter);
+}
+
+.vr-header__link {
+  background: none;
+  border: none;
+  padding: 0 0 0.25rem;
+  font: inherit;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  transition: color 0.3s ease, opacity 0.15s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.vr-header__link:hover {
+  color: var(--vr-accent-bright);
+}
+
+.vr-header__link:active {
+  opacity: 0.7;
+}
+
+.vr-header__link--active {
+  color: var(--vr-accent-bright);
+  font-weight: 700;
+  border-bottom-color: var(--vr-accent);
+}
+
+.vr-header__link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vr-header__user {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.vr-header__email {
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-header__sign-out {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--vr-accent-bright);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.vr-header__sign-out:hover {
+  opacity: 0.8;
+}
+
+/* —— Home hero —— */
+.vr-home {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8rem var(--vr-gutter) 6rem;
+}
+
+.vr-home__inner {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.vr-home__copy {
+  position: relative;
+  margin-bottom: 4rem;
+}
+
+.vr-home__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--vr-accent-bright);
+}
+
+@media (min-width: 768px) {
+  .vr-home__title {
+    font-size: 64px;
+  }
+
+  .vr-home__br {
+    display: block;
+  }
+}
+
+.vr-home__br {
+  display: none;
+}
+
+.vr-home__lead {
+  margin: 1.5rem auto 0;
+  max-width: 42rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-home__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .vr-home__actions {
+    flex-direction: row;
+  }
+}
+
+.vr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 1rem 2rem;
+  border-radius: var(--vr-radius);
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+@media (min-width: 640px) {
+  .vr-btn {
+    width: auto;
+  }
+}
+
+.vr-btn--primary {
+  border: none;
+  background: var(--vr-accent);
+  color: var(--vr-on-accent);
+  box-shadow: 0 0 24px rgba(107, 183, 196, 0.22);
+}
+
+.vr-btn--primary:hover {
+  background: var(--vr-accent-bright);
+}
+
+.vr-btn--ghost {
+  border: 1px solid color-mix(in srgb, var(--vr-primary-container) 55%, var(--vr-outline-variant));
+  background: var(--vr-primary-container);
+  color: var(--vr-on-primary-container);
+  backdrop-filter: none;
+  box-shadow: 0 0 20px rgba(212, 180, 131, 0.1);
+}
+
+.vr-btn--ghost:hover {
+  background: var(--vr-primary-fixed);
+}
+
+.vr-btn--outline {
+  border: 1px solid var(--vr-outline-variant);
+  background: transparent;
+  color: var(--vr-accent-bright);
+  box-shadow: none;
+}
+
+.vr-btn--outline:hover {
+  border-color: var(--vr-accent);
+  background: color-mix(in srgb, var(--vr-accent) 10%, transparent);
+}
+
+.vr-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* —— Mobile bottom nav —— */
+.vr-tabbar {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--vr-surface-low) 80%, transparent);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 20%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-tabbar {
+    display: none;
+  }
+}
+
+.vr-tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.vr-tabbar__item:hover,
+.vr-tabbar__item--active {
+  color: var(--vr-accent-bright);
+}
+
+.vr-tabbar__label {
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* —— Shell with side nav —— */
+.vr-app--shell {
+  display: flex;
+  min-height: 100vh;
+  background: #000;
+}
+
+.vr-shell-main {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .vr-shell-main {
+    margin-left: 16rem;
+  }
+}
+
+/* —— Side nav (desktop) —— */
+.vr-sidenav {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: 16rem;
+  height: 100vh;
+  flex-direction: column;
+  padding: 2rem 0;
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+  backdrop-filter: blur(24px);
+  border-right: 1px solid color-mix(in srgb, var(--vr-outline-variant) 20%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-sidenav {
+    display: flex;
+  }
+}
+
+.vr-sidenav__brand {
+  padding: 0 1.5rem;
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.vr-sidenav__brand-btn {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.vr-sidenav__brand-btn .vr-brand {
+  width: auto;
+  justify-content: center;
+}
+
+.vr-sidenav__brand-btn .vr-brand__logo {
+  max-height: 88px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+}
+
+.vr-sidenav__eyebrow {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.7;
+}
+
+.vr-sidenav__cta-wrap {
+  padding: 0 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.vr-sidenav__cta {
+  width: 100%;
+}
+
+.vr-sidenav__links {
+  flex: 1;
+  padding: 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vr-sidenav__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: none;
+  color: var(--vr-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.vr-sidenav__link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--vr-accent-bright);
+}
+
+.vr-sidenav__link--active {
+  color: var(--vr-accent-bright);
+  background: color-mix(in srgb, var(--vr-accent) 8%, transparent);
+  border-left: 2px solid var(--vr-accent);
+  padding-left: calc(1rem - 2px);
+}
+
+.vr-sidenav__footer {
+  margin-top: auto;
+  padding: 1.5rem 1rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 20%, transparent);
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.vr-sidenav__email {
+  margin: 0 0 0.75rem;
+  font-size: 12px;
+  color: var(--vr-on-surface-variant);
+  word-break: break-all;
+}
+
+.vr-sidenav__sign-out {
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--vr-accent-bright);
+  cursor: pointer;
+}
+
+.vr-sidenav__sign-out:hover {
+  opacity: 0.85;
+}
+
+/* —— Mobile top bar —— */
+.vr-mobile-top {
+  display: flex;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem var(--vr-gutter);
+  background: color-mix(in srgb, #000 85%, transparent);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+}
+
+@media (min-width: 768px) {
+  .vr-mobile-top {
+    display: none;
+  }
+}
+
+.vr-mobile-top__brand {
+  display: inline-flex;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.vr-mobile-top__brand .vr-brand__logo {
+  max-height: 32px;
+}
+
+.vr-mobile-top__menu {
+  display: inline-flex;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-mobile-top__menu:hover {
+  color: var(--vr-accent-bright);
+}
+
+/* —— Upload / Manuscript Ingestion —— */
+.vr-upload {
+  position: relative;
+  z-index: 10;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 6rem var(--vr-gutter) 8rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .vr-upload {
+    padding: 3rem 3rem 6rem;
+  }
+}
+
+.vr-upload__header {
+  margin-bottom: 3rem;
+}
+
+.vr-upload__title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-on-background);
+}
+
+.vr-upload__lead {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-upload__options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.vr-upload__title-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.vr-upload__title-input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+.vr-upload__title-input:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-upload__title-input:disabled {
+  opacity: 0.5;
+}
+
+.vr-upload__required {
+  margin-left: 0.5rem;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-primary-container);
+  opacity: 0.9;
+}
+
+.vr-upload__page-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vr-upload__page-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-upload__page-input {
+  width: 5.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.vr-upload__page-input::-webkit-outer-spin-button,
+.vr-upload__page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.vr-upload__page-input:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-upload__page-input:disabled {
+  opacity: 0.5;
+}
+
+.vr-upload__page-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.85;
+}
+
+.vr-upload__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.vr-upload__error {
+  margin: 0 0 1.5rem;
+  color: #ffb4ab;
+  font-size: 14px;
+}
+
+.vr-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 3rem 1.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  border: 1px dashed color-mix(in srgb, var(--vr-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 60%, transparent);
+  backdrop-filter: blur(24px);
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%236bb7c4' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E");
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .vr-dropzone {
+    padding: 6rem 3rem;
+  }
+}
+
+.vr-dropzone:hover,
+.vr-dropzone--active {
+  background-color: color-mix(in srgb, var(--vr-accent) 5%, #000);
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--vr-accent) 12%, transparent);
+}
+
+.vr-dropzone--locked {
+  opacity: 0.72;
+}
+
+.vr-dropzone--locked:hover {
+  border-color: color-mix(in srgb, var(--vr-accent) 40%, transparent);
+  box-shadow: none;
+  background-color: color-mix(in srgb, var(--vr-surface-low) 60%, transparent);
+}
+
+.vr-dropzone__icon {
+  font-size: 3.75rem !important;
+  margin-bottom: 1.5rem;
+  color: color-mix(in srgb, var(--vr-accent) 70%, transparent);
+  transition: color 0.4s ease, transform 0.5s ease;
+  font-variation-settings: "FILL" 0, "wght" 200, "GRAD" 0, "opsz" 48 !important;
+}
+
+.vr-dropzone:hover .vr-dropzone__icon,
+.vr-dropzone--active .vr-dropzone__icon {
+  color: var(--vr-accent-bright);
+  transform: scale(1.08);
+}
+
+.vr-dropzone__heading {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--vr-accent-bright);
+}
+
+.vr-dropzone__hint {
+  margin: 0 0 2rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-upload__jobs-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-upload__sync {
+  font-size: 14px !important;
+  color: var(--vr-accent);
+  animation: vr-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes vr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.vr-upload__empty {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.75;
+  font-size: 14px;
+}
+
+.vr-job-card {
+  position: relative;
+  margin-bottom: 1rem;
+  padding: 1.5rem;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+  backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 25%, transparent);
+}
+
+.vr-job-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vr-accent) 8%, transparent);
+  filter: blur(40px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.vr-job-card__top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.vr-job-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.vr-job-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--vr-radius);
+  background: var(--vr-surface-container);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+  color: color-mix(in srgb, var(--vr-accent) 75%, transparent);
+}
+
+.vr-job-card__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vr-on-background);
+}
+
+.vr-job-card__filename {
+  margin: 0.2rem 0 0;
+  font-size: 12px;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.85;
+}
+
+.vr-job-card__status {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-accent);
+}
+
+.vr-job-card__dismiss {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-job-card__dismiss:hover {
+  color: #ffb4ab;
+}
+
+.vr-job-card__bar {
+  position: relative;
+  z-index: 1;
+  height: 0.375rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--vr-surface-highest);
+}
+
+.vr-job-card__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vr-accent) 65%, transparent);
+  position: relative;
+  overflow: hidden;
+  transition: width 0.4s ease;
+}
+
+.vr-job-card__fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: vr-shimmer 2s infinite;
+}
+
+.vr-job-card__fill--error {
+  background: color-mix(in srgb, #ffb4ab 70%, transparent);
+}
+
+.vr-job-card__fill--error::after {
+  display: none;
+}
+
+@keyframes vr-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.vr-job-card__footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.85;
+}
+
+.vr-job-card__footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vr-job-card__view {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--vr-accent-bright);
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vr-job-card__view:hover {
+  text-decoration: underline;
+}
+
+/* Home with side nav: keep hero centered in remaining space */
+.vr-app--home .vr-home {
+  padding-top: 6rem;
+}
+
+@media (min-width: 768px) {
+  .vr-app--home .vr-home {
+    padding-top: 4rem;
+  }
+}
+
+/* —— Documents / 3D viewer —— */
+.vr-docs {
+  position: relative;
+  z-index: 10;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 6rem var(--vr-gutter) 8rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .vr-docs {
+    padding: 3rem 3rem 6rem;
+  }
+}
+
+.vr-docs__header {
+  margin-bottom: 2rem;
+}
+
+.vr-docs__title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-on-background);
+}
+
+.vr-docs__lead {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-docs__load {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+}
+
+.vr-docs__field {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vr-docs__field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-docs__input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-label);
+  font-size: 13px;
+}
+
+.vr-docs__select {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.vr-docs__select:focus,
+.vr-docs__input:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-docs__select:disabled,
+.vr-docs__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vr-docs__error {
+  margin: 0 0 1rem;
+  color: #ffb4ab;
+  font-size: 14px;
+}
+
+.vr-docs__status {
+  margin: 0 0 1rem;
+  color: var(--vr-on-surface-variant);
+  font-size: 14px;
+}
+
+.vr-docs__bind {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+  background: color-mix(in srgb, var(--vr-surface) 88%, transparent);
+}
+
+.vr-docs__bind-title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--vr-on-background);
+}
+
+.vr-docs__bind-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.vr-docs__bind-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.vr-docs__bind-add .vr-docs__field {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+
+.vr-docs__bind-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  padding-bottom: 0.35rem;
+}
+
+.vr-docs__bind-hint {
+  margin: 0.85rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-docs__stage {
+  position: relative;
+  min-height: min(60vh, 32rem);
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+  background: #000;
+  overflow: hidden;
+}
+
+.vr-docs__viewer-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.vr-model-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  --poster-color: transparent;
+}
+
+.vr-docs__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-docs__empty-icon,
+.vr-docs__spinner {
+  font-size: 3rem !important;
+  color: var(--vr-accent);
+}
+
+.vr-docs__spinner {
+  animation: vr-pulse 1.2s ease-in-out infinite;
+}
+
+.vr-docs__meta {
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 30%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+}
+
+.vr-docs__meta-title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--vr-accent-bright);
+}
+
+.vr-docs__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.vr-docs__meta-grid dt {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.8;
+}
+
+.vr-docs__meta-grid dd {
+  margin: 0.25rem 0 0;
+  font-size: 13px;
+  color: var(--vr-on-background);
+  word-break: break-all;
+}
+
+.vr-docs__hint {
+  margin: 1.25rem 0 0;
+  font-size: 12px;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.75;
+}
+
+/* —— Sessions list —— */
+.vr-sessions {
+  position: relative;
+  z-index: 10;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 6rem var(--vr-gutter) 8rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .vr-sessions {
+    padding: 3rem 3rem 6rem;
+  }
+}
+
+.vr-sessions__header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+  .vr-sessions__header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.vr-sessions__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--vr-on-background);
+}
+
+.vr-sessions__lead {
+  margin: 0.75rem 0 0;
+  max-width: 42rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-sessions__new {
+  flex-shrink: 0;
+  width: auto;
+}
+
+.vr-sessions__create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+}
+
+.vr-sessions__create-field {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vr-sessions__create-label {
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-sessions__create-input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background: #000;
+  color: var(--vr-on-background);
+  font-size: 15px;
+}
+
+.vr-sessions__create-input:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-sessions__visibility {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vr-sessions__visibility legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  width: 100%;
+}
+
+.vr-sessions__visibility-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant, #c4c6cf);
+  cursor: pointer;
+}
+
+.vr-sessions__visibility-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.vr-sessions__error {
+  margin: 0 0 1rem;
+  color: #ffb4ab;
+  font-size: 14px;
+}
+
+.vr-sessions__panel {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 25%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+  backdrop-filter: blur(24px);
+}
+
+.vr-sessions__table-head {
+  display: none;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 20%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-high) 40%, transparent);
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+}
+
+@media (min-width: 768px) {
+  .vr-sessions__table-head {
+    display: grid;
+  }
+}
+
+.vr-sessions__col-actions {
+  text-align: right;
+}
+
+.vr-sessions__empty {
+  margin: 0;
+  padding: 2.5rem 1.5rem;
+  color: var(--vr-on-surface-variant);
+  text-align: center;
+}
+
+.vr-sessions__row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 12%, transparent);
+  transition: background-color 0.2s ease;
+}
+
+.vr-sessions__row:last-child {
+  border-bottom: none;
+}
+
+.vr-sessions__row:hover {
+  background: color-mix(in srgb, var(--vr-surface-high) 45%, transparent);
+}
+
+.vr-sessions__row--archived {
+  opacity: 0.7;
+}
+
+@media (min-width: 768px) {
+  .vr-sessions__row {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+  }
+}
+
+.vr-sessions__name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.vr-sessions__name {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--vr-on-background);
+  cursor: pointer;
+}
+
+.vr-sessions__row:hover .vr-sessions__name {
+  color: var(--vr-accent-bright);
+}
+
+.vr-sessions__id {
+  font-size: 12px;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.75;
+  word-break: break-all;
+}
+
+.vr-sessions__manuscript {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-size: 13px;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-sessions__manuscript .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.vr-sessions__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+  background: var(--vr-surface-highest);
+  color: var(--vr-on-surface);
+}
+
+.vr-sessions__badge--live {
+  background: color-mix(in srgb, var(--vr-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--vr-accent) 30%, transparent);
+  color: var(--vr-accent-bright);
+}
+
+.vr-sessions__pulse {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--vr-accent);
+  animation: vr-pulse 1.4s ease-in-out infinite;
+}
+
+.vr-sessions__activity {
+  font-size: 14px;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-sessions__actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.25rem;
+}
+
+@media (min-width: 768px) {
+  .vr-sessions__actions {
+    justify-content: flex-end;
+  }
+}
+
+.vr-sessions__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-sessions__icon-btn:hover {
+  color: var(--vr-accent-bright);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vr-sessions__menu {
+  position: relative;
+}
+
+.vr-sessions__menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 20;
+  min-width: 9rem;
+  padding: 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
+  background: #0a0a0a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.vr-sessions__menu-pop button {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--vr-on-background);
+  cursor: pointer;
+  border-radius: var(--vr-radius);
+}
+
+.vr-sessions__menu-pop button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--vr-accent-bright);
+}
+
+.vr-sessions__launch {
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* —— Enter / Session Room (loadout lobby) —— */
+.vr-enter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-panel-gap, 1rem);
+  /* Fill the viewport, but scroll as one surface when host chrome is tall. */
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 1rem 1.25rem 1.5rem;
+  color: var(--vr-on-background);
+}
+
+.vr-enter__empty-header {
+  max-width: 36rem;
+  margin: 4rem auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.vr-enter__title {
+  font-family: var(--vr-font-display);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 600;
+  margin: 0;
+  color: var(--vr-on-surface);
+}
+
+.vr-enter__lead {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.55;
+}
+
+.vr-enter__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-on-surface) 8%, transparent);
+}
+
+.vr-enter__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.vr-enter__wordmark {
+  font-family: var(--vr-font-display);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  letter-spacing: -0.02em;
+  color: var(--vr-primary);
+  white-space: nowrap;
+}
+
+.vr-enter__divider {
+  width: 1px;
+  height: 1.4rem;
+  background: color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+}
+
+.vr-enter__session-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  min-width: 0;
+}
+
+.vr-enter__top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.vr-enter__invite-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vr-enter__invite-input {
+  min-width: 12rem;
+  max-width: 16rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--vr-surface-high) 90%, transparent);
+  color: var(--vr-on-surface);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.vr-enter__invite-input::placeholder {
+  color: color-mix(in srgb, var(--vr-on-surface-variant) 70%, transparent);
+}
+
+.vr-enter__invite-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--vr-accent) 55%, transparent);
+}
+
+.vr-enter__invite-status {
+  margin: 0.35rem 1.25rem 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__help-banner {
+  margin: 0.5rem 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--vr-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-high) 88%, var(--vr-primary) 12%);
+  color: var(--vr-on-surface);
+}
+
+.vr-enter__help-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  color: var(--vr-primary);
+  font-family: var(--font-label);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vr-enter__help-banner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vr-enter__help-banner-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--vr-on-surface);
+}
+
+.vr-enter__help-banner-item time {
+  font-size: 0.82rem;
+  color: var(--vr-on-surface-variant);
+  opacity: 0.9;
+}
+
+.vr-enter__help-ack {
+  font-size: 0.82rem;
+  padding: 0.25rem 0.65rem;
+}
+
+.vr-enter__allowlist-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--vr-on-surface-variant);
+}
+
+
+.vr-enter--visitor .vr-enter__top-actions {
+  margin-left: auto;
+}
+
+.vr-enter__visitor-now {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__host-ops {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container) 82%, transparent);
+  backdrop-filter: blur(16px);
+  color: var(--vr-on-surface);
+  /* Host tools participate in the lobby scroll — no nested trap. */
+  flex-shrink: 0;
+}
+
+.vr-enter__host-ops-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--vr-primary);
+  list-style: none;
+}
+
+.vr-enter__host-ops-summary .material-symbols-outlined {
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__host-ops-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-enter__host-ops-hint {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__host-ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+}
+
+.vr-enter__turn-timer {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+}
+
+.vr-enter__turn-label {
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__turn-countdown {
+  min-width: 4.5rem;
+  font-family: var(--font-label);
+  font-size: 1.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--vr-primary);
+}
+
+.vr-enter__turn-countdown--ended {
+  color: color-mix(in srgb, #e57373 85%, var(--vr-on-surface));
+}
+
+.vr-enter__turn-reset {
+  margin-left: auto;
+}
+
+.vr-enter__moderation {
+  margin-top: 1rem;
+}
+
+.vr-enter__moderation .vr-enter__roster {
+  margin-top: 0.5rem;
+}
+
+.vr-enter__allowlist {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--vr-surface-high) 70%, transparent);
+}
+
+.vr-enter__allowlist-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+  margin-right: 0.5rem;
+}
+
+.vr-enter__allowlist-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vr-enter__allowlist-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface);
+}
+
+.vr-enter__allowlist-empty {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__playlist {
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-high) 70%, transparent);
+}
+
+.vr-enter__playlist-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.vr-enter__playlist-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--vr-on-background);
+}
+
+.vr-enter__playlist-empty,
+.vr-enter__playlist-active {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__playlist-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  /* Cap very long playlists; wheel chains to lobby scroll at edges. */
+  max-height: min(50vh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: auto;
+  min-height: 0;
+}
+
+.vr-enter__playlist-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.vr-enter__playlist-row--active {
+  background: color-mix(in srgb, var(--vr-primary, #9bb8ff) 12%, transparent);
+}
+
+.vr-enter__playlist-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--vr-on-background);
+}
+
+.vr-enter__playlist-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.vr-enter__playlist-badge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vr-on-surface-variant);
+  padding: 0 0.35rem;
+}
+
+.vr-enter__playlist-check {
+  color: var(--vr-primary, #9bb8ff);
+}
+
+.vr-enter__roster {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vr-enter__roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.vr-enter__roster-name {
+  color: var(--vr-on-surface-variant, #c4c6cf);
+}
+
+.vr-enter__roster-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.vr-enter__roster-museum-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.vr-enter__scheme-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__scheme-label-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.vr-enter__scheme-select {
+  max-width: 12rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--vr-on-surface);
+  background: color-mix(in srgb, var(--vr-surface-container) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.vr-enter__text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--vr-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.35rem 0.55rem;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.vr-enter__text-btn:hover {
+  opacity: 1;
+  color: var(--vr-accent-bright);
+  border-color: color-mix(in srgb, var(--vr-outline-variant) 60%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-highest) 55%, transparent);
+}
+
+.vr-enter__text-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vr-enter__error {
+  margin: 0;
+  color: var(--vr-error, #ffb4ab);
+  font-size: 0.9rem;
+}
+
+.vr-enter__retry {
+  border: none;
+  background: transparent;
+  color: var(--vr-accent-bright);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.vr-enter__status {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.vr-enter__body {
+  display: flex;
+  flex: 1 0 auto;
+  gap: 1rem;
+  /* Keep map + chat usable when host chrome is open; lobby scrolls instead of collapsing. */
+  min-height: min(52dvh, 28rem);
+}
+
+.vr-enter .glass-panel {
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 72%, transparent);
+  backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--vr-on-surface) 10%, transparent);
+  border-radius: 0.5rem;
+}
+
+.vr-enter-3d .glass-panel {
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 72%, transparent);
+  backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--vr-on-surface) 10%, transparent);
+  border-radius: 0.5rem;
+}
+
+.vr-enter__map {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.vr-enter__map-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 40%, transparent);
+}
+
+.vr-enter__map-title {
+  margin: 0;
+  font-family: var(--vr-font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.vr-enter__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.vr-enter__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--vr-surface-variant, #383430);
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__badge--live {
+  background: color-mix(in srgb, var(--vr-primary-container) 18%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-enter__badge--host {
+  background: color-mix(in srgb, var(--vr-accent) 18%, transparent);
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__pulse {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--vr-primary);
+  animation: vr-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes vr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.vr-enter__map-stage {
+  position: relative;
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.vr-enter__map-dots {
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image: radial-gradient(circle at 2px 2px, var(--vr-primary) 1px, transparent 0);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+.vr-enter__ring {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vr-enter__ring--outer {
+  width: min(100%, 42rem);
+  aspect-ratio: 16 / 10;
+}
+
+.vr-enter__ring--mid {
+  width: 75%;
+  height: 75%;
+  border-color: color-mix(in srgb, var(--vr-outline-variant) 28%, transparent);
+}
+
+.vr-enter__ring--inner {
+  width: 66%;
+  height: 66%;
+  border-color: color-mix(in srgb, var(--vr-outline-variant) 18%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 35%, transparent);
+}
+
+.vr-enter__core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--vr-outline);
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.vr-enter__core .material-symbols-outlined {
+  font-size: 2rem;
+  color: var(--vr-primary);
+  opacity: 0.5;
+}
+
+.vr-enter__avatar {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 2;
+}
+
+.vr-enter__avatar-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--vr-tertiary, #c6d5f6);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--vr-tertiary, #c6d5f6) 55%, transparent);
+}
+
+.vr-enter__avatar--host .vr-enter__avatar-dot,
+.vr-enter__avatar--me .vr-enter__avatar-dot {
+  background: var(--vr-primary);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--vr-primary) 55%, transparent);
+}
+
+.vr-enter__avatar-name {
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-on-surface-variant);
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vr-enter__controls-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 25%, transparent);
+}
+
+.vr-enter__controls-hint kbd {
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+  margin-right: 0.25rem;
+}
+
+.vr-enter__launch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  padding: 0.85rem 1rem 1.1rem;
+}
+
+.vr-enter__mode {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  border-radius: 0.35rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--vr-surface-container-lowest, #100e0b) 70%, transparent);
+}
+
+.vr-enter__mode-btn {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  color: var(--vr-on-surface-variant);
+  background: transparent;
+}
+
+.vr-enter__mode-btn + .vr-enter__mode-btn {
+  border-left: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+}
+
+.vr-enter__mode-btn.is-active {
+  color: var(--vr-on-accent, #0a242b);
+  background: var(--vr-accent, #6bb7c4);
+  font-weight: 600;
+}
+
+.vr-enter__mode-btn:focus-visible {
+  outline: 2px solid var(--vr-accent-bright, #7dd1db);
+  outline-offset: -2px;
+}
+
+.vr-enter__desktop {
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.vr-enter__code {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  border-radius: 0.25rem;
+  background: var(--vr-surface-container-lowest, #100e0b);
+  color: var(--vr-primary);
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.vr-enter__hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.vr-enter__hint code {
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__chat {
+  flex: 1;
+  min-width: min(100%, 18rem);
+  max-width: 24rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vr-enter__chat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 40%, transparent);
+}
+
+.vr-enter__chat-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+
+.vr-enter__chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.vr-enter__chat-empty {
+  margin: auto;
+  color: var(--vr-outline);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.vr-enter__bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.vr-enter__bubble-wrap--mine {
+  align-items: flex-end;
+}
+
+.vr-enter__bubble-meta {
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-enter__bubble {
+  max-width: 92%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.4rem 0.4rem 0.4rem 0;
+  background: var(--vr-surface-container-high, #2d2926);
+  border-left: 2px solid var(--vr-primary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--vr-on-surface);
+}
+
+.vr-enter__bubble--mine {
+  border-left: none;
+  border-right: 2px solid var(--vr-tertiary, #c6d5f6);
+  border-radius: 0.4rem 0.4rem 0 0.4rem;
+  background: var(--vr-surface-bright, #3c3935);
+}
+
+.vr-enter__bubble--system {
+  border-color: var(--vr-outline);
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.vr-enter__chat-compose {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-enter__chat-compose input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: var(--vr-surface-container-high, #2d2926);
+  color: var(--vr-on-surface);
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.2rem;
+  border-bottom: 1px solid var(--vr-outline-variant);
+  font: inherit;
+}
+
+.vr-enter__chat-compose input:focus {
+  border-bottom-color: var(--vr-primary);
+}
+
+.vr-enter__chat-compose button {
+  border: none;
+  background: transparent;
+  color: var(--vr-primary);
+  cursor: pointer;
+  padding: 0.35rem;
+  display: inline-flex;
+}
+
+.vr-enter__chat-compose button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .vr-enter__body {
+    flex-direction: column;
+  }
+
+  .vr-enter__chat {
+    max-width: none;
+    min-height: 16rem;
+  }
+
+  .vr-enter__top-actions .vr-btn--primary:last-child {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+
+/* Museum kiosk join (#145) */
+.vr-kiosk {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.vr-kiosk__logo {
+  display: block;
+  margin: 0 auto 0.75rem;
+}
+
+.vr-kiosk__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__title {
+  margin: 0.35rem 0 0.5rem;
+  font-family: var(--vr-font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+}
+
+.vr-kiosk__lead {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.45;
+}
+
+.vr-kiosk__card {
+  padding: 1.25rem 1.1rem 1.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--vr-surface) 88%, transparent);
+}
+
+.vr-kiosk__space {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.vr-kiosk__form,
+.vr-kiosk__joined {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-kiosk__museum-ops {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.vr-kiosk__museum-ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.vr-kiosk__label {
+  font-size: 0.8rem;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__input {
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface);
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__status {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-kiosk__error {
+  margin: 0;
+  color: #e57373;
+}
+
+.vr-kiosk__museum-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline) 35%, transparent);
+}
+
+.vr-kiosk__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--vr-outline);
+}
+
+/* Featured event on Home (#146) */
+.vr-home__featured {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--vr-outline-variant);
+  max-width: 28rem;
+}
+
+.vr-home__featured-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-home__featured-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--vr-font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.vr-home__featured-window {
+  margin: 0 0 1rem;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.95rem;
+}
+
+.vr-sessions__event-tag {
+  color: var(--vr-primary);
+  font-weight: 600;
+}
+
+.vr-enter__event-window {
+  margin: 0.35rem 1.25rem 0;
+  color: var(--vr-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+/* Share + QR modal (#146) */
+.vr-share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.vr-share-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, #000 72%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.vr-share-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(24rem, 100%);
+  padding: 1.15rem 1.2rem 1.25rem;
+  border: 1px solid var(--vr-outline-variant);
+  border-radius: 0.75rem;
+  background: var(--vr-surface-container);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 55%, transparent);
+}
+
+.vr-share-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vr-share-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+}
+
+.vr-share-modal__close:hover {
+  color: var(--vr-on-surface);
+  background: var(--vr-surface-highest);
+}
+
+.vr-share-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.vr-share__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vr-on-surface);
+}
+
+.vr-share__hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.4;
+}
+
+.vr-share__url {
+  margin: 0.75rem 0;
+  word-break: break-all;
+  font-size: 0.78rem;
+  color: var(--vr-outline);
+}
+
+.vr-share__url code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vr-share__qr {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vr-share__qr img {
+  display: block;
+  border-radius: 0.4rem;
+  background: #fff;
+  padding: 0.45rem;
+}
+
+.vr-share__qr figcaption {
+  font-size: 0.75rem;
+  color: var(--vr-outline);
+}
+
+/* —— Embedded WebGL (Enter 3D) —— */
+.vr-enter-3d {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #151310;
+  overflow: hidden;
+}
+
+.vr-enter-3d__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #151310;
+}
+
+.vr-enter-3d__chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vr-enter-3d__chrome > * {
+  pointer-events: auto;
+}
+
+/* #318 — H toggles full chrome off for clean museum/screenshot view */
+.vr-enter-3d--chrome-hidden .vr-enter-3d__chrome > * {
+  display: none !important;
+}
+
+.vr-enter-3d--chrome-hidden .vr-enter-3d__chrome {
+  pointer-events: none;
+}
+
+.vr-enter-3d__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: color-mix(in srgb, #151310 82%, transparent);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-enter-3d__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.vr-enter-3d__wordmark {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.5vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--vr-primary);
+}
+
+.vr-enter-3d__divider {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--vr-outline-variant);
+  opacity: 0.5;
+}
+
+.vr-enter-3d__session {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1rem;
+  color: var(--vr-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(40vw, 20rem);
+}
+
+.vr-enter-3d__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vr-enter-3d__chat {
+  position: absolute;
+  top: 5.5rem;
+  right: 1.25rem;
+  bottom: 7.5rem;
+  width: min(24rem, calc(100vw - 2.5rem));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 12rem;
+  max-height: calc(100% - 13rem);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.vr-enter-3d__fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12rem;
+  pointer-events: none;
+  background: linear-gradient(to top, #151310 0%, transparent 100%);
+}
+
+.vr-enter-3d__controls {
+  position: absolute;
+  left: 50%;
+  bottom: 3rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, #1e1b18 60%, transparent);
+  backdrop-filter: blur(24px);
+  border-top: 1px solid color-mix(in srgb, #e8eef2 10%, transparent);
+  border-left: 1px solid color-mix(in srgb, #e8eef2 10%, transparent);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter-3d__controls > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vr-enter-3d__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.35rem;
+  border-radius: 0.125rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+  background: #2d2926;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vr-enter-3d__sep {
+  width: 1px;
+  height: 2rem;
+  background: color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+}
+
+@media (max-width: 720px) {
+  .vr-enter-3d__controls {
+    display: none;
+  }
+
+  .vr-enter-3d__session {
+    display: none;
+  }
+
+  .vr-enter-3d__chat {
+    top: auto;
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
+    max-height: 40vh;
+  }
+
+  .vr-enter-3d__nav {
+    top: auto;
+    left: 0.75rem;
+    right: auto;
+    bottom: 0.75rem;
+    width: auto;
+    max-width: calc(100vw - 1.5rem);
+    max-height: 40vh;
+  }
+
+  .vr-shell-tab--nav {
+    top: auto;
+    left: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .vr-shell-tab--chat {
+    top: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+}
+
+/* Immersive WebGL — hide dashboard chrome; embed shell owns left menu */
+html.vr-immersive .vr-sidenav,
+html.vr-immersive .vr-mobile-top {
+  display: none !important;
+}
+
+html.vr-immersive .vr-shell-main {
+  margin-left: 0 !important;
+}
+
+@media (min-width: 768px) {
+  html.vr-immersive .vr-shell-main {
+    margin-left: 0 !important;
+  }
+}
+
+/* Collapsible shell panels (WebGL embed + template) */
+.vr-shell-panel__collapse {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--vr-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.vr-shell-panel__collapse:hover {
+  color: var(--vr-primary);
+  background: color-mix(in srgb, var(--vr-primary) 8%, transparent);
+}
+
+.vr-shell-tab {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 88%, transparent);
+  backdrop-filter: blur(16px);
+  color: var(--vr-primary);
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.vr-shell-tab--chat {
+  top: 5.5rem;
+  right: 1.25rem;
+}
+
+.vr-shell-tab--nav {
+  top: 5.5rem;
+  left: 1.25rem;
+}
+
+.vr-shell-tab__badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #e57373;
+  color: #1a0a0a;
+  font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+.vr-enter-3d__nav {
+  position: absolute;
+  top: 5.5rem;
+  left: 1.25rem;
+  bottom: 7.5rem;
+  width: min(18rem, calc(100vw - 2.5rem));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 10rem;
+  max-height: calc(100% - 13rem);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.vr-enter-3d__nav-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-container-low, #1e1b18) 40%, transparent);
+}
+
+.vr-enter-3d__nav-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.vr-enter-3d__nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.vr-enter-3d__nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--vr-on-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.vr-enter-3d__nav-link:hover {
+  background: color-mix(in srgb, var(--vr-primary) 10%, transparent);
+  color: var(--vr-primary);
+}
+
+.vr-enter-3d__nav-meta {
+  margin: auto 0 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  font-size: 0.8rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-pins-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+}
+
+.vr-pins-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vr-primary);
+}
+
+.vr-pins-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.vr-pins-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.vr-pins-panel__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vr-pins-panel__actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.vr-pins-panel__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pins-panel__empty,
+.vr-pins-panel__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-pins-panel__error {
+  color: #f5a8a8;
+}
+
+.vr-pin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, #000 55%, transparent);
+  pointer-events: auto;
+}
+
+.vr-pin-modal__card {
+  width: min(420px, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: var(--vr-surface-container-high);
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-pin-modal__card h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.vr-pin-modal__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface-container);
+  color: var(--vr-on-background);
+  font: inherit;
+}
+
+.vr-pin-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+

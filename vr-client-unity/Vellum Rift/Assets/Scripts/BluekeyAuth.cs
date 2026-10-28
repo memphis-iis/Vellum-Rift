@@ -545,12 +545,26 @@ namespace VellumRift
                     showLobbyUi = false;
                     HideLoginLobby();
                 }
+                else if (LanPartyAllowsAnonymous())
+                {
+                    Debug.Log(
+                        "[BluekeyAuth] LAN party (allowInsecureHttp) — skipping Bluekey popup; backend AUTH_REQUIRED=false.");
+                    showLobbyUi = false;
+                    HideLoginLobby();
+                }
                 else
                 {
                     Debug.Log("[BluekeyAuth] No dashboard handoff — falling back to Bluekey popup.");
                     BeginLogin();
                 }
             }
+        }
+
+        /// <summary>Museum LAN builds stage SessionManager.allowInsecureHttp=true.</summary>
+        private static bool LanPartyAllowsAnonymous()
+        {
+            SessionManager sm = FindFirstObjectByType<SessionManager>();
+            return sm != null && sm.AllowInsecureHttp;
         }
 
         private bool TryApplyLaunchToken()

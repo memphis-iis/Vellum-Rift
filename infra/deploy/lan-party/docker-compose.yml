@@ -5,6 +5,7 @@
 # Usage (from this directory, after copying .env.example → .env and placing a
 # Unity WebGL museum build under ./webgl — see README):
 #   docker compose up -d
+#   ./start-with-dns.sh   # detect LAN IP → .env.runtime, then dnsmasq up
 #
 # Backend image: GHCR when set, otherwise build from repo root Dockerfile.
 # Override: BACKEND_IMAGE=ghcr.io/memphis-iis/vellum-rift/backend:latest
@@ -86,7 +87,7 @@ services:
       context: ../../..
       dockerfile: infra/deploy/lan-party/Dockerfile.dashboard
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?Set VITE_API_BASE_URL in .env (see .env.example)}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
         VITE_WEBGL_BASE_URL: ${VITE_WEBGL_BASE_URL:?Set VITE_WEBGL_BASE_URL in .env (see .env.example)}
         VITE_AUTH_REQUIRED: ${VITE_AUTH_REQUIRED:-false}
         VITE_CHAT_ENABLED: ${VITE_CHAT_ENABLED:-false}
@@ -94,6 +95,35 @@ services:
     restart: unless-stopped
     ports:
       - "${DASHBOARD_PORT:-5173}:80"
+      # Quest/captive-portal checks hit :80 on SERVER_LAN_IP when DNS sinkholes to the LAN host.
+      - "${DASHBOARD_HTTP_PORT:-80}:80"
+
+  # Fake DNS sinkhole — resolves all names to SERVER_LAN_IP so Quest Wi‑Fi stays up offline.
+  # Bind to SERVER_LAN_IP:53 (not 0.0.0.0:53) to avoid fighting systemd-resolved on dev machines.
+  # On the party router, forward DHCP DNS to SERVER_LAN_IP (see README → OpenWrt).
+  # Fake DNS sinkhole (Quest captive portal). Image: dockurr/dnsmasq (not 46cl — private/missing).
+  # Bind host ports to DNSMASQ_BIND_IP (default SERVER_LAN_IP). That address must exist on a
+  # host iface or Docker fails with "cannot assign requested address". On OpenWrt LAN use the
+  # kit IP; off-LAN tests can set DNSMASQ_BIND_IP to Tailscale/Wi‑Fi IP while SERVER_LAN_IP
+  # stays the party address returned in answers.
+  dnsmasq:
+    image: dockurr/dnsmasq:latest
+    restart: unless-stopped
+    ports:
+      - "${DNSMASQ_BIND_IP:-${SERVER_LAN_IP:?Set SERVER_LAN_IP in .env}}:53:53/udp"
+      - "${DNSMASQ_BIND_IP:-${SERVER_LAN_IP:?Set SERVER_LAN_IP in .env}}:53:53/tcp"
+    cap_add:
+      - NET_ADMIN
+    environment:
+      SERVER_LAN_IP: ${SERVER_LAN_IP}
+    volumes:
+      - ./dnsmasq.conf.template:/template/dnsmasq.conf.template:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed "s/__SERVER_LAN_IP__/$${SERVER_LAN_IP}/" /template/dnsmasq.conf.template
+        > /etc/dnsmasq.conf
+        && exec /usr/bin/dnsmasq.sh
 
   webgl:
     image: nginx:1.27-alpine

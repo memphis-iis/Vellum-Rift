@@ -78,3 +78,38 @@ BACKEND_IMAGE=ghcr.io/<org>/vellum-rift/backend:<tag> docker compose up -d
 ```
 
 Dashboard rebuild after `.env` Vite changes: `docker compose build web-dashboard && docker compose up -d web-dashboard`.
+
+## Fake DNS sinkhole (Quest Wi‑Fi on air‑gap)
+
+Compose runs **dnsmasq** (`dockurr/dnsmasq` + `dnsmasq.conf.template`): every query returns `SERVER_LAN_IP`. Point the LAN router’s DHCP DNS at the party server so headsets do not treat the network as “no internet” and drop Wi‑Fi.
+
+**Start with live host IP** (bind `:53` and sinkhole `address=/#/` to the same address — avoids stale `.env` when the laptop/router IP changes):
+
+```bash
+./start-with-dns.sh          # dnsmasq only; writes .env.runtime
+./start-with-dns.sh --all    # full stack + runtime IP for dnsmasq
+```
+
+Detection uses the default-route IPv4 (`ip -4 route get 1.1.1.1`), skipping docker/loopback; **tailscale0** is used only if no other global IPv4 exists.
+
+**Verify on the server** (after `./start-with-dns.sh` or `docker compose up -d dnsmasq web-dashboard`):
+
+```bash
+dig @${SERVER_LAN_IP} clients3.google.com +short   # → SERVER_LAN_IP
+curl -s -o /dev/null -w '%{http_code}\n' "http://${SERVER_LAN_IP}/generate_204"   # → 204
+```
+
+DNS publishes on **`${SERVER_LAN_IP}:53`** (not `0.0.0.0:53`) so it does not conflict with **systemd-resolved** on Linux dev boxes (resolved usually listens on `127.0.0.53` / `127.0.0.54` only). If you need `53` on all interfaces on a dedicated party host, change `dnsmasq` `ports` in `docker-compose.yml` to `"53:53/udp"` and `"53:53/tcp"` and stop anything else bound to :53.
+
+On **Fedora Workstation** with **firewalld**, allow DNS during local tests: `sudo firewall-cmd --add-port=53/udp --add-port=53/tcp` (or add a rich rule for `${SERVER_LAN_IP}`). Default zone often permits high ports only, so `dig @${SERVER_LAN_IP}` can time out until :53 is open.
+
+The dashboard container serves **`DASHBOARD_HTTP_PORT` (default 80)** as well as `DASHBOARD_PORT` (5173) so HTTP probes to the sinkholed IP on port 80 succeed (`nginx-dashboard.conf`).
+
+### OpenWrt (James)
+
+On the private router, set the party server as the LAN DNS forwarder (example `192.168.1.184` — use your `SERVER_LAN_IP`):
+
+1. **Network → DHCP and DNS → General Settings** → **DNS forwardings**: `192.168.1.184` (or `SERVER_LAN_IP`).
+2. **Network → Interfaces → LAN → DHCP Server → Advanced** → **DHCP-Options**: `6,192.168.1.184` (`6,<SERVER_LAN_IP>` — option 6 = DNS servers for clients).
+
+Renew DHCP on Quests (toggle Wi‑Fi) after changing options.

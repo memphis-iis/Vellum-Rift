@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Vellum Wall Observer
+Comment=Discover museum gateway (UDP) and open Observer over HTTP
+Exec=vellum-observer
+Icon=vellum-observer
+Terminal=false
+Categories=Network;Education;
+StartupNotify=true
+X-AppImage-Version=1.0.0
