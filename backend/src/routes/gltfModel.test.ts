@@ -387,7 +387,7 @@ describe("gltfModel routes", () => {
     });
 
     it("streams the original glb when tier=quest is already within budget", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+      mocks.query.mockResolvedValue({ rows: [mockDbRow] });
       mockDownload.mockResolvedValueOnce(Readable.from(["FAKEGLB"]));
 
       const res = await request(app)
@@ -400,7 +400,7 @@ describe("gltfModel routes", () => {
     });
 
     it("builds and caches a quest glb when the stored mesh is over budget", async () => {
-      mocks.query.mockResolvedValueOnce({
+      mocks.query.mockResolvedValue({
         rows: [{ ...mockDbRow, vertex_count: 330_600, width: 600, height: 551 }],
       });
       mockStat.mockRejectedValueOnce(new Error("not found"));
@@ -423,7 +423,7 @@ describe("gltfModel routes", () => {
     });
 
     it("serves the cached quest glb without rebuilding", async () => {
-      mocks.query.mockResolvedValueOnce({
+      mocks.query.mockResolvedValue({
         rows: [{ ...mockDbRow, vertex_count: 330_600, width: 600, height: 551 }],
       });
       mockStat.mockResolvedValueOnce({ name: "cache", size: 8, etag: "e", lastModified: "" });
@@ -439,7 +439,7 @@ describe("gltfModel routes", () => {
     });
 
     it("returns 400 for an unknown tier", async () => {
-      mocks.query.mockResolvedValueOnce({ rows: [mockDbRow] });
+      mocks.query.mockResolvedValue({ rows: [mockDbRow] });
 
       const res = await request(app)
         .get(`/${SAMPLE_MODEL_ID}?tier=phone`)
