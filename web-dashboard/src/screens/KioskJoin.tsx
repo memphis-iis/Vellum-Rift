@@ -215,7 +215,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setOpsStatus(null);
     try {
       await respawnPlayer(sessionId, playerId);
-      setOpsStatus("Respawned at the manuscript — look for the 3D view to update.");
+      setOpsStatus("Respawned at the manuscript - look for the 3D view to update.");
     } catch (err) {
       setOpsStatus(err instanceof Error ? err.message : "Respawn failed");
     } finally {
@@ -256,7 +256,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
               ? "Public join is unavailable."
               : phase === "blocked"
                 ? "One more tap to open 3D."
-                : "No sign-in required — preview the exhibit, enter a nametag, and open 3D."}
+                : "No sign-in required - preview the exhibit, enter a nametag, and open 3D."}
           </p>
         </header>
 
@@ -409,7 +409,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
             {showMuseumOps ? (
               <div className="vr-kiosk__museum-ops" aria-label="Museum Quest controls">
                 <p className="vr-kiosk__hint">
-                  Quest headset only — laptop/WebGL keeps its own controls.
+                  Quest headset only - laptop/WebGL keeps its own controls.
                 </p>
                 <button
                   type="button"

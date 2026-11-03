@@ -47,7 +47,7 @@ export function readDashboardEmail(): string {
  * (never put the token in the query string). Falls back to Unity's own Bluekey
  * popup when no dashboard token is available.
  *
- * Do not use `noopener` — we need the window reference (and the child needs
+ * Do not use `noopener` - we need the window reference (and the child needs
  * `window.opener` for the ready ping).
  */
 export function launchWebGlWithAuthHandoff(options: {
@@ -59,7 +59,7 @@ export function launchWebGlWithAuthHandoff(options: {
   const { url, accessToken, email, webGlOrigin } = options;
   const win = window.open(url, "vellumRiftWebGL");
   if (!win) {
-    console.warn("[VellumRift] WebGL launch blocked — allow popups for this site.");
+    console.warn("[VellumRift] WebGL launch blocked - allow popups for this site.");
     return null;
   }
 

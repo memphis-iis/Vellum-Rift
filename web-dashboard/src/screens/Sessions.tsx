@@ -168,7 +168,7 @@ export default function Sessions({
             className="vr-sessions__create-input"
             type="text"
             maxLength={120}
-            placeholder="e.g. Codex fragment — study group"
+            placeholder="e.g. Codex fragment - study group"
             value={newLabel}
             disabled={creating}
             onChange={(e) => setNewLabel(e.target.value)}

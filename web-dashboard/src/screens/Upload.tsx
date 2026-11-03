@@ -63,7 +63,7 @@ function normalizeJob(
 }
 
 function labelForFile(title: string, file: File, multi: boolean): string {
-  return multi ? `${title} — ${file.name}` : title;
+  return multi ? `${title} - ${file.name}` : title;
 }
 
 type UploadProps = {
@@ -228,7 +228,7 @@ export default function Upload({ onViewModel }: UploadProps) {
             required
             maxLength={200}
             autoComplete="off"
-            placeholder="e.g. Codex fragment — folio 12"
+            placeholder="e.g. Codex fragment - folio 12"
             value={title}
             disabled={uploading}
             onChange={(e) => {

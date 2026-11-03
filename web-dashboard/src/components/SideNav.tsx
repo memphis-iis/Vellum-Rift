@@ -12,6 +12,7 @@ type SideNavProps = {
 
 const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "home" },
+  { id: "demos", label: "Demos", icon: "auto_awesome" },
   { id: "upload", label: "Upload", icon: "upload_file" },
   { id: "documents", label: "Library", icon: "view_in_ar" },
   { id: "sessions", label: "Spaces", icon: "history_edu" },

@@ -78,6 +78,10 @@ export interface GameSession {
   kind?: "exploration" | "event";
   startsAt?: string | null;
   endsAt?: string | null;
+  /** Curated Try now demo catalog. */
+  demoEnabled?: boolean;
+  demoCategory?: string | null;
+  demoSummary?: string | null;
   /** Museum host turn timer — server clamps expired turns to "ended". */
   experiencePhase?: "playing" | "ended";
   rotationEndsAt?: string | null;
@@ -105,7 +109,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         lower.includes("token") ||
         lower.includes("unauthorized")
       ) {
-        notifyAuthExpired("Session expired — sign in again.");
+        notifyAuthExpired("Session expired - sign in again.");
       }
     }
     throw new Error(message);
@@ -261,6 +265,20 @@ export function setSessionKiosk(
     {
       method: "PATCH",
       body: JSON.stringify({ enabled }),
+    },
+  );
+}
+
+/** Bluekey demo admin publishes Space to Try now catalog. */
+export function setSessionDemo(
+  sessionId: string,
+  body: { enabled?: boolean; category?: string; summary?: string },
+): Promise<GameSession> {
+  return request<GameSession>(
+    `/api/game-state/${encodeURIComponent(sessionId)}/demo`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
     },
   );
 }

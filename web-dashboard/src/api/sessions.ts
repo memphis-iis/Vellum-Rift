@@ -31,6 +31,10 @@ export type GameSession = {
   activeModelId?: string | null;
   /** Museum public join (#145). */
   kioskEnabled?: boolean;
+  /** Curated Try now demo catalog. */
+  demoEnabled?: boolean;
+  demoCategory?: string | null;
+  demoSummary?: string | null;
   /** exploration | event (#146). */
   kind?: "exploration" | "event";
   startsAt?: string | null;

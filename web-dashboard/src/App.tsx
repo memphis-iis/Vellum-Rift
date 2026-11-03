@@ -4,6 +4,7 @@ import { AmbientBackground } from "./components/AmbientBackground";
 import type { AppSection } from "./components/AppChrome";
 import { SideNav } from "./components/SideNav";
 import Documents from "./screens/Documents";
+import Demos from "./screens/Demos";
 import Enter from "./screens/Enter";
 import Home from "./screens/Home";
 import KioskJoin from "./screens/KioskJoin";
@@ -97,8 +98,10 @@ function Dashboard() {
             onUpload={() => setSection("upload")}
             onJoinSession={() => setSection("sessions")}
             onEnterSession={enterSession}
+            onBrowseDemos={() => setSection("demos")}
           />
         ) : null}
+        {section === "demos" ? <Demos onEnterSession={enterSession} /> : null}
         {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
         {section === "documents" ? (
           <Documents
