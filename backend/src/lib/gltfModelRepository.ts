@@ -162,6 +162,19 @@ export class GlTFModelRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  /** File legacy unfiled meshes into Uploads for this owner (#233 backfill). */
+  async adoptUnfiled(folderId: string, ownerSub: string): Promise<number> {
+    const result = await pool.query(
+      `UPDATE gltf_models
+       SET folder_id = $1,
+           owner_sub = COALESCE(NULLIF(btrim(owner_sub), ''), $2)
+       WHERE folder_id IS NULL
+         AND (owner_sub IS NULL OR btrim(owner_sub) = '' OR owner_sub = $2)`,
+      [folderId, ownerSub],
+    );
+    return result.rowCount ?? 0;
+  }
+
   async setLocation(
     modelId: string,
     folderId: string,

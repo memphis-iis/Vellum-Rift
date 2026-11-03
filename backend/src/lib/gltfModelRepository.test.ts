@@ -146,6 +146,19 @@ describe("GlTFModelRepository", () => {
     });
   });
 
+  describe("adoptUnfiled", () => {
+    it("files null-folder models for this owner into Uploads", async () => {
+      mocks.query.mockResolvedValueOnce({ rowCount: 11 });
+
+      const n = await repo.adoptUnfiled("uploads-folder", "1");
+      expect(n).toBe(11);
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("WHERE folder_id IS NULL"),
+        ["uploads-folder", "1"],
+      );
+    });
+  });
+
   describe("delete", () => {
     it("returns true when a row was deleted", async () => {
       mocks.query.mockResolvedValueOnce({ rowCount: 1 });

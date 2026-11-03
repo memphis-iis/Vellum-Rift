@@ -3,6 +3,7 @@
  */
 
 import pool from "./db.js";
+import { GlTFModelRepository } from "./gltfModelRepository.js";
 import { normalizeEmail } from "./sessionAccess.js";
 
 export type LibraryShareRole = "view" | "edit";
@@ -93,7 +94,10 @@ export class LibraryRepository {
 
   async getOrCreateLibrary(ownerSub: string, ownerEmail: string): Promise<ManuscriptLibrary> {
     const existing = await this.findLibraryByOwner(ownerSub);
-    if (existing) return existing;
+    if (existing) {
+      await this.adoptUnfiled(existing);
+      return existing;
+    }
 
     const client = await pool.connect();
     try {
@@ -137,17 +141,26 @@ export class LibraryRepository {
       }
 
       await client.query("COMMIT");
-      return {
+      const created: ManuscriptLibrary = {
         ...mapLibrary(libRow),
         rootFolderId: rootId,
         uploadsFolderId: String(uploadsRes.rows[0].folder_id),
       };
+      await this.adoptUnfiled(created);
+      return created;
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
     } finally {
       client.release();
     }
+  }
+
+  private async adoptUnfiled(library: ManuscriptLibrary): Promise<void> {
+    await new GlTFModelRepository().adoptUnfiled(
+      library.uploadsFolderId,
+      library.ownerSub,
+    );
   }
 
   async findFolderById(folderId: string): Promise<LibraryFolder | null> {
