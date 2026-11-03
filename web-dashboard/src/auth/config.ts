@@ -23,7 +23,14 @@ export const EMAIL_STORAGE_KEY = "vellum_rift_user_email";
 /** Museum kiosk JWT — must not overwrite Bluekey host token. */
 export const KIOSK_TOKEN_STORAGE_KEY = "vellum_rift_kiosk_token";
 
-export const VELLUM_LOGO_URL = "https://iis.memphis.edu/static/bluekey/icons/vellumrift.png";
+/** Prefer local public assets (BASE_URL-safe); BrandMark owns the same paths. */
+function publicAsset(filename: string): string {
+  const base = import.meta.env.BASE_URL || "/";
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  return `${prefix}${filename.replace(/^\//, "")}`;
+}
+
+export const VELLUM_LOGO_URL = publicAsset("vellumrift-logo.png");
 export const MEMPHIS_PILLAR_URL =
   "https://www.memphis.edu/communications/brand/Images/pillar.png";
 

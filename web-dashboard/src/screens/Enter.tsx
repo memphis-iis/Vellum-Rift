@@ -11,6 +11,7 @@ import {
   respawnAllPlayers,
   respawnPlayer,
   setPlayerControlScheme,
+  setSessionDemo,
   setSessionKiosk,
   setSessionVisibility,
   transferHost,
@@ -20,6 +21,7 @@ import {
   type GameSession,
   type HelpRequest,
 } from "../api/gameState";
+import { fetchDemoAdminStatus } from "../api/demos";
 import { fetchModelMeta, fetchModels } from "../api/models";
 import {
   sessionActiveModelId,
@@ -174,6 +176,9 @@ export default function Enter({
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
   const [previewModelId, setPreviewModelId] = useState<string | null>(null);
+  const [isDemoAdmin, setIsDemoAdmin] = useState(false);
+  const [demoCategoryDraft, setDemoCategoryDraft] = useState("Examples");
+  const [demoSummaryDraft, setDemoSummaryDraft] = useState("");
 
   const isHost = Boolean(me?.isHost);
   const pendingHelpRequests = useMemo((): HelpRequest[] => {
@@ -183,6 +188,9 @@ export default function Enter({
   const visibility = session?.visibility === "private" ? "private" : "public";
   const kioskEnabled = Boolean(
     session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
+  );
+  const demoEnabled = Boolean(
+    session?.demoEnabled === true || session?.metadata?.demoEnabled === true,
   );
   const spaceKind = sessionKind(session);
   /** Event + kiosk: museum path for respawn / Quest schemes (#322). */
@@ -208,6 +216,35 @@ export default function Enter({
   useEffect(() => {
     setAddInviteToAllowlist(visibility === "private");
   }, [visibility]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchDemoAdminStatus()
+      .then((ok) => {
+        if (!cancelled) setIsDemoAdmin(ok);
+      })
+      .catch(() => {
+        if (!cancelled) setIsDemoAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const cat =
+      (typeof session?.demoCategory === "string" && session.demoCategory.trim()) ||
+      (typeof session?.metadata?.demoCategory === "string" &&
+        String(session.metadata.demoCategory).trim()) ||
+      "Examples";
+    const summary =
+      (typeof session?.demoSummary === "string" && session.demoSummary) ||
+      (typeof session?.metadata?.demoSummary === "string"
+        ? String(session.metadata.demoSummary)
+        : "");
+    setDemoCategoryDraft(cat);
+    setDemoSummaryDraft(summary);
+  }, [session?.demoCategory, session?.demoSummary, session?.metadata, session?.sessionId]);
 
   useEffect(() => {
     if (!sessionId || !isHost) {
@@ -483,11 +520,33 @@ export default function Enter({
       applySession(updated);
       setInviteStatus(
         !kioskEnabled
-          ? "Kiosk join on — guests can enter without Bluekey via the public link"
-          : "Kiosk join off — Bluekey required again",
+          ? "Kiosk join on - guests can enter without Bluekey via the public link"
+          : "Kiosk join off - Bluekey required again",
       );
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Kiosk update failed");
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const saveDemoCatalog = async (enabled: boolean) => {
+    if (!sessionId || !isDemoAdmin || hostBusy) return;
+    setHostBusy(true);
+    try {
+      const updated = await setSessionDemo(sessionId, {
+        enabled,
+        category: demoCategoryDraft.trim() || "Examples",
+        summary: demoSummaryDraft.trim(),
+      });
+      applySession(updated);
+      setInviteStatus(
+        enabled
+          ? "Published to Try now / Demos (kiosk enabled for guests)"
+          : "Removed from Try now / Demos",
+      );
+    } catch (err) {
+      setInviteStatus(err instanceof Error ? err.message : "Demo catalog update failed");
     } finally {
       setHostBusy(false);
     }
@@ -503,7 +562,7 @@ export default function Enter({
       });
       applySession(updated as GameSession);
       setRotationNow(Date.now());
-      setInviteStatus(`Turn started — ${minutes} min`);
+      setInviteStatus(`Turn started - ${minutes} min`);
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Could not start turn");
     } finally {
@@ -517,7 +576,7 @@ export default function Enter({
     try {
       const updated = await patchSessionRotation(sessionId, { experiencePhase: "ended" });
       applySession(updated as GameSession);
-      setInviteStatus("Turn reset — experience ended");
+      setInviteStatus("Turn reset - experience ended");
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Could not reset turn");
     } finally {
@@ -534,7 +593,7 @@ export default function Enter({
       applySession(updated as GameSession);
       setInviteStatus(
         next === "event"
-          ? "Marked as event — appears as Featured on Home when active"
+          ? "Marked as event - appears as Featured on Home when active"
           : "Marked as exploration",
       );
     } catch (err) {
@@ -726,7 +785,7 @@ export default function Enter({
         <header className="vr-enter__empty-header">
           <h1 className="vr-enter__title">Lobby</h1>
           <p className="vr-enter__lead">
-            Pick a space from Spaces, then Launch to open this lobby — presence map, chat, and 3D for
+            Pick a space from Spaces, then Launch to open this lobby - presence map, chat, and 3D for
             web or VR.
           </p>
           <button type="button" className="vr-btn vr-btn--primary" onClick={onBrowseSessions}>
@@ -792,7 +851,7 @@ export default function Enter({
                 className={`vr-enter__mode-btn${enterMode === "observer" ? " is-active" : ""}`}
                 onClick={() => setEnterMode("observer")}
                 aria-pressed={enterMode === "observer"}
-                title="Museum wall — auto camera, chat, radar"
+                title="Museum wall - auto camera, chat, radar"
               >
                 Observer
               </button>
@@ -1088,6 +1147,66 @@ export default function Enter({
                 {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
               </button>
             ) : null}
+            {isDemoAdmin ? (
+              <section className="vr-enter__demo-admin" aria-label="Try now demo catalog">
+                <p className="vr-enter__demo-admin-title">
+                  <MaterialIcon name="auto_awesome" />
+                  Try now catalog
+                </p>
+                <label className="vr-enter__demo-field">
+                  <span>Category</span>
+                  <input
+                    list="vr-demo-categories"
+                    className="vr-enter__invite-input"
+                    value={demoCategoryDraft}
+                    onChange={(e) => setDemoCategoryDraft(e.target.value)}
+                    maxLength={64}
+                    disabled={hostBusy}
+                  />
+                  <datalist id="vr-demo-categories">
+                    <option value="Manuscripts" />
+                    <option value="Medieval" />
+                    <option value="Forgery" />
+                    <option value="Handwriting" />
+                    <option value="Examples" />
+                  </datalist>
+                </label>
+                <label className="vr-enter__demo-field">
+                  <span>Summary</span>
+                  <input
+                    className="vr-enter__invite-input"
+                    value={demoSummaryDraft}
+                    onChange={(e) => setDemoSummaryDraft(e.target.value)}
+                    maxLength={280}
+                    placeholder="Short blurb for the catalog"
+                    disabled={hostBusy}
+                  />
+                </label>
+                <div className="vr-enter__demo-actions">
+                  <button
+                    type="button"
+                    className="vr-enter__text-btn"
+                    onClick={() => void saveDemoCatalog(true)}
+                    disabled={hostBusy}
+                    title="Requires a playlist; enables kiosk for guests"
+                  >
+                    <MaterialIcon name={demoEnabled ? "published_with_changes" : "publish"} />
+                    {demoEnabled ? "Update demo" : "Publish as demo"}
+                  </button>
+                  {demoEnabled ? (
+                    <button
+                      type="button"
+                      className="vr-enter__text-btn"
+                      onClick={() => void saveDemoCatalog(false)}
+                      disabled={hostBusy}
+                    >
+                      <MaterialIcon name="unpublished" />
+                      Unpublish
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
             {canUseObserver && observerLinkText ? (
               <button
                 type="button"
@@ -1186,7 +1305,7 @@ export default function Enter({
             ) : (
               <p className="vr-enter__allowlist-empty">
                 {visibility === "private"
-                  ? "Private space — add emails (or check Allowlist on invite)."
+                  ? "Private space - add emails (or check Allowlist on invite)."
                   : "Optional allowlist (used if you switch to Private)."}
               </p>
             )}
@@ -1209,7 +1328,7 @@ export default function Enter({
                   Respawn all
                 </button>
                 <span className="vr-enter__host-ops-hint">
-                  Quest schemes apply on headset only — laptop controls stay unchanged
+                  Quest schemes apply on headset only - laptop controls stay unchanged
                 </span>
               </div>
             ) : null}
@@ -1435,7 +1554,7 @@ export default function Enter({
             <div className="vr-enter__desktop">
               <p>
                 Desktop join uses CLI handoff (#128 / #129). Copy and run against your standalone
-                build (token included when you are signed in — treat it like a password):
+                build (token included when you are signed in - treat it like a password):
               </p>
               <pre className="vr-enter__code">{desktopCmd}</pre>
               <button

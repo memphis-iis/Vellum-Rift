@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { readSessionDemo } from "../lib/sessionDemo.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
 import { readSessionRotation } from "../lib/sessionRotation.js";
 import { touchPlayerSeen } from "../lib/sessionPresence.js";
@@ -459,6 +460,7 @@ export class GameState {
     const kioskEnabled = readKioskEnabled(this.metadata);
     const { kind, startsAt, endsAt } = readSessionEvent(this.metadata);
     const { experiencePhase, rotationEndsAt } = readSessionRotation(this.metadata);
+    const demo = readSessionDemo(this.metadata);
     return {
       sessionId: this.sessionId,
       label: this.label,
@@ -481,6 +483,10 @@ export class GameState {
       /** Optional event window (#146). */
       startsAt,
       endsAt,
+      /** Curated Try now demo catalog — also metadata.demo*. */
+      demoEnabled: demo.enabled,
+      demoCategory: demo.enabled ? demo.category : null,
+      demoSummary: demo.enabled && demo.summary ? demo.summary : null,
       /** Museum host turn timer — server clamps expired turns to "ended". */
       experiencePhase,
       rotationEndsAt,

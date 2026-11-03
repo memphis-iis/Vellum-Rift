@@ -13,7 +13,10 @@ import {
   PROJECT_CITATION_VERSION,
   PROJECT_CITATION_YEAR,
 } from "../auth/citation";
+import { DemoCatalog } from "../components/DemoCatalog";
+import { demoKioskHref, type DemoCatalogItem } from "../api/demos";
 import "../styles/bluekey.css";
+import "../styles/vr-theme.css";
 
 /** Optional preconfigured exhibit Space for walk-up kiosk (no Bluekey). */
 const MUSEUM_KIOSK_SPACE_ID = String(
@@ -31,7 +34,7 @@ function goToKioskJoin(spaceId: string) {
 
 /**
  * IIS Bluekey login shell (Undertaker template), reworded for Vellum Rift.
- * Bluekey for anyone with an IIS account; museum guests: kiosk path — never Bluekey-only (#180 / #187).
+ * Bluekey for anyone with an IIS account; museum guests: kiosk path - never Bluekey-only (#180 / #187).
  */
 export default function Login() {
   const {
@@ -99,7 +102,7 @@ export default function Login() {
 
           <p className="auth-lead">
             Spaces for web and VR. <strong>Sign in with Bluekey</strong> if you have an IIS
-            account (host, upload, or join). <strong>Museum guests</strong> do not need Bluekey —
+            account (host, upload, or join). <strong>Museum guests</strong> do not need Bluekey;
             use the exhibit QR or guest join below.
           </p>
 
@@ -113,13 +116,34 @@ export default function Login() {
         </div>
 
         <div className="auth-form-panel">
+          <section className="auth-guest-panel" aria-labelledby="auth-try-heading">
+            <p className="eyebrow" id="auth-try-heading">
+              Try now
+            </p>
+            <p className="auth-guest-lead">
+              No account needed - open a curated example Space with sample manuscripts in 3D.
+            </p>
+            <DemoCatalog
+              compact
+              className="auth-demo-catalog"
+              tryLabel="Try now"
+              onTry={(demo: DemoCatalogItem) => {
+                window.location.assign(demoKioskHref(demo.sessionId));
+              }}
+            />
+          </section>
+
+          <div className="auth-separator" role="presentation">
+            <span>Museum</span>
+          </div>
+
           <section className="auth-guest-panel" aria-labelledby="auth-guest-heading">
             <p className="eyebrow" id="auth-guest-heading">
               Museum / guest
             </p>
             <p className="auth-guest-lead">
-              No IIS account required. Scan the host’s QR, open their kiosk link, or enter a Space
-              ID if one is posted on the exhibit.
+              Scan the host’s QR, open their kiosk link, or enter a Space ID if one is posted on the
+              exhibit.
             </p>
 
             {MUSEUM_KIOSK_SPACE_ID ? (

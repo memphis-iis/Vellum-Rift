@@ -24,6 +24,7 @@ import realtimeRouter from "./routes/realtime.js";
 import notificationsRouter from "./routes/notifications.js";
 import kioskRouter from "./routes/kiosk.js";
 import libraryRouter from "./routes/library.js";
+import demosRouter from "./routes/demos.js";
 
 dotenv.config();
 
@@ -77,10 +78,12 @@ app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
 // Museum kiosk: status + short-lived join token (#145). Scoped per session.
 app.use("/api/kiosk", kioskRouter);
+// Curated Try now demos (public catalog; admin-status uses requireAuth).
+app.use("/api/demos", demosRouter);
 
 // ---------------------------------------------------------------------------
 // Protected routes (require Bluekey auth when AUTH_REQUIRED=true)
-// Policy: only /health, /api/health, and /api/kiosk/* are anonymous.
+// Policy: only /health, /api/health, /api/kiosk/*, and GET /api/demos are anonymous.
 // Session/model/realtime also accept a session-scoped kiosk JWT (#145).
 // See docs/reference/authentication.md.
 // ---------------------------------------------------------------------------

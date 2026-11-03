@@ -55,7 +55,7 @@ const ACCEPTED_MESSAGE_TYPES = new Set([
   "auth-success",
 ]);
 
-/** Best-effort JWT payload decode (no signature verify — UI identity only). */
+/** Best-effort JWT payload decode (no signature verify - UI identity only). */
 function subFromAccessToken(token: string | null | undefined): string | null {
   if (!token || token === "local-dev") return null;
   try {
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onExpired = (ev: Event) => {
       const detail = (ev as CustomEvent<{ message?: string }>).detail;
       setUser(null);
-      setError(detail?.message ?? "Session expired — sign in again.");
+      setError(detail?.message ?? "Session expired - sign in again.");
       setLoading(false);
     };
     window.addEventListener("pageshow", onPageShow);

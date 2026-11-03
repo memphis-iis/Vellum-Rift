@@ -56,6 +56,8 @@ Policy: only liveness/health endpoints and the scoped kiosk mint surface are ano
 | `GET /api/kiosk/events` | **Public** | Active Event spaces with kiosk on (Quest museum picker) |
 | `GET /api/kiosk/:sessionId/status` | **Public** | Museum QR discovery when host enabled kiosk (#145) |
 | `POST /api/kiosk/:sessionId/token` | **Public** | Rate-limited mint of short-lived kiosk JWT (#145) |
+| `GET /api/demos` | **Public** | Curated Try now demo Spaces (demo + kiosk + playlist) |
+| `GET /api/demos/admin-status` | **Protected** (Bluekey) | Whether caller may publish demos (`DEMO_ADMIN_EMAILS`) |
 | `/api/game-state/*` | **Protected** (Bluekey **or** kiosk JWT) | Session presence, chat, summon, lasers, artifacts |
 | `/api/models/*` | **Protected** (Bluekey **or** kiosk JWT) | Model metadata and download; generate stays Bluekey-effective via guest denials |
 | `/api/upload` | **Protected** (Bluekey only) | Manuscript upload / processing start |
@@ -191,7 +193,7 @@ Implementation: `web-dashboard/src/auth/launchWebGl.ts`, `BluekeyAuth.cs`, `Asse
 
 ### Desktop
 
-Use CLI/env (`-accessToken=` / `VELLUM_ACCESS_TOKEN`). Electron launcher is deferred — see [006-electron-launcher-scope.md](../architecture/006-electron-launcher-scope.md).
+Use CLI/env (`-accessToken=` / `VELLUM_ACCESS_TOKEN`). Electron launcher is deferred - see [006-electron-launcher-scope.md](../architecture/006-electron-launcher-scope.md).
 
 ---
 
@@ -209,8 +211,15 @@ Use CLI/env (`-accessToken=` / `VELLUM_ACCESS_TOKEN`). Electron launcher is defe
 | `KIOSK_JWT_SECRET` | HS256 secret for museum kiosk join tokens (#145); falls back to `JWT_SECRET` |
 | `KIOSK_TOKEN_TTL_SEC` | Kiosk token lifetime (default 3600) |
 | `KIOSK_RATE_LIMIT` / `KIOSK_RATE_WINDOW_MS` | Public token mint rate limit (default 30 / 5 minutes) |
+| `DEMO_ADMIN_EMAILS` | Comma-separated Bluekey emails allowed to publish Try now demos |
 
-There is no “uncomment introspection” step — `backend/src/lib/auth.ts` always contains the live middleware; `AUTH_REQUIRED` toggles enforcement.
+### Try now / demos
+
+1. Demo admin (`DEMO_ADMIN_EMAILS`) opens a Space Lobby → **Publish as demo**, sets category/summary. Publishing requires a playlist and auto-enables kiosk.
+2. Guests: Login **Try now** or `GET /api/demos` → open `?session=&kiosk=1`.
+3. Signed-in users: **Demos** in the nav → enter the curated Space (Bluekey visitor).
+
+There is no “uncomment introspection” step - `backend/src/lib/auth.ts` always contains the live middleware; `AUTH_REQUIRED` toggles enforcement.
 
 ## File Locations
 

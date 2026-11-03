@@ -123,7 +123,7 @@ export function readBearerTokenForApi(): string | null {
   return host && host !== "local-dev" ? host : null;
 }
 
-export function notifyAuthExpired(message = "Session expired — sign in again."): void {
+export function notifyAuthExpired(message = "Session expired - sign in again."): void {
   try {
     sessionStorage.setItem("vellum_rift_auth_expired_msg", message);
   } catch {

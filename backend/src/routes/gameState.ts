@@ -20,6 +20,8 @@ import {
 } from "../lib/sessionAccess.js";
 import { isChatEnabled } from "../lib/chatEnabled.js";
 import { writeKioskEnabled } from "../lib/sessionKiosk.js";
+import { isDemoAdmin } from "../lib/demoAdmins.js";
+import { applyDemoPatch } from "../lib/sessionDemo.js";
 import {
   applyEventPatch,
   parseSessionKind,
@@ -505,6 +507,41 @@ router.patch("/:sessionId/event", async (req: Request, res: Response) => {
   }
 
   const patched = applyEventPatch(state.metadata, body);
+  if (!patched.ok) {
+    res.status(400).json({ error: patched.error });
+    return;
+  }
+
+  state.metadata = patched.metadata;
+  state.updatedAt = new Date().toISOString();
+  await repo.save(state);
+  res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/demo — Bluekey demo admins curate Try now
+// Body: { enabled?: boolean, category?: string, summary?: string }
+// Enabling requires a playlist and auto-enables kiosk for guest Try now.
+// ---------------------------------------------------------------
+router.patch("/:sessionId/demo", async (req: Request, res: Response) => {
+  if (rejectKioskGuest(req, res)) return;
+
+  const state = await repo.findById(param(req, "sessionId"));
+  if (!state) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  if (!isDemoAdmin(req.user?.email)) {
+    res.status(403).json({ error: "Only demo admins can curate examples" });
+    return;
+  }
+
+  const body = req.body as {
+    enabled?: unknown;
+    category?: unknown;
+    summary?: unknown;
+  };
+  const patched = applyDemoPatch(state.metadata, body);
   if (!patched.ok) {
     res.status(400).json({ error: patched.error });
     return;

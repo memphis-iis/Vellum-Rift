@@ -1,7 +1,14 @@
-/** Local transparent assets (Black plate removed from Bluekey catalog PNG). */
-export const VELLUM_LOGO_URL = "/vellumrift-logo.png";
-/** Emblem only (no baked wordmark) — header / compact lockups */
-export const VELLUM_MARK_URL = "/vellumrift-mark.png";
+/** Respect Vite `--base` (e.g. `/static/vellum-dashboard/`) so logos resolve on IIS. */
+function publicAsset(filename: string): string {
+  const base = import.meta.env.BASE_URL || "/";
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  return `${prefix}${filename.replace(/^\//, "")}`;
+}
+
+/** Local transparent assets (black plate removed from Bluekey catalog PNG). */
+export const VELLUM_LOGO_URL = publicAsset("vellumrift-logo.png");
+/** Emblem only (no baked wordmark) for header / compact lockups */
+export const VELLUM_MARK_URL = publicAsset("vellumrift-mark.png");
 
 type BrandMarkProps = {
   /** Full stacked logo vs emblem-only */
@@ -14,8 +21,8 @@ type BrandMarkProps = {
 const HEIGHT_PX = { sm: 40, md: 56, lg: 112 } as const;
 
 /**
- * Vellum Rift mark — transparent PNGs for dark VR chrome.
- * (Source catalog art lives on IIS Bluekey static; we ship cleaned assets in `public/`.)
+ * Vellum Rift mark: transparent PNGs for dark VR chrome.
+ * Ship cleaned assets from `public/` (not the remote Bluekey icon URL).
  */
 export function BrandMark({ variant = "mark", className = "", size = "md" }: BrandMarkProps) {
   const h = HEIGHT_PX[size];

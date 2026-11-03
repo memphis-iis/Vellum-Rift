@@ -97,7 +97,7 @@ export function formatEventWindow(
       minute: "2-digit",
     });
   };
-  if (startsAt && endsAt) return `${fmt(startsAt)} – ${fmt(endsAt)}`;
+  if (startsAt && endsAt) return `${fmt(startsAt)} - ${fmt(endsAt)}`;
   if (startsAt) return `From ${fmt(startsAt)}`;
   return `Until ${fmt(endsAt!)}`;
 }
