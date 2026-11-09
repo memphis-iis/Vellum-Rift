@@ -91,6 +91,8 @@ namespace VellumRift
         /// <summary>Sticky launch override from CLI/env/query; when set, ignores session activeModelId.</summary>
         private string _modelIdOverride = "";
         private string _loadedModelId = "";
+        /// <summary>Last applied session depthScale (#328); NaN until first poll.</summary>
+        private float _appliedDepthScale = float.NaN;
         /// <summary>Last playlist fingerprint we kicked a preload for.</summary>
         private string _playlistPreloadKey = "";
 
@@ -363,6 +365,7 @@ namespace VellumRift
                     $"[SessionManager] Session activeModelId='{session.activeModelId ?? ""}' " +
                     $"override='{_modelIdOverride}'");
                 await ApplyActiveModelAsync(session.activeModelId);
+                ApplyDepthScale(session.depthScale);
                 if (string.IsNullOrEmpty(_loadedModelId) &&
                     string.IsNullOrEmpty(_modelIdOverride) &&
                     string.IsNullOrEmpty(session.activeModelId))
@@ -827,6 +830,7 @@ namespace VellumRift
             // phase changes so Start turn after Reset restores locomotion (#324).
             ApplyGameplayInputGate();
             KickPlaylistPreload(state.playlist);
+            ApplyDepthScale(state.depthScale);
 
             // Sticky launch override: do not follow host playlist switches.
             if (!string.IsNullOrEmpty(_modelIdOverride))
@@ -835,6 +839,18 @@ namespace VellumRift
             if (next == _loadedModelId)
                 return;
             _ = ApplyActiveModelAsync(next);
+        }
+
+        /// <summary>Apply host depthScale to the manuscript mesh without reload (#328).</summary>
+        private void ApplyDepthScale(float depthScale)
+        {
+            if (modelLoader == null)
+                return;
+            float next = Mathf.Clamp(depthScale, 0f, 5f);
+            if (!float.IsNaN(_appliedDepthScale) && Mathf.Approximately(_appliedDepthScale, next))
+                return;
+            _appliedDepthScale = next;
+            modelLoader.SetDepthScale(next);
         }
 
         /// <summary>

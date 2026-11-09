@@ -20,6 +20,10 @@ import {
 } from "../lib/sessionAccess.js";
 import { isChatEnabled } from "../lib/chatEnabled.js";
 import { writeKioskEnabled } from "../lib/sessionKiosk.js";
+import {
+  clampDepthScale,
+  writeDepthScale,
+} from "../lib/sessionDepthScale.js";
 import { isDemoAdmin } from "../lib/demoAdmins.js";
 import { applyDemoPatch } from "../lib/sessionDemo.js";
 import {
@@ -606,6 +610,38 @@ router.patch("/:sessionId/visibility", async (req: Request, res: Response) => {
   state.updatedAt = new Date().toISOString();
   await repo.save(state);
   res.json(state.toJSON());
+});
+
+// ---------------------------------------------------------------
+// PATCH /api/game-state/:sessionId/depth-scale  —  Host live relief (#328)
+// Body: { depthScale: number }  // clamped 0..5
+// ---------------------------------------------------------------
+router.patch("/:sessionId/depth-scale", async (req: Request, res: Response) => {
+  try {
+    const state = await repo.findById(param(req, "sessionId"));
+    if (!state) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (!requireHost(req, res, state)) return;
+
+    const raw = (req.body as { depthScale?: unknown })?.depthScale;
+    const clamped = clampDepthScale(raw);
+    if (clamped === null) {
+      res.status(400).json({ error: "depthScale must be a number between 0 and 5" });
+      return;
+    }
+
+    state.metadata = writeDepthScale(state.metadata, clamped);
+    state.updatedAt = new Date().toISOString();
+    await repo.save(state);
+    res.json(state.toJSON());
+  } catch (err) {
+    console.error("PATCH /api/game-state/:sessionId/depth-scale failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to update depth scale" });
+    }
+  }
 });
 
 // ---------------------------------------------------------------

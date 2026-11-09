@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { readPlaylist } from "../lib/sessionPlaylist.js";
 import { readKioskEnabled } from "../lib/sessionKiosk.js";
+import { readDepthScale } from "../lib/sessionDepthScale.js";
 import { readSessionDemo } from "../lib/sessionDemo.js";
 import { readSessionEvent } from "../lib/sessionEvent.js";
 import { readSessionRotation } from "../lib/sessionRotation.js";
@@ -458,6 +459,7 @@ export class GameState {
   toJSON(): Record<string, unknown> {
     const { playlist, activeModelId } = readPlaylist(this.metadata);
     const kioskEnabled = readKioskEnabled(this.metadata);
+    const depthScale = readDepthScale(this.metadata);
     const { kind, startsAt, endsAt } = readSessionEvent(this.metadata);
     const { experiencePhase, rotationEndsAt } = readSessionRotation(this.metadata);
     const demo = readSessionDemo(this.metadata);
@@ -478,6 +480,8 @@ export class GameState {
       activeModelId,
       /** Museum public join without Bluekey (#145) — also metadata.kioskEnabled. */
       kioskEnabled,
+      /** Live relief multiplier for 3D clients (#328) — also metadata.depthScale. */
+      depthScale,
       /** exploration | event (#146) — also metadata.kind. */
       kind,
       /** Optional event window (#146). */

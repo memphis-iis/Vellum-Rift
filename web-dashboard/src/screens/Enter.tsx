@@ -28,7 +28,11 @@ import {
   sessionPlaylist,
   shortModelLabel,
 } from "../api/playlistHelpers";
-import { patchSessionActiveModel, patchSessionPlaylist } from "../api/sessions";
+import {
+  patchSessionActiveModel,
+  patchSessionDepthScale,
+  patchSessionPlaylist,
+} from "../api/sessions";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
@@ -174,6 +178,9 @@ export default function Enter({
   const [hostBusy, setHostBusy] = useState(false);
   const [playlistBusy, setPlaylistBusy] = useState(false);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
+  const [depthDraft, setDepthDraft] = useState(1);
+  const [depthBusy, setDepthBusy] = useState(false);
+  const [depthError, setDepthError] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
   const [previewModelId, setPreviewModelId] = useState<string | null>(null);
   const [isDemoAdmin, setIsDemoAdmin] = useState(false);
@@ -189,6 +196,13 @@ export default function Enter({
   const kioskEnabled = Boolean(
     session?.kioskEnabled === true || session?.metadata?.kioskEnabled === true,
   );
+  const sessionDepthScale = (() => {
+    const top = session?.depthScale;
+    if (typeof top === "number" && Number.isFinite(top)) return Math.min(5, Math.max(0, top));
+    const meta = session?.metadata?.depthScale;
+    if (typeof meta === "number" && Number.isFinite(meta)) return Math.min(5, Math.max(0, meta));
+    return 1;
+  })();
   const demoEnabled = Boolean(
     session?.demoEnabled === true || session?.metadata?.demoEnabled === true,
   );
@@ -245,6 +259,30 @@ export default function Enter({
     setDemoCategoryDraft(cat);
     setDemoSummaryDraft(summary);
   }, [session?.demoCategory, session?.demoSummary, session?.metadata, session?.sessionId]);
+
+  useEffect(() => {
+    if (depthBusy) return;
+    setDepthDraft(sessionDepthScale);
+  }, [sessionDepthScale, session?.sessionId, depthBusy]);
+
+  useEffect(() => {
+    if (!sessionId || !isHost) return;
+    if (Math.abs(depthDraft - sessionDepthScale) < 0.001) return;
+    const timer = window.setTimeout(() => {
+      setDepthBusy(true);
+      setDepthError(null);
+      void patchSessionDepthScale(sessionId, depthDraft)
+        .then((updated) => {
+          applySession(updated);
+        })
+        .catch((err: unknown) => {
+          setDepthError(err instanceof Error ? err.message : "Depth update failed");
+          setDepthDraft(sessionDepthScale);
+        })
+        .finally(() => setDepthBusy(false));
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [depthDraft, sessionId, isHost, sessionDepthScale, applySession]);
 
   useEffect(() => {
     if (!sessionId || !isHost) {
@@ -1064,7 +1102,7 @@ export default function Enter({
           <summary className="vr-enter__host-ops-summary">
             <MaterialIcon name="admin_panel_settings" />
             Host tools
-            <span className="vr-enter__host-ops-hint">Turn timer, visibility, kiosk, invites, manuscripts, participants</span>
+            <span className="vr-enter__host-ops-hint">Turn timer, depth, visibility, kiosk, invites, manuscripts, participants</span>
           </summary>
 
           <div className="vr-enter__host-ops-toolbar">
@@ -1147,6 +1185,25 @@ export default function Enter({
                 {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
               </button>
             ) : null}
+            <label className="vr-enter__depth" title="Live Z relief on Quest / WebGL / desktop">
+              <span className="vr-enter__depth-label">
+                <MaterialIcon name="height" />
+                Depth
+              </span>
+              <input
+                type="range"
+                className="vr-enter__depth-range"
+                min={0}
+                max={5}
+                step={0.05}
+                value={depthDraft}
+                disabled={depthBusy}
+                onChange={(e) => setDepthDraft(Number(e.target.value))}
+                aria-valuetext={`${depthDraft.toFixed(2)}×`}
+              />
+              <span className="vr-enter__depth-value">{depthDraft.toFixed(2)}×</span>
+            </label>
+            {depthError ? <p className="vr-enter__depth-error">{depthError}</p> : null}
             {isDemoAdmin ? (
               <section className="vr-enter__demo-admin" aria-label="Try now demo catalog">
                 <p className="vr-enter__demo-admin-title">

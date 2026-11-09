@@ -22,8 +22,11 @@ namespace VellumRift
         [Tooltip("URL of the .glb to load (downloadUrl from the upload pipeline).")]
         public string modelUrl = "";
 
-        [Tooltip("Uniform scale applied to the loaded model. Manuscript meshes are in pixel units (e.g. 1100x1500x40), so ~0.01 makes them scene-sized.")]
+        [Tooltip("Uniform XY scale applied to the loaded model. Manuscript meshes are in pixel units (e.g. 1100x1500x40), so ~0.01 makes them scene-sized.")]
         [SerializeField] private float modelScale = 0.01f;
+
+        [Tooltip("Session relief multiplier on local Z (#328). Host-tuned via dashboard depthScale.")]
+        [SerializeField] private float depthScale = 1f;
 
         [Tooltip("Load automatically on Start.")]
         public bool loadOnStart = true;
@@ -42,6 +45,47 @@ namespace VellumRift
 
         /// <summary>Number of manuscripts held in the in-memory preload cache.</summary>
         public int CachedModelCount => cache.Count;
+
+        /// <summary>Current Z relief multiplier (clamped 0..5).</summary>
+        public float DepthScale => depthScale;
+
+        /// <summary>
+        /// XY = <paramref name="modelScale"/>; Z = modelScale * depthScale (relief).
+        /// </summary>
+        public static Vector3 ComputeModelLocalScale(float modelScale, float depthScale)
+        {
+            float s = modelScale;
+            float d = Mathf.Clamp(depthScale, 0f, 5f);
+            return new Vector3(s, s, s * d);
+        }
+
+        /// <summary>
+        /// Live session relief — scales cached/active roots without reloading the GLB.
+        /// </summary>
+        public void SetDepthScale(float scale)
+        {
+            float next = Mathf.Clamp(scale, 0f, 5f);
+            if (Mathf.Approximately(depthScale, next))
+            {
+                ApplyDepthScaleToCached();
+                return;
+            }
+            depthScale = next;
+            ApplyDepthScaleToCached();
+        }
+
+        private Vector3 CurrentLocalScale => ComputeModelLocalScale(modelScale, depthScale);
+
+        private void ApplyDepthScaleToCached()
+        {
+            Vector3 local = CurrentLocalScale;
+            foreach (var kv in cache)
+            {
+                if (kv.Value?.Root == null)
+                    continue;
+                kv.Value.Root.transform.localScale = local;
+            }
+        }
 
         private bool loadInProgress;
         private bool preloadInProgress;
@@ -298,6 +342,7 @@ namespace VellumRift
             modelUrl = entry.Url ?? modelUrl;
             LoadedModelUrl = entry.Url ?? "";
             IsLoaded = true;
+            entry.Root.transform.localScale = CurrentLocalScale;
             ShowEmptyState(false);
 
             SpatialIndicatorSystem indicators = FindFirstObjectByType<SpatialIndicatorSystem>();
@@ -380,7 +425,7 @@ namespace VellumRift
                 var parent = new GameObject("CachedModel_" + modelId).transform;
                 parent.SetParent(transform, false);
                 parent.localPosition = Vector3.zero;
-                parent.localScale = Vector3.one * modelScale;
+                parent.localScale = CurrentLocalScale;
 
                 bool instantiated = await gltf.InstantiateMainSceneAsync(parent);
                 if (!instantiated)
