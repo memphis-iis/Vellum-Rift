@@ -1,3 +1,13 @@
+/* Global keyboard focus baseline (WCAG 2.4.7 / 2.4.11 / 1.4.11, >= 3:1 on dark surfaces). */
+:root {
+  --vr-focus-ring: #7dd3fc;
+}
+
+:focus-visible {
+  outline: 2px solid var(--vr-focus-ring);
+  outline-offset: 2px;
+}
+
 /**
  * Vellum Rift post-login VR / spatial theme (Stitch home template → CSS).
  * Scoped under `.vr-app` so Bluekey login stays on its own chrome.
@@ -687,7 +697,8 @@
 }
 
 .vr-upload__title-input:focus {
-  outline: none;
+  outline: 2px solid var(--vr-focus-ring);
+    outline-offset: 2px;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
@@ -747,7 +758,8 @@
 }
 
 .vr-upload__page-input:focus {
-  outline: none;
+  outline: 2px solid var(--vr-focus-ring);
+    outline-offset: 2px;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
@@ -1258,7 +1270,6 @@
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
   background: color-mix(in srgb, var(--vr-surface-low) 75%, transparent);
   overflow: auto;
-  outline: none;
   min-height: 16rem;
 }
 
@@ -1438,7 +1449,8 @@
 
 .vr-docs__select:focus,
 .vr-docs__input:focus {
-  outline: none;
+  outline: 2px solid var(--vr-focus-ring);
+    outline-offset: 2px;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
@@ -1789,7 +1801,8 @@
 }
 
 .vr-sessions__create-input:focus {
-  outline: none;
+  outline: 2px solid var(--vr-focus-ring);
+    outline-offset: 2px;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
@@ -2162,7 +2175,8 @@
 }
 
 .vr-enter__invite-input:focus {
-  outline: none;
+  outline: 2px solid var(--vr-focus-ring);
+    outline-offset: 2px;
   border-color: color-mix(in srgb, var(--vr-accent) 55%, transparent);
 }
 
@@ -3071,7 +3085,6 @@
   flex: 1;
   min-width: 0;
   border: none;
-  outline: none;
   background: var(--vr-surface-container-high, #2d2926);
   color: var(--vr-on-surface);
   padding: 0.55rem 0.75rem;

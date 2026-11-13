@@ -424,7 +424,8 @@
 
 .auth-form-panel input:focus,
 .auth-form-panel textarea:focus {
-  outline: none;
+  outline: 2px solid #3f57c4;
+  outline-offset: 2px;
   border-color: #5d7ae0;
   box-shadow: 0 0 0 4px rgba(93, 122, 224, 0.12);
   background: #ffffff;
