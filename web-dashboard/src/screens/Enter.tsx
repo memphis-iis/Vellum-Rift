@@ -178,6 +178,9 @@ export default function Enter({
   const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
   const [allowlistEmail, setAllowlistEmail] = useState("");
   const [hostBusy, setHostBusy] = useState(false);
+  const [isDemoAdmin, setIsDemoAdmin] = useState(false);
+  const [demoCategoryDraft, setDemoCategoryDraft] = useState("Examples");
+  const [demoSummaryDraft, setDemoSummaryDraft] = useState("");
   const [playlistBusy, setPlaylistBusy] = useState(false);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [depthDraft, setDepthDraft] = useState(1);
@@ -185,9 +188,6 @@ export default function Enter({
   const [depthError, setDepthError] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
   const [previewModelId, setPreviewModelId] = useState<string | null>(null);
-  const [isDemoAdmin, setIsDemoAdmin] = useState(false);
-  const [demoCategoryDraft, setDemoCategoryDraft] = useState("Examples");
-  const [demoSummaryDraft, setDemoSummaryDraft] = useState("");
 
   const isHost = Boolean(me?.isHost);
   const pendingHelpRequests = useMemo((): HelpRequest[] => {
@@ -352,7 +352,7 @@ export default function Enter({
       const updated = await patchSessionActiveModel(sessionId, modelId);
       applySession(updated as GameSession);
     } catch (err) {
-      setPlaylistError(err instanceof Error ? err.message : "Failed to set active manuscript");
+      setPlaylistError(err instanceof Error ? err.message : "Failed to set active asset");
     } finally {
       setPlaylistBusy(false);
       setRoomPlaylistBusy(false);
@@ -368,7 +368,7 @@ export default function Enter({
       const updated = await patchSessionPlaylist(sessionId, { remove: modelId });
       applySession(updated as GameSession);
     } catch (err) {
-      setPlaylistError(err instanceof Error ? err.message : "Failed to remove manuscript");
+      setPlaylistError(err instanceof Error ? err.message : "Failed to remove asset");
     } finally {
       setPlaylistBusy(false);
       setRoomPlaylistBusy(false);
@@ -711,7 +711,7 @@ export default function Enter({
     try {
       await respawnPlayer(sessionId, playerId);
       await refreshRoom();
-      setInviteStatus("Player respawned at manuscript");
+      setInviteStatus("Player respawned at asset");
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Respawn failed");
     } finally {
@@ -725,7 +725,7 @@ export default function Enter({
     try {
       const result = await respawnAllPlayers(sessionId);
       await refreshRoom();
-      setInviteStatus(`Respawned ${result.count} player(s) at manuscript`);
+      setInviteStatus(`Respawned ${result.count} player(s) at asset`);
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Respawn all failed");
     } finally {
@@ -887,7 +887,7 @@ export default function Enter({
           ) : null}
           <button
             type="button"
-            className="vr-btn vr-btn--primary"
+            className="vr-btn vr-btn--primary vr-enter__launch"
             onClick={launchWebGl}
             disabled={
               status !== "ready" ||
@@ -962,41 +962,429 @@ export default function Enter({
         </p>
       ) : null}
 
-      {(status === "ready" || session) ? (
-        <section className="vr-enter__loadout" aria-label="Manuscript loadout">
-          <div className="vr-enter__loadout-grid">
-            <ManuscriptPreview
-              className="vr-enter__loadout-preview"
-              preview={loadoutPreview}
-              emptyMessage={
-                playlist.length
-                  ? "Select a manuscript in the list to preview its mesh."
-                  : "No manuscripts in this space yet — nothing to preview."
-              }
-              alt={
-                previewModelId
-                  ? shortModelLabel(previewModelId, modelLabels[previewModelId])
-                  : undefined
-              }
-            />
-            <div className="vr-enter__playlist vr-enter__playlist--loadout">
-              <div className="vr-enter__playlist-head">
-                <h2 className="vr-enter__playlist-title">
-                  <MaterialIcon name="menu_book" />
-                  Manuscripts
-                </h2>
-                {isHost && sessionId && onAddFromLibrary ? (
+      {isHost ? (
+        <details className="vr-enter__host-ops">
+          <summary className="vr-enter__host-ops-summary">
+            <MaterialIcon name="admin_panel_settings" />
+            Host tools
+            <span className="vr-enter__host-ops-hint">Space · Share</span>
+          </summary>
+
+          <div className="vr-enter__host-ops-toolbar">
+            <div className="vr-enter__host-ops-row" role="group" aria-label="Space settings">
+              <span className="vr-enter__host-ops-row-label">Space</span>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void toggleVisibility()}
+                disabled={hostBusy}
+              >
+                <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
+                {visibility === "private" ? "Private" : "Public"}
+              </button>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void toggleEventKind()}
+                disabled={hostBusy}
+                title="Feature this space as an event on Home"
+              >
+                <MaterialIcon name={spaceKind === "event" ? "event_available" : "event"} />
+                {spaceKind === "event" ? "Event" : "Exploration"}
+              </button>
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void toggleKiosk()}
+                disabled={hostBusy}
+                title="Let museum guests join without Bluekey"
+              >
+                <MaterialIcon name={kioskEnabled ? "storefront" : "store"} />
+                {kioskEnabled ? "Kiosk on" : "Kiosk off"}
+              </button>
+            </div>
+
+            <div className="vr-enter__host-ops-row" role="group" aria-label="Share">
+              <span className="vr-enter__host-ops-row-label">Share</span>
+              {kioskEnabled ? (
+                <button
+                  type="button"
+                  className="vr-enter__text-btn"
+                  onClick={() => void copy("kiosk", kioskJoinText)}
+                  disabled={!kioskJoinText}
+                >
+                  <MaterialIcon name="qr_code_2" />
+                  {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
+                </button>
+              ) : null}
+              {canUseObserver && observerLinkText ? (
+                <button
+                  type="button"
+                  className="vr-enter__text-btn"
+                  onClick={() => void copy("observer", observerLinkText)}
+                  title="Full-screen museum wall WebGL link"
+                >
+                  <MaterialIcon name="tv" />
+                  {copied === "observer" ? "Copied" : "Copy observer link"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={() => void copy("invite", inviteText)}
+                disabled={!inviteText}
+              >
+                <MaterialIcon name="content_copy" />
+                {copied === "invite" ? "Copied" : "Copy invite"}
+              </button>
+              {primaryShareUrl ? (
+                <button
+                  type="button"
+                  className="vr-enter__text-btn"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <MaterialIcon name="qr_code_2" />
+                  Share QR
+                </button>
+              ) : null}
+              <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
+                <input
+                  type="email"
+                  className="vr-enter__invite-input"
+                  placeholder="colleague@memphis.edu"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  aria-label="Invite email"
+                  required
+                />
+                <label className="vr-enter__allowlist-check">
+                  <input
+                    type="checkbox"
+                    checked={addInviteToAllowlist}
+                    onChange={(e) => setAddInviteToAllowlist(e.target.checked)}
+                  />
+                  Allowlist
+                </label>
+                <button
+                  type="submit"
+                  className="vr-enter__text-btn"
+                  disabled={inviteBusy || !inviteEmail.trim()}
+                >
+                  <MaterialIcon name="mail" />
+                  {inviteBusy ? "Sending…" : "Email invite"}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <details className="vr-enter__host-more">
+            <summary className="vr-enter__host-more-summary">More host options</summary>
+
+            <div className="vr-enter__host-more-body">
+              <label className="vr-enter__depth" title="Live Z relief on Quest / WebGL / desktop">
+                <span className="vr-enter__depth-label">
+                  <MaterialIcon name="height" />
+                  Depth
+                </span>
+                <input
+                  type="range"
+                  className="vr-enter__depth-range"
+                  min={0}
+                  max={5}
+                  step={0.05}
+                  value={depthDraft}
+                  disabled={depthBusy}
+                  onChange={(e) => setDepthDraft(Number(e.target.value))}
+                  aria-valuetext={`${depthDraft.toFixed(2)}×`}
+                />
+                <span className="vr-enter__depth-value">{depthDraft.toFixed(2)}×</span>
+              </label>
+              {depthError ? <p className="vr-enter__depth-error">{depthError}</p> : null}
+              {isDemoAdmin ? (
+                <section className="vr-enter__demo-admin" aria-label="Try now demo catalog">
+                  <p className="vr-enter__demo-admin-title">
+                    <MaterialIcon name="auto_awesome" />
+                    Try now catalog
+                  </p>
+                  <label className="vr-enter__demo-field">
+                    <span>Category</span>
+                    <input
+                      list="vr-demo-categories"
+                      className="vr-enter__invite-input"
+                      value={demoCategoryDraft}
+                      onChange={(e) => setDemoCategoryDraft(e.target.value)}
+                      maxLength={64}
+                      disabled={hostBusy}
+                    />
+                    <datalist id="vr-demo-categories">
+                      <option value="Manuscripts" />
+                      <option value="Medieval" />
+                      <option value="Forgery" />
+                      <option value="Handwriting" />
+                      <option value="Examples" />
+                    </datalist>
+                  </label>
+                  <label className="vr-enter__demo-field">
+                    <span>Summary</span>
+                    <input
+                      className="vr-enter__invite-input"
+                      value={demoSummaryDraft}
+                      onChange={(e) => setDemoSummaryDraft(e.target.value)}
+                      maxLength={280}
+                      placeholder="Short blurb for the catalog"
+                      disabled={hostBusy}
+                    />
+                  </label>
+                  <div className="vr-enter__demo-actions">
+                    <button
+                      type="button"
+                      className="vr-enter__text-btn"
+                      onClick={() => void saveDemoCatalog(true)}
+                      disabled={hostBusy}
+                      title="Requires a playlist; enables kiosk for guests"
+                    >
+                      <MaterialIcon name={demoEnabled ? "published_with_changes" : "publish"} />
+                      {demoEnabled ? "Update demo" : "Publish as demo"}
+                    </button>
+                    {demoEnabled ? (
+                      <button
+                        type="button"
+                        className="vr-enter__text-btn"
+                        onClick={() => void saveDemoCatalog(false)}
+                        disabled={hostBusy}
+                      >
+                        <MaterialIcon name="unpublished" />
+                        Unpublish
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
+              <section className="vr-enter__turn-timer" aria-label="Turn timer">
+                <span className="vr-enter__turn-label">Turn timer</span>
+                {ROTATION_MINUTE_PRESETS.map((minutes) => (
                   <button
+                    key={minutes}
                     type="button"
                     className="vr-enter__text-btn"
-                    onClick={() => onAddFromLibrary(sessionId)}
-                    disabled={playlistBusy}
+                    onClick={() => void startTurn(minutes)}
+                    disabled={hostBusy}
+                    title={`Start a ${minutes}-minute turn`}
                   >
-                    <MaterialIcon name="library_add" />
-                    Add from library
+                    <MaterialIcon name="timer" />
+                    {minutes} min
                   </button>
+                ))}
+                <TurnCountdown session={session} ticking={isHost} />
+                <button
+                  type="button"
+                  className="vr-btn vr-btn--primary vr-enter__turn-reset"
+                  onClick={() => void resetTurn()}
+                  disabled={hostBusy || experiencePhase === "ended"}
+                  title="End the current turn and reset the experience"
+                >
+                  <MaterialIcon name="restart_alt" />
+                  Reset
+                </button>
+              </section>
+
+              <section className="vr-enter__allowlist" aria-label="Space allowlist">
+                <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
+                  <span className="vr-enter__allowlist-label">Allowlist</span>
+                  <input
+                    type="email"
+                    className="vr-enter__invite-input"
+                    placeholder="add@memphis.edu"
+                    value={allowlistEmail}
+                    onChange={(e) => setAllowlistEmail(e.target.value)}
+                    aria-label="Allowlist email"
+                  />
+                  <button
+                    type="submit"
+                    className="vr-enter__text-btn"
+                    disabled={hostBusy || !allowlistEmail.trim()}
+                  >
+                    <MaterialIcon name="person_add" />
+                    Add
+                  </button>
+                </form>
+                {allowlist.length ? (
+                  <ul className="vr-enter__allowlist-list">
+                    {allowlist.map((entry) => (
+                      <li key={entry.id}>
+                        <span>{entry.email || entry.subjectSub || "entry"}</span>
+                        <button
+                          type="button"
+                          className="vr-enter__text-btn"
+                          onClick={() => void onRemoveAllowlist(entry.id)}
+                          disabled={hostBusy}
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="vr-enter__allowlist-empty">
+                    {visibility === "private"
+                      ? "Private space - add emails (or check Allowlist on invite)."
+                      : "Optional allowlist (used if you switch to Private)."}
+                  </p>
+                )}
+              </section>
+
+              <section className="vr-enter__moderation" aria-label="Participant moderation">
+                <h2 className="vr-enter__playlist-title">
+                  <MaterialIcon name="group" />
+                  Participants
+                </h2>
+                {isMuseumPath ? (
+                  <div className="vr-enter__roster-museum-bar">
+                    <button
+                      type="button"
+                      className="vr-enter__text-btn"
+                      disabled={hostBusy}
+                      onClick={() => void onRespawnAll()}
+                      title="Teleport all connected players to asset-facing spawn"
+                    >
+                      Respawn all
+                    </button>
+                    <span className="vr-enter__host-ops-hint">
+                      Quest schemes apply on headset only - laptop controls stay unchanged
+                    </span>
+                  </div>
                 ) : null}
-              </div>
+                <ul className="vr-enter__roster" aria-label="Participants">
+                  {visiblePlayers.map((player) => {
+                    const isMe = player.id === me?.playerId;
+                    const canModerate = !player.isHost && !isMe;
+                    const scheme: ControlSchemeId =
+                      player.controlScheme === "splitLaserJetpack"
+                        ? "splitLaserJetpack"
+                        : "default";
+                    return (
+                      <li key={player.id} className="vr-enter__roster-row">
+                        <span className="vr-enter__roster-name">
+                          {isMe ? "You" : player.displayName}
+                          {player.isHost ? " · host" : ""}
+                          {player.chatMuted ? " · muted" : ""}
+                        </span>
+                        <span className="vr-enter__roster-actions">
+                          {isMuseumPath ? (
+                            <>
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={hostBusy}
+                                onClick={() => void onRespawn(player.id)}
+                                title="Teleport to asset-facing spawn"
+                              >
+                                Respawn
+                              </button>
+                              <label className="vr-enter__scheme-label">
+                                <span className="vr-enter__scheme-label-text">Quest</span>
+                                <select
+                                  className="vr-enter__scheme-select"
+                                  value={scheme}
+                                  disabled={hostBusy}
+                                  aria-label={`Quest control scheme for ${player.displayName}`}
+                                  onChange={(e) =>
+                                    void onControlScheme(
+                                      player.id,
+                                      e.target.value as ControlSchemeId,
+                                    )
+                                  }
+                                >
+                                  <option value="default">Quest: Default</option>
+                                  <option value="splitLaserJetpack">Quest: Laser+Jetpack</option>
+                                </select>
+                              </label>
+                            </>
+                          ) : null}
+                          {canModerate ? (
+                            <>
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={hostBusy}
+                                onClick={() =>
+                                  void onMuteToggle(player.id, Boolean(player.chatMuted))
+                                }
+                              >
+                                {player.chatMuted ? "Unmute" : "Mute"}
+                              </button>
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={hostBusy}
+                                onClick={() => void onMakeHost(player.id)}
+                              >
+                                Make host
+                              </button>
+                              <button
+                                type="button"
+                                className="vr-enter__text-btn"
+                                disabled={hostBusy}
+                                onClick={() => void onKick(player.id)}
+                              >
+                                Kick
+                              </button>
+                            </>
+                          ) : null}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            </div>
+          </details>
+        </details>
+      ) : null}
+
+      {(status === "ready" || session) ? (
+        <details className="vr-enter__loadout">
+          <summary className="vr-enter__loadout-summary">
+            <MaterialIcon name="menu_book" />
+            Assets
+            <span className="vr-enter__host-ops-hint">
+              {playlist.length
+                ? `${playlist.length} in space${activeTitle ? ` · Active: ${activeTitle}` : ""}`
+                : "None yet"}
+            </span>
+            {isHost && sessionId && onAddFromLibrary ? (
+              <button
+                type="button"
+                className="vr-enter__text-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAddFromLibrary(sessionId);
+                }}
+                disabled={playlistBusy}
+              >
+                <MaterialIcon name="library_add" />
+                Add from library
+              </button>
+            ) : null}
+          </summary>
+          <div className="vr-enter__loadout-body">
+            <div className="vr-enter__loadout-grid">
+              <ManuscriptPreview
+                className="vr-enter__loadout-preview"
+                preview={loadoutPreview}
+                emptyMessage={
+                  playlist.length
+                    ? "Select an asset in the list to preview its mesh."
+                    : "No assets in this space yet. Nothing to preview."
+                }
+                alt={
+                  previewModelId
+                    ? shortModelLabel(previewModelId, modelLabels[previewModelId])
+                    : undefined
+                }
+              />
+              <div className="vr-enter__playlist vr-enter__playlist--loadout">
               {playlistError ? (
                 <p className="vr-enter__error" role="alert">
                   {playlistError}
@@ -1006,7 +1394,7 @@ export default function Enter({
                 <p className="vr-enter__playlist-empty">
                   {isHost
                     ? "No documents in this space yet."
-                    : "No manuscripts in this exhibit yet."}
+                    : "No assets in this exhibit yet."}
                   {isHost && onAddFromLibrary && sessionId ? (
                     <>
                       {" "}
@@ -1079,375 +1467,12 @@ export default function Enter({
               )}
               {!isHost && playlist.length ? (
                 <p className="vr-enter__playlist-hint">
-                  Tap a manuscript to preview. Enter 3D uses the active one.
+                  Tap an asset to preview. Enter 3D uses the active one.
                 </p>
               ) : null}
             </div>
+            </div>
           </div>
-        </section>
-      ) : null}
-
-      {isHost ? (
-        <details className="vr-enter__host-ops" open>
-          <summary className="vr-enter__host-ops-summary">
-            <MaterialIcon name="admin_panel_settings" />
-            Host tools
-            <span className="vr-enter__host-ops-hint">Turn timer, depth, visibility, kiosk, invites, manuscripts, participants</span>
-          </summary>
-
-          <div className="vr-enter__host-ops-toolbar">
-            <section className="vr-enter__turn-timer" aria-label="Turn timer">
-              <span className="vr-enter__turn-label">Turn timer</span>
-              {ROTATION_MINUTE_PRESETS.map((minutes) => (
-                <button
-                  key={minutes}
-                  type="button"
-                  className="vr-enter__text-btn"
-                  onClick={() => void startTurn(minutes)}
-                  disabled={hostBusy}
-                  title={`Start a ${minutes}-minute turn`}
-                >
-                  <MaterialIcon name="timer" />
-                  {minutes} min
-                </button>
-              ))}
-              <TurnCountdown session={session} ticking={isHost} />
-              <button
-                type="button"
-                className="vr-btn vr-btn--primary vr-enter__turn-reset"
-                onClick={() => void resetTurn()}
-                disabled={hostBusy || experiencePhase === "ended"}
-                title="End the current turn and reset the experience"
-              >
-                <MaterialIcon name="restart_alt" />
-                Reset
-              </button>
-            </section>
-            <button
-              type="button"
-              className="vr-enter__text-btn"
-              onClick={() => void toggleVisibility()}
-              disabled={hostBusy}
-            >
-              <MaterialIcon name={visibility === "private" ? "lock" : "public"} />
-              {visibility === "private" ? "Private" : "Public"}
-            </button>
-            <button
-              type="button"
-              className="vr-enter__text-btn"
-              onClick={() => void toggleEventKind()}
-              disabled={hostBusy}
-              title="Feature this space as an event on Home"
-            >
-              <MaterialIcon name={spaceKind === "event" ? "event_available" : "event"} />
-              {spaceKind === "event" ? "Event" : "Exploration"}
-            </button>
-            <button
-              type="button"
-              className="vr-enter__text-btn"
-              onClick={() => void toggleKiosk()}
-              disabled={hostBusy}
-              title="Let museum guests join without Bluekey"
-            >
-              <MaterialIcon name={kioskEnabled ? "storefront" : "store"} />
-              {kioskEnabled ? "Kiosk on" : "Kiosk off"}
-            </button>
-            {kioskEnabled ? (
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => void copy("kiosk", kioskJoinText)}
-                disabled={!kioskJoinText}
-              >
-                <MaterialIcon name="qr_code_2" />
-                {copied === "kiosk" ? "Copied" : "Copy kiosk link"}
-              </button>
-            ) : null}
-            <label className="vr-enter__depth" title="Live Z relief on Quest / WebGL / desktop">
-              <span className="vr-enter__depth-label">
-                <MaterialIcon name="height" />
-                Depth
-              </span>
-              <input
-                type="range"
-                className="vr-enter__depth-range"
-                min={0}
-                max={5}
-                step={0.05}
-                value={depthDraft}
-                disabled={depthBusy}
-                onChange={(e) => setDepthDraft(Number(e.target.value))}
-                aria-valuetext={`${depthDraft.toFixed(2)}×`}
-              />
-              <span className="vr-enter__depth-value">{depthDraft.toFixed(2)}×</span>
-            </label>
-            {depthError ? <p className="vr-enter__depth-error">{depthError}</p> : null}
-            {isDemoAdmin ? (
-              <section className="vr-enter__demo-admin" aria-label="Try now demo catalog">
-                <p className="vr-enter__demo-admin-title">
-                  <MaterialIcon name="auto_awesome" />
-                  Try now catalog
-                </p>
-                <label className="vr-enter__demo-field">
-                  <span>Category</span>
-                  <input
-                    list="vr-demo-categories"
-                    className="vr-enter__invite-input"
-                    value={demoCategoryDraft}
-                    onChange={(e) => setDemoCategoryDraft(e.target.value)}
-                    maxLength={64}
-                    disabled={hostBusy}
-                  />
-                  <datalist id="vr-demo-categories">
-                    <option value="Manuscripts" />
-                    <option value="Medieval" />
-                    <option value="Forgery" />
-                    <option value="Handwriting" />
-                    <option value="Examples" />
-                  </datalist>
-                </label>
-                <label className="vr-enter__demo-field">
-                  <span>Summary</span>
-                  <input
-                    className="vr-enter__invite-input"
-                    value={demoSummaryDraft}
-                    onChange={(e) => setDemoSummaryDraft(e.target.value)}
-                    maxLength={280}
-                    placeholder="Short blurb for the catalog"
-                    disabled={hostBusy}
-                  />
-                </label>
-                <div className="vr-enter__demo-actions">
-                  <button
-                    type="button"
-                    className="vr-enter__text-btn"
-                    onClick={() => void saveDemoCatalog(true)}
-                    disabled={hostBusy}
-                    title="Requires a playlist; enables kiosk for guests"
-                  >
-                    <MaterialIcon name={demoEnabled ? "published_with_changes" : "publish"} />
-                    {demoEnabled ? "Update demo" : "Publish as demo"}
-                  </button>
-                  {demoEnabled ? (
-                    <button
-                      type="button"
-                      className="vr-enter__text-btn"
-                      onClick={() => void saveDemoCatalog(false)}
-                      disabled={hostBusy}
-                    >
-                      <MaterialIcon name="unpublished" />
-                      Unpublish
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-            ) : null}
-            {canUseObserver && observerLinkText ? (
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => void copy("observer", observerLinkText)}
-                title="Full-screen museum wall WebGL link"
-              >
-                <MaterialIcon name="tv" />
-                {copied === "observer" ? "Copied" : "Copy observer link"}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="vr-enter__text-btn"
-              onClick={() => void copy("invite", inviteText)}
-              disabled={!inviteText}
-            >
-              <MaterialIcon name="content_copy" />
-              {copied === "invite" ? "Copied" : "Copy Invite"}
-            </button>
-            {primaryShareUrl ? (
-              <button
-                type="button"
-                className="vr-enter__text-btn"
-                onClick={() => setShareOpen(true)}
-              >
-                <MaterialIcon name="qr_code_2" />
-                Share QR
-              </button>
-            ) : null}
-            <form className="vr-enter__invite-form" onSubmit={(e) => void sendEmailInvite(e)}>
-              <input
-                type="email"
-                className="vr-enter__invite-input"
-                placeholder="colleague@memphis.edu"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                aria-label="Invite email"
-                required
-              />
-              <label className="vr-enter__allowlist-check">
-                <input
-                  type="checkbox"
-                  checked={addInviteToAllowlist}
-                  onChange={(e) => setAddInviteToAllowlist(e.target.checked)}
-                />
-                Allowlist
-              </label>
-              <button
-                type="submit"
-                className="vr-enter__text-btn"
-                disabled={inviteBusy || !inviteEmail.trim()}
-              >
-                <MaterialIcon name="mail" />
-                {inviteBusy ? "Sending…" : "Email Invite"}
-              </button>
-            </form>
-          </div>
-
-          <section className="vr-enter__allowlist" aria-label="Space allowlist">
-            <form className="vr-enter__invite-form" onSubmit={(e) => void onAddAllowlist(e)}>
-              <span className="vr-enter__allowlist-label">Allowlist</span>
-              <input
-                type="email"
-                className="vr-enter__invite-input"
-                placeholder="add@memphis.edu"
-                value={allowlistEmail}
-                onChange={(e) => setAllowlistEmail(e.target.value)}
-                aria-label="Allowlist email"
-              />
-              <button
-                type="submit"
-                className="vr-enter__text-btn"
-                disabled={hostBusy || !allowlistEmail.trim()}
-              >
-                <MaterialIcon name="person_add" />
-                Add
-              </button>
-            </form>
-            {allowlist.length ? (
-              <ul className="vr-enter__allowlist-list">
-                {allowlist.map((entry) => (
-                  <li key={entry.id}>
-                    <span>{entry.email || entry.subjectSub || "entry"}</span>
-                    <button
-                      type="button"
-                      className="vr-enter__text-btn"
-                      onClick={() => void onRemoveAllowlist(entry.id)}
-                      disabled={hostBusy}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="vr-enter__allowlist-empty">
-                {visibility === "private"
-                  ? "Private space - add emails (or check Allowlist on invite)."
-                  : "Optional allowlist (used if you switch to Private)."}
-              </p>
-            )}
-          </section>
-
-          <section className="vr-enter__moderation" aria-label="Participant moderation">
-            <h2 className="vr-enter__playlist-title">
-              <MaterialIcon name="group" />
-              Participants
-            </h2>
-            {isMuseumPath ? (
-              <div className="vr-enter__roster-museum-bar">
-                <button
-                  type="button"
-                  className="vr-enter__text-btn"
-                  disabled={hostBusy}
-                  onClick={() => void onRespawnAll()}
-                  title="Teleport all connected players to manuscript-facing spawn"
-                >
-                  Respawn all
-                </button>
-                <span className="vr-enter__host-ops-hint">
-                  Quest schemes apply on headset only - laptop controls stay unchanged
-                </span>
-              </div>
-            ) : null}
-            <ul className="vr-enter__roster" aria-label="Participants">
-              {visiblePlayers.map((player) => {
-                const isMe = player.id === me?.playerId;
-                const canModerate = !player.isHost && !isMe;
-                const scheme: ControlSchemeId =
-                  player.controlScheme === "splitLaserJetpack"
-                    ? "splitLaserJetpack"
-                    : "default";
-                return (
-                  <li key={player.id} className="vr-enter__roster-row">
-                    <span className="vr-enter__roster-name">
-                      {isMe ? "You" : player.displayName}
-                      {player.isHost ? " · host" : ""}
-                      {player.chatMuted ? " · muted" : ""}
-                    </span>
-                    <span className="vr-enter__roster-actions">
-                      {isMuseumPath ? (
-                        <>
-                          <button
-                            type="button"
-                            className="vr-enter__text-btn"
-                            disabled={hostBusy}
-                            onClick={() => void onRespawn(player.id)}
-                            title="Teleport to manuscript-facing spawn"
-                          >
-                            Respawn
-                          </button>
-                          <label className="vr-enter__scheme-label">
-                            <span className="vr-enter__scheme-label-text">Quest</span>
-                            <select
-                              className="vr-enter__scheme-select"
-                              value={scheme}
-                              disabled={hostBusy}
-                              aria-label={`Quest control scheme for ${player.displayName}`}
-                              onChange={(e) =>
-                                void onControlScheme(
-                                  player.id,
-                                  e.target.value as ControlSchemeId,
-                                )
-                              }
-                            >
-                              <option value="default">Quest: Default</option>
-                              <option value="splitLaserJetpack">Quest: Laser+Jetpack</option>
-                            </select>
-                          </label>
-                        </>
-                      ) : null}
-                      {canModerate ? (
-                        <>
-                          <button
-                            type="button"
-                            className="vr-enter__text-btn"
-                            disabled={hostBusy}
-                            onClick={() => void onMuteToggle(player.id, Boolean(player.chatMuted))}
-                          >
-                            {player.chatMuted ? "Unmute" : "Mute"}
-                          </button>
-                          <button
-                            type="button"
-                            className="vr-enter__text-btn"
-                            disabled={hostBusy}
-                            onClick={() => void onMakeHost(player.id)}
-                          >
-                            Make host
-                          </button>
-                          <button
-                            type="button"
-                            className="vr-enter__text-btn"
-                            disabled={hostBusy}
-                            onClick={() => void onKick(player.id)}
-                          >
-                            Kick
-                          </button>
-                        </>
-                      ) : null}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
         </details>
       ) : null}
 

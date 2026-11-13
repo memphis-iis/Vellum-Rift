@@ -88,6 +88,13 @@
   gap: 0.65rem;
 }
 
+/* Enter 3D is the Lobby primary action (Krug). */
+.vr-enter__launch {
+  min-height: 2.75rem;
+  padding-inline: 1.15rem;
+  font-weight: 600;
+}
+
 .vr-enter__invite-form {
   display: inline-flex;
   flex-wrap: wrap;
@@ -193,18 +200,23 @@
 }
 
 .vr-enter__host-ops {
-  margin: 0 0 1.25rem;
-  padding: 0.75rem 1rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 55%, transparent);
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--vr-surface-container) 82%, transparent);
-  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--vr-surface-container) 72%, transparent);
   color: var(--vr-on-surface);
-  /* Keep host tools reachable under locked 100dvh lobby (#322). */
-  max-height: min(55vh, 28rem);
+  /* Collapsed by default; expand only when host needs ops. */
+  max-height: none;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.vr-enter__host-ops[open] {
+  padding-bottom: 1rem;
+  max-height: min(58vh, 32rem);
   overflow-y: auto;
   overscroll-behavior: contain;
-  min-height: 0;
 }
 
 .vr-enter__host-ops-summary {
@@ -215,8 +227,12 @@
   cursor: pointer;
   font-family: var(--font-display);
   font-weight: 600;
-  color: var(--vr-primary);
+  color: var(--vr-on-surface-variant);
   list-style: none;
+}
+
+.vr-enter__host-ops[open] > .vr-enter__host-ops-summary {
+  color: var(--vr-primary);
 }
 
 .vr-enter__host-ops-summary .material-symbols-outlined {
@@ -236,12 +252,65 @@
 
 .vr-enter__host-ops-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem 0.65rem;
+  flex-direction: column;
+  gap: 0.85rem;
   margin-top: 0.85rem;
   padding-top: 0.85rem;
   border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+}
+
+.vr-enter__host-ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+
+.vr-enter__host-ops-row-label {
+  flex: 0 0 3.5rem;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__host-more {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 40%, transparent);
+}
+
+.vr-enter__host-more-summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__host-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-enter__host-more-summary::before {
+  content: "▸ ";
+  display: inline-block;
+  margin-right: 0.15rem;
+}
+
+.vr-enter__host-more[open] > .vr-enter__host-more-summary::before {
+  content: "▾ ";
+}
+
+.vr-enter__host-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.85rem;
 }
 
 .vr-enter__turn-timer {
@@ -251,7 +320,6 @@
   align-items: center;
   gap: 0.45rem 0.65rem;
   padding-bottom: 0.65rem;
-  margin-bottom: 0.25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
 }
 
@@ -361,13 +429,60 @@
 }
 
 .vr-enter__loadout {
-  margin: 0.75rem var(--vr-gutter) 0;
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--vr-surface-container) 72%, transparent);
+  color: var(--vr-on-surface);
+  flex: 0 0 auto;
+}
+
+.vr-enter__loadout[open] {
+  padding-bottom: 1rem;
+  max-height: min(50vh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.vr-enter__loadout-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--vr-on-surface-variant);
+  list-style: none;
+}
+
+.vr-enter__loadout[open] > .vr-enter__loadout-summary {
+  color: var(--vr-primary);
+}
+
+.vr-enter__loadout-summary .material-symbols-outlined {
+  color: var(--vr-accent-bright);
+}
+
+.vr-enter__loadout-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-enter__loadout-summary .vr-enter__text-btn {
+  margin-left: auto;
+}
+
+.vr-enter__loadout-body {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
 }
 
 .vr-enter__loadout-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.9fr);
-  gap: 0.85rem;
+  gap: 1rem;
   align-items: stretch;
 }
 
@@ -378,7 +493,7 @@
 }
 
 .vr-enter__loadout-preview {
-  min-height: min(36vh, 20rem);
+  min-height: min(28vh, 16rem);
 }
 
 .vr-enter__playlist--loadout {
@@ -618,9 +733,11 @@
 
 .vr-enter__body {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   gap: 1rem;
   min-height: 0;
+  /* With host/manuscripts collapsed, presence + chat fill the lobby. */
+  margin-top: 0.25rem;
 }
 
 .vr-enter .glass-panel {
@@ -631,10 +748,11 @@
 }
 
 .vr-enter__map {
-  flex: 3;
+  flex: 3 1 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -915,16 +1033,43 @@
   font-weight: 600;
 }
 
+.vr-enter__demo-admin-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vr-primary);
+}
+
+.vr-enter__demo-admin-hint {
+  font-size: 0.82rem;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__demo-admin-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+}
+
 .vr-enter__demo-field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 9rem;
   font-size: 0.8rem;
   color: var(--vr-on-surface-variant);
+}
+
+.vr-enter__demo-field--grow {
+  flex: 1 1 14rem;
+  min-width: 12rem;
 }
 
 .vr-enter__demo-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
 }
