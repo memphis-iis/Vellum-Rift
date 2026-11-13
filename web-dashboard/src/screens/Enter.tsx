@@ -273,7 +273,7 @@ export default function Enter({
       setDepthError(null);
       void patchSessionDepthScale(sessionId, depthDraft)
         .then((updated) => {
-          applySession(updated);
+          applySession(updated as GameSession);
         })
         .catch((err: unknown) => {
           setDepthError(err instanceof Error ? err.message : "Depth update failed");
