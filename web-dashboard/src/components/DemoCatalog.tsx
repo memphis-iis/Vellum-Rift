@@ -1,3 +1,4 @@
+import "../styles/screens/demos.css";
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchDemos,
