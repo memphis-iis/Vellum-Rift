@@ -72,6 +72,8 @@ export interface GameSession {
   createdByEmail?: string;
   playlist?: string[];
   activeModelId?: string | null;
+  /** Live manuscript relief multiplier for 3D clients (#328). */
+  depthScale?: number;
   /** Museum public join without Bluekey (#145). */
   kioskEnabled?: boolean;
   /** exploration | event (#146). */

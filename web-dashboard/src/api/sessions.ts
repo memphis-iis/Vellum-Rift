@@ -29,6 +29,8 @@ export type GameSession = {
   /** Manuscript model ids (#141). */
   playlist?: string[];
   activeModelId?: string | null;
+  /** Live manuscript relief multiplier for 3D clients (#328). */
+  depthScale?: number;
   /** Museum public join (#145). */
   kioskEnabled?: boolean;
   /** Curated Try now demo catalog. */
@@ -147,6 +149,26 @@ export async function patchSessionActiveModel(
   const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
   if (!res.ok) {
     throw new Error(data.error || `Update active model failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Host-only: live relief multiplier for Quest/WebGL/desktop (#328). */
+export async function patchSessionDepthScale(
+  sessionId: string,
+  depthScale: number,
+): Promise<GameSession> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/depth-scale`,
+    {
+      method: "PATCH",
+      headers: authHeaders(true),
+      body: JSON.stringify({ depthScale }),
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as GameSession & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Update depth scale failed (${res.status})`);
   }
   return data;
 }

@@ -97,6 +97,9 @@ namespace VellumRift
         /// <summary>Ordered manuscript playlist model ids (#141).</summary>
         public string[] playlist;
 
+        /// <summary>Session relief multiplier for manuscript Z (#328). Default 1.</summary>
+        public float depthScale = 1f;
+
         /// <summary>Host rotation timer phase: "playing" or "ended" (empty when unset).</summary>
         public string experiencePhase;
 

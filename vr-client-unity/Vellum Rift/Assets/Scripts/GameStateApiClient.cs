@@ -207,8 +207,20 @@ namespace VellumRift
             public bool isActive;
             public string activeModelId;
             public string[] playlist;
+            public float depthScale;
             public string experiencePhase;
             public string rotationEndsAt;
+        }
+
+        /// <summary>
+        /// JsonUtility defaults missing floats to 0; treat absent depthScale as 1.
+        /// </summary>
+        public static float ParseDepthScale(string body, float dtoValue)
+        {
+            if (string.IsNullOrEmpty(body) ||
+                body.IndexOf("\"depthScale\"", StringComparison.Ordinal) < 0)
+                return 1f;
+            return Mathf.Clamp(dtoValue, 0f, 5f);
         }
 
         public static GameState ParseGameState(string body)
@@ -229,6 +241,7 @@ namespace VellumRift
                 isActive = dto.isActive,
                 activeModelId = dto.activeModelId ?? "",
                 playlist = dto.playlist ?? Array.Empty<string>(),
+                depthScale = ParseDepthScale(body, dto.depthScale),
                 experiencePhase = dto.experiencePhase ?? "",
                 rotationEndsAt = dto.rotationEndsAt ?? "",
                 players = dto.players != null
