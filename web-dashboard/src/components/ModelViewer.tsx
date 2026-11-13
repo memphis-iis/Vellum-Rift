@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import "@google/model-viewer";
 
 type ModelViewerProps = {
   src: string;
@@ -13,6 +12,11 @@ type ModelViewerProps = {
  */
 export function ModelViewer({ src, alt = "Manuscript mesh", className = "" }: ModelViewerProps) {
   const ref = useRef<HTMLElement | null>(null);
+
+  // Registers the <model-viewer> custom element on first use (keeps ~1 MB out of the entry chunk).
+  useEffect(() => {
+    void import("@google/model-viewer");
+  }, []);
 
   useEffect(() => {
     const el = ref.current;

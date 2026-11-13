@@ -1,3 +1,4 @@
+import "../styles/screens/kioskjoin.css";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   addPlayer,

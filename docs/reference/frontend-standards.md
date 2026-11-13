@@ -56,3 +56,10 @@ Each component PR should include an axe test.
   not `Array.find` per render. Derived booleans/lists used in render are `useMemo`'d.
 - Virtualization evaluated and deferred: lists are scoped to one folder or one session roster
   (tens of rows). Revisit if a folder routinely exceeds ~200 rows.
+
+## Styles and code splitting
+- `styles/vr-theme.css` holds only global/shared rules. Screen-specific rules live in
+  `styles/screens/<screen>.css` and are imported by that screen, which is a `React.lazy` route.
+- Heavy third-party code (`@google/model-viewer`) is loaded with dynamic `import()`.
+- New classes used by one screen go in that screen's file; used by two or more, in `vr-theme.css`.
+- `styles/css-a11y.test.ts` scans every stylesheet (focus ring, minimum font size).

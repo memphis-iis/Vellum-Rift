@@ -1,16 +1,24 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AmbientBackground } from "./components/AmbientBackground";
 import type { AppSection } from "./components/AppChrome";
 import { SideNav } from "./components/SideNav";
-import Documents from "./screens/Documents";
-import Demos from "./screens/Demos";
-import Enter from "./screens/Enter";
-import Home from "./screens/Home";
-import KioskJoin from "./screens/KioskJoin";
-import Login from "./screens/Login";
-import Sessions from "./screens/Sessions";
-import Upload from "./screens/Upload";
+const Documents = lazy(() => import("./screens/Documents"));
+const Demos = lazy(() => import("./screens/Demos"));
+const Enter = lazy(() => import("./screens/Enter"));
+const Home = lazy(() => import("./screens/Home"));
+const KioskJoin = lazy(() => import("./screens/KioskJoin"));
+const Login = lazy(() => import("./screens/Login"));
+const Sessions = lazy(() => import("./screens/Sessions"));
+const Upload = lazy(() => import("./screens/Upload"));
+
+function ScreenFallback() {
+  return (
+    <div className="vr-screen-loading" role="status">
+      Loading...
+    </div>
+  );
+}
 import "./styles/vr-theme.css";
 
 function readSessionDeepLink(): string | null {
@@ -93,6 +101,7 @@ function Dashboard() {
         onNewSession={() => setSection("sessions")}
       />
       <div className="vr-shell-main">
+        <Suspense fallback={<ScreenFallback />}>
         {section === "home" ? (
           <Home
             onUpload={() => setSection("upload")}
@@ -125,6 +134,7 @@ function Dashboard() {
             onAddFromLibrary={openLibraryForSpace}
           />
         ) : null}
+        </Suspense>
       </div>
     </div>
   );
@@ -136,9 +146,19 @@ export default function App() {
 
   // Museum QR path: skip Bluekey when ?session=&kiosk=1 (#145).
   if (!user && kioskSessionId) {
-    return <KioskJoin sessionId={kioskSessionId} />;
+    return (
+      <Suspense fallback={<ScreenFallback />}>
+        <KioskJoin sessionId={kioskSessionId} />
+      </Suspense>
+    );
   }
 
-  if (!user) return <Login />;
+  if (!user) {
+    return (
+      <Suspense fallback={<ScreenFallback />}>
+        <Login />
+      </Suspense>
+    );
+  }
   return <Dashboard />;
 }

@@ -1,3 +1,4 @@
+import "../styles/screens/demos.css";
 import { DemoCatalog } from "../components/DemoCatalog";
 import type { DemoCatalogItem } from "../api/demos";
 

@@ -1,3 +1,4 @@
+import "../styles/screens/upload.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useStatus } from "../components/StatusRegion";
