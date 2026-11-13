@@ -39,7 +39,7 @@ export function scrubText(value: string, maxLen: number): string {
     "$1[redacted]",
   );
   cleaned = cleaned.replace(
-    /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g,
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
     "[email]",
   );
   if (cleaned.length > maxLen) cleaned = `${cleaned.slice(0, maxLen)}…`;

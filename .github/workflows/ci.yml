@@ -32,5 +32,8 @@ jobs:
       - name: Run backend unit tests
         run: pnpm --filter @vellum-rift/backend test
 
+      - name: Run web-dashboard unit and a11y tests
+        run: pnpm --filter @vellum-rift/web-dashboard test
+
       - name: Build all packages
         run: pnpm build
