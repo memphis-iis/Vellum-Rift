@@ -154,36 +154,59 @@ function identityFromJwtPayload(token: string): { sub: string; email: string } {
   }
 }
 
+type IntrospectResult =
+  | { kind: "ok"; user: AuthenticatedUser }
+  | { kind: "inactive" }
+  | { kind: "unavailable" };
+
+const INTROSPECT_TIMEOUT_MS = 5000;
+
+function userFromIntrospect(token: string, data: BluekeyIntrospectPayload): IntrospectResult {
+  let { sub, email, exp } = identityFromIntrospect(data);
+  if (!sub || !email) {
+    const fromJwt = identityFromJwtPayload(token);
+    if (!sub) sub = fromJwt.sub;
+    if (!email) email = fromJwt.email;
+  }
+  // Active-but-anonymous tokens must not pass host ACL as empty identity.
+  if (!sub && !email) return { kind: "inactive" };
+  return { kind: "ok", user: { sub: sub || `email:${email.toLowerCase()}`, email, exp } };
+}
+
 /**
  * Call the Bluekey introspection endpoint to verify a token.
+ * "inactive" = Bluekey rejected the token; "unavailable" = Bluekey unreachable
+ * or erroring (must NOT be treated as an expired session).
  */
-async function introspectToken(token: string): Promise<AuthenticatedUser | null> {
+async function introspectToken(token: string): Promise<IntrospectResult> {
   try {
     const response = await fetch(BLUEKEY_CONFIG.introspectUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, appUuid: BLUEKEY_CONFIG.softwareId }),
+      signal: AbortSignal.timeout(INTROSPECT_TIMEOUT_MS),
     });
-
-    if (!response.ok) return null;
-
+    if (response.status >= 500) return { kind: "unavailable" };
+    if (!response.ok) return { kind: "inactive" };
     const data = (await response.json()) as BluekeyIntrospectPayload;
-    if (!data.active) return null;
-
-    let { sub, email, exp } = identityFromIntrospect(data);
-    if (!sub || !email) {
-      const fromJwt = identityFromJwtPayload(token);
-      if (!sub) sub = fromJwt.sub;
-      if (!email) email = fromJwt.email;
-    }
-
-    // Active-but-anonymous tokens must not pass host ACL as empty identity.
-    if (!sub && !email) return null;
-
-    return { sub: sub || `email:${email.toLowerCase()}`, email, exp };
+    if (!data.active) return { kind: "inactive" };
+    return userFromIntrospect(token, data);
   } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+/** Resolve a bearer token to a user, or send the 401/503 response and return null. */
+async function resolveUserOrReject(token: string, res: Response): Promise<AuthenticatedUser | null> {
+  const result = await introspectToken(token);
+  if (result.kind === "ok") return result.user;
+  if (result.kind === "unavailable") {
+    res.setHeader("Retry-After", "2");
+    res.status(503).json({ error: "Authentication service unavailable", code: "auth_unavailable" });
     return null;
   }
+  res.status(401).json({ error: "Invalid or expired token", code: "token_expired" });
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,21 +254,18 @@ export async function requireAuth(
 
   const token = extractBearer(req);
   if (!token) {
-    res.status(401).json({ error: "Missing or invalid Authorization header" });
+    res.status(401).json({ error: "Missing or invalid Authorization header", code: "token_missing" });
     return;
   }
 
   // Do not accept kiosk tokens on Bluekey-only routes (upload, jobs, …).
   if (verifyKioskToken(token)) {
-    res.status(401).json({ error: "Kiosk token not accepted on this route" });
+    res.status(401).json({ error: "Kiosk token not accepted on this route", code: "kiosk_token_rejected" });
     return;
   }
 
-  const user = await introspectToken(token);
-  if (!user) {
-    res.status(401).json({ error: "Invalid or expired token" });
-    return;
-  }
+  const user = await resolveUserOrReject(token, res);
+  if (!user) return;
 
   req.user = user;
   next();
@@ -268,7 +288,7 @@ export async function requireAuthOrKiosk(
 
   const token = extractBearer(req);
   if (!token) {
-    res.status(401).json({ error: "Missing or invalid Authorization header" });
+    res.status(401).json({ error: "Missing or invalid Authorization header", code: "token_missing" });
     return;
   }
 
@@ -284,11 +304,8 @@ export async function requireAuthOrKiosk(
     return;
   }
 
-  const user = await introspectToken(token);
-  if (!user) {
-    res.status(401).json({ error: "Invalid or expired token" });
-    return;
-  }
+  const user = await resolveUserOrReject(token, res);
+  if (!user) return;
 
   req.user = user;
   next();

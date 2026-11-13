@@ -7,6 +7,10 @@ function mockRes() {
   const res = {
     statusCode: 200,
     body: undefined as unknown,
+    headers: {} as Record<string, string>,
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
+    },
     status(code: number) {
       this.statusCode = code;
       return this;
@@ -56,7 +60,7 @@ describe("requireAuth (AUTH_REQUIRED=true)", () => {
     await requireAuth(req, res, next);
 
     expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: "Missing or invalid Authorization header" });
+    expect(res.body).toEqual({ error: "Missing or invalid Authorization header", code: "token_missing" });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -87,8 +91,37 @@ describe("requireAuth (AUTH_REQUIRED=true)", () => {
     await requireAuth(req, res, next);
 
     expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: "Invalid or expired token" });
+    expect(res.body).toEqual({ error: "Invalid or expired token", code: "token_expired" });
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 (not 401) when Bluekey is unreachable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    const req = { headers: { authorization: "Bearer good-token" } } as Request;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toMatchObject({ code: "auth_unavailable" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when Bluekey answers with a 5xx", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 502 }));
+    const req = { headers: { authorization: "Bearer good-token" } } as Request;
+    const res = mockRes();
+
+    await requireAuth(req, res, vi.fn() as NextFunction);
+
+    expect(res.statusCode).toBe(503);
+  });
+
+  it("returns 401 token_missing without a header", async () => {
+    const res = mockRes();
+    await requireAuth({ headers: {} } as Request, res, vi.fn() as NextFunction);
+    expect(res.body).toMatchObject({ code: "token_missing" });
   });
 
   it("attaches the user and calls next when introspection succeeds", async () => {
