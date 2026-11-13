@@ -147,7 +147,7 @@ describe("POST /api/upload", () => {
         uploadKey: expect.stringMatching(/^uploads\//),
         fileType: "image/png",
         heightMode: "brightness",
-        heightScale: 1,
+        heightScale: undefined,
         page: 1,
         label: "page.png",
       }),
@@ -191,13 +191,13 @@ describe("POST /api/upload", () => {
     );
   });
 
-  it("defaults heightScale to 1", async () => {
+  it("omits heightScale when not provided (worker auto-scales)", async () => {
     await request(app)
       .post("/api/upload")
       .attach("file", PNG_BYTES, { filename: "flat.png", contentType: "image/png" });
 
     expect(mocks.enqueueUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ heightScale: 1 }),
+      expect.objectContaining({ heightScale: undefined }),
     );
   });
 
@@ -303,5 +303,54 @@ describe("POST /api/upload", () => {
     expect(res.body.error).toContain("Failed to upload file");
     expect(res.body.error).not.toContain("MinIO");
     expect(res.body.error).not.toContain("secret");
+  });
+
+  it("accepts side-by-side file + fileB with fitMode", async () => {
+    const res = await request(app)
+      .post("/api/upload")
+      .field("fitMode", "scale")
+      .field("page", "1")
+      .field("pageB", "2")
+      .attach("file", PNG_BYTES, { filename: "left.png", contentType: "image/png" })
+      .attach("fileB", PDF_BYTES, { filename: "right.pdf", contentType: "application/pdf" });
+
+    expect(res.status).toBe(202);
+    expect(mocks.upload).toHaveBeenCalledTimes(2);
+    expect(mocks.enqueueUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileType: "image/png",
+        fileTypeB: "application/pdf",
+        fitMode: "scale",
+        page: 1,
+        pageB: 2,
+        uploadKeyB: expect.stringMatching(/^uploads\//),
+      }),
+    );
+  });
+
+  it("rejects side-by-side without fitMode", async () => {
+    const res = await request(app)
+      .post("/api/upload")
+      .attach("file", PNG_BYTES, { filename: "left.png", contentType: "image/png" })
+      .attach("fileB", PNG_BYTES, { filename: "right.png", contentType: "image/png" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("fitMode");
+    expect(mocks.enqueueUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects side-by-side when fileB has unsupported content", async () => {
+    const res = await request(app)
+      .post("/api/upload")
+      .field("fitMode", "pad")
+      .attach("file", PNG_BYTES, { filename: "left.png", contentType: "image/png" })
+      .attach("fileB", Buffer.from("not-an-image"), {
+        filename: "right.png",
+        contentType: "image/png",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("fileB");
+    expect(mocks.enqueueUpload).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,9 @@
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
 
+/** Upper bound on decoded pixels (≈16M px ≈ 4096x4096), protecting memory/CPU. */
+export const MAX_UPLOAD_PIXELS = 16 * 1024 * 1024;
+
 /**
  * Detect the real file type from magic bytes rather than trusting the client's
  * Content-Type header (trivially spoofable; a mislabeled file would otherwise

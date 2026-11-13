@@ -17,6 +17,8 @@ export interface GlTFModelRecord {
   createdAt: string; // ISO-8601
   ownerSub: string | null;
   folderId: string | null;
+  tryNowEnabled: boolean;
+  exhibitSessionId: string | null;
 }
 
 interface GlTFModelRow {
@@ -32,6 +34,8 @@ interface GlTFModelRow {
   created_at: string;
   owner_sub?: string | null;
   folder_id?: string | null;
+  try_now_enabled?: boolean | null;
+  exhibit_session_id?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +56,8 @@ function toRecord(row: GlTFModelRow): GlTFModelRecord {
     createdAt: row.created_at,
     ownerSub: row.owner_sub ?? null,
     folderId: row.folder_id ?? null,
+    tryNowEnabled: row.try_now_enabled === true,
+    exhibitSessionId: row.exhibit_session_id ?? null,
   };
 }
 
@@ -190,6 +196,46 @@ export class GlTFModelRepository {
     );
     if (!result.rows[0]) return null;
     return toRecord(result.rows[0] as GlTFModelRow);
+  }
+
+  async setTryNow(
+    modelId: string,
+    enabled: boolean,
+    exhibitSessionId?: string,
+  ): Promise<GlTFModelRecord | null> {
+    const result =
+      exhibitSessionId !== undefined
+        ? await pool.query(
+            `UPDATE gltf_models
+             SET try_now_enabled = $2, exhibit_session_id = $3::uuid
+             WHERE model_id = $1
+             RETURNING *`,
+            [modelId, enabled, exhibitSessionId],
+          )
+        : await pool.query(
+            `UPDATE gltf_models
+             SET try_now_enabled = $2
+             WHERE model_id = $1
+             RETURNING *`,
+            [modelId, enabled],
+          );
+    if (!result.rows[0]) return null;
+    return toRecord(result.rows[0] as GlTFModelRow);
+  }
+
+  /** Models with Try now on (for public catalog). */
+  async listTryNowEnabled(): Promise<GlTFModelRecord[]> {
+    const result = await pool.query(
+      `SELECT * FROM gltf_models
+       WHERE try_now_enabled = true
+       ORDER BY lower(label) ASC, created_at DESC`,
+    );
+    return (result.rows as GlTFModelRow[]).map(toRecord);
+  }
+
+  /** Ready for 3D exhibit: stored GLB with content. */
+  static isReadyFor3d(model: Pick<GlTFModelRecord, "storageKey" | "fileSize">): boolean {
+    return Boolean(model.storageKey?.trim()) && Number(model.fileSize) > 0;
   }
 
   /**

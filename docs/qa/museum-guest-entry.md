@@ -10,9 +10,7 @@ Walk-up exhibit visitors must **never** be told Bluekey is the only way in.
 2. Host prints/displays the **kiosk QR** or copies the kiosk link (`?session=<id>&kiosk=1`).
 3. Guest opens that URL → nametag → **Enter 3D** (one step joins and opens WebGL). **No IIS account.**
    - If the browser blocks the popup, tap **Open 3D** on the same page (user-gesture popup + auth handoff).
-4. Fallbacks on the dashboard login page:
-   - **Join museum exhibit** (if `VITE_MUSEUM_KIOSK_SPACE_ID` is built into the dashboard)
-   - **Join as guest** with a posted Space ID → same kiosk URL
+4. Hardcode the kiosk URL on museum/classroom clients (USB Firefox, Quest, wall PC). The dashboard login page does **not** paste Space IDs; public demos use **Join as guest** only when the demos catalog has entries.
 
 ### Staff / hosts
 
@@ -50,8 +48,7 @@ Remote guests appear as **cyan cylinder + gold head** pills (not wireframe books
 - [ ] Kiosk enabled on the demo Space before doors open
 - [ ] Space marked as **Event** (so Quest `GET /api/kiosk/events` lists it)
 - [ ] QR tested on a phone that is not signed into Bluekey
-- [ ] Login page shows Museum / guest panel (not Bluekey-only)
-- [ ] Optional: set `VITE_MUSEUM_KIOSK_SPACE_ID` for a one-tap exhibit button
+- [ ] Client kits open the hardcoded kiosk URL (not Space-ID paste on login)
 - [ ] Quest APK: launch shows public events (or auto-joins when only one is open)
 - [ ] Lobby **Play | Observer** → Open display verified on the gallery PC → big screen
 - [ ] Observer shows chat history + radar; camera biases to lasers / orbits pins

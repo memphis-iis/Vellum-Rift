@@ -37,7 +37,7 @@
 | Elementary | **Friction** | Quest: kiosk event list + **auto-join when exactly one** public event (`BluekeyAuth.MuseumEventsEntryCoroutine`: `events.Count == 1` → `GuestJoinCoroutine`). Multiple events → `MuseumEventPicker` rows. Laptop: kiosk QR / `?kiosk=1` nametag → Enter 3D ([museum-guest-entry.md](museum-guest-entry.md)). |
 | General museum | **Pass** | Same paths; auto-join helps single-exhibit days. |
 
-**Code:** `MuseumEventPicker.cs` (world-space modal, `GET /api/kiosk/events`); `BluekeyAuth.cs` guest entry; dashboard `KioskJoin` / login museum panel (`VITE_MUSEUM_KIOSK_SPACE_ID`).
+**Code:** `MuseumEventPicker.cs` (world-space modal, `GET /api/kiosk/events`); `BluekeyAuth.cs` guest entry; dashboard `KioskJoin` via hardcoded `?session=&kiosk=1` on clients.
 
 **Ops dependency:** Host must enable **Kiosk on** and mark Space **Event** before doors open.
 

@@ -6,6 +6,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
+import { exhibitAllowsKioskJoin } from "../lib/demoCatalog.js";
 import { GameStateRepository } from "../lib/gameStateRepository.js";
 import { mintKioskToken } from "../lib/kioskJwt.js";
 import { checkRateLimit } from "../lib/kioskRateLimit.js";
@@ -85,6 +86,14 @@ router.get("/:sessionId/status", async (req: Request, res: Response) => {
       });
       return;
     }
+    if (!(await exhibitAllowsKioskJoin(state.sessionId))) {
+      res.status(403).json({
+        sessionId: state.sessionId,
+        kioskEnabled: false,
+        error: "This demo exhibit is not available",
+      });
+      return;
+    }
 
     res.json({
       sessionId: state.sessionId,
@@ -123,6 +132,10 @@ router.post("/:sessionId/token", async (req: Request, res: Response) => {
     }
     if (!readKioskEnabled(state.metadata)) {
       res.status(403).json({ error: "Kiosk join is not enabled for this space" });
+      return;
+    }
+    if (!(await exhibitAllowsKioskJoin(state.sessionId))) {
+      res.status(403).json({ error: "This demo exhibit is not available" });
       return;
     }
 

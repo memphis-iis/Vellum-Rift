@@ -5,6 +5,11 @@
 
 import { Router, type Request, type Response } from "express";
 import { isKioskGuest } from "../lib/auth.js";
+import { isDemoAdmin } from "../lib/demoAdmins.js";
+import {
+  getOrCreatePlatformDemosLibrary,
+  setModelTryNow,
+} from "../lib/demoCatalog.js";
 import {
   canEdit,
   canView,
@@ -51,6 +56,21 @@ router.get("/", async (req: Request, res: Response) => {
       libraryRepo.libraryHasShares(library.libraryId),
       libraryRepo.listFoldersSharedWith(user),
     ]);
+
+    let demos: { folderId: string; libraryId: string } | null = null;
+    const demoAdmin = isDemoAdmin(user.email);
+    if (demoAdmin) {
+      try {
+        const platform = await getOrCreatePlatformDemosLibrary();
+        demos = {
+          folderId: platform.demosFolderId,
+          libraryId: platform.libraryId,
+        };
+      } catch (err) {
+        console.warn("Platform Demos library unavailable:", err);
+      }
+    }
+
     res.json({
       libraryId: library.libraryId,
       ownerSub: library.ownerSub,
@@ -67,6 +87,8 @@ router.get("/", async (req: Request, res: Response) => {
         ownerEmail: f.ownerEmail,
         libraryId: f.libraryId,
       })),
+      demos,
+      isDemoAdmin: demoAdmin,
     });
   } catch (err) {
     console.error("GET /api/library failed:", err);
@@ -326,6 +348,41 @@ router.delete("/folders/:folderId/shares/:shareId", async (req: Request, res: Re
   } catch (err) {
     console.error("DELETE /api/library/folders/:folderId/shares/:shareId failed:", err);
     res.status(500).json({ error: "Failed to revoke share" });
+  }
+});
+
+// PATCH /api/library/models/:modelId/try-now — demo admin Show in Try now
+router.patch("/models/:modelId/try-now", async (req: Request, res: Response) => {
+  if (rejectKiosk(req, res)) return;
+  const user = requireUser(req, res);
+  if (!user) return;
+  if (!isDemoAdmin(user.email)) {
+    res.status(403).json({ error: "Only demo admins can manage Try now" });
+    return;
+  }
+  try {
+    const modelId = param(req, "modelId");
+    const enabled = (req.body as { enabled?: unknown }).enabled;
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ error: "enabled must be a boolean" });
+      return;
+    }
+    const model = await setModelTryNow(modelId, enabled);
+    res.json({
+      modelId: model.modelId,
+      tryNowEnabled: model.tryNowEnabled,
+      exhibitSessionId: model.exhibitSessionId,
+      readyFor3d: GlTFModelRepository.isReadyFor3d(model),
+    });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    const msg = err instanceof Error ? err.message : "Failed to update Try now";
+    if (status >= 400 && status < 500) {
+      res.status(status).json({ error: msg });
+      return;
+    }
+    console.error("PATCH /api/library/models/:modelId/try-now failed:", err);
+    res.status(500).json({ error: "Failed to update Try now" });
   }
 });
 

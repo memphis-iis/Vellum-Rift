@@ -1,8 +1,11 @@
 /**
  * Library folder ACL (#233): owner or share on folder / ancestor.
+ * Demo admins get edit on the platform Demos library.
  */
 
 import type { AuthenticatedUser } from "./auth.js";
+import { isDemoAdmin } from "./demoAdmins.js";
+import { PLATFORM_DEMOS_OWNER_SUB } from "./demoCatalog.js";
 import {
   LibraryRepository,
   type LibraryFolder,
@@ -30,6 +33,13 @@ export async function resolveFolderAccess(
   }
   const email = normalizeEmail(user.email);
   if (email && normalizeEmail(library.ownerEmail) === email) {
+    return { level: "edit", folder };
+  }
+
+  if (
+    library.ownerSub === PLATFORM_DEMOS_OWNER_SUB &&
+    isDemoAdmin(user.email)
+  ) {
     return { level: "edit", folder };
   }
 
