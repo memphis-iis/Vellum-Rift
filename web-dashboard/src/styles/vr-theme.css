@@ -415,7 +415,7 @@
 
 .vr-tabbar__label {
   font-family: var(--font-label);
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -709,7 +709,7 @@
 
 .vr-upload__required {
   margin-left: 0.5rem;
-  font-size: 10px;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vr-primary-container);
@@ -1039,7 +1039,7 @@
   gap: 0.75rem;
   margin-top: 0.75rem;
   font-family: var(--font-label);
-  font-size: 10px;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vr-on-surface-variant);
@@ -1125,7 +1125,7 @@
   background: color-mix(in srgb, var(--vr-primary) 10%, transparent);
   color: var(--vr-primary);
   font-family: var(--font-label);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1150,7 +1150,7 @@
 .vr-docs__shared-label {
   margin: 0 0 0.55rem;
   font-family: var(--font-label);
-  font-size: 11px;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vr-accent-bright);
@@ -1595,7 +1595,7 @@
 .vr-docs__meta-grid dt {
   margin: 0;
   font-family: var(--font-label);
-  font-size: 10px;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vr-on-surface-variant);
@@ -1835,7 +1835,7 @@
 .vr-sessions__visibility-tag {
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   opacity: 0.85;
 }
 
@@ -1963,7 +1963,7 @@
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
   font-family: var(--font-label);
-  font-size: 10px;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
@@ -2057,7 +2057,7 @@
 .vr-sessions__launch {
   gap: 0.35rem;
   padding: 0.45rem 0.85rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2137,7 +2137,7 @@
   align-items: center;
   gap: 0.4rem;
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vr-on-surface-variant);
@@ -2321,7 +2321,7 @@
 
 .vr-enter__turn-label {
   font-family: var(--font-label);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2753,7 +2753,7 @@
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   background: var(--vr-surface-variant, #383430);
@@ -2841,7 +2841,7 @@
   gap: 0.35rem;
   color: var(--vr-outline);
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -2878,7 +2878,7 @@
 
 .vr-enter__avatar-name {
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.55rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vr-on-surface-variant);
@@ -2901,7 +2901,7 @@
 
 .vr-enter__controls-hint kbd {
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   padding: 0.1rem 0.35rem;
   border-radius: 0.2rem;
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
@@ -3043,7 +3043,7 @@
 
 .vr-enter__bubble-meta {
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vr-outline);
@@ -3223,7 +3223,7 @@
 
 .vr-kiosk__active-badge {
   margin-left: auto;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--vr-accent-bright, #7dd3fc);
@@ -3599,7 +3599,7 @@
   border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
   background: #2d2926;
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3722,7 +3722,7 @@ html.vr-immersive .vr-shell-main {
   background: #e57373;
   color: #1a0a0a;
   font-family: var(--vr-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.15rem;
   text-align: center;
