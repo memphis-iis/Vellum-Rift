@@ -31,4 +31,5 @@ Each component PR should include an axe test.
 ## Focus
 - `vr-theme.css` defines a global `:focus-visible` ring (`--vr-focus-ring`). Never use
   `outline: none`/`0`; use a replacement ring with >= 3:1 contrast. Guarded by
-  `src/styles/focus.test.ts`.
+  `src/styles/css-a11y.test.ts`.
+- Minimum text size is `0.75rem` (12px); also guarded by `css-a11y.test.ts`.
