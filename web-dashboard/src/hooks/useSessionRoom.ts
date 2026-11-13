@@ -11,6 +11,7 @@ import {
 } from "../api/gameState";
 import { CHAT_ENABLED } from "../auth/config";
 import { useAuth } from "../auth/AuthContext";
+import { useStatus } from "../components/StatusRegion";
 import {
   evaluateSeatEviction,
   seatEvictionMessage,
@@ -105,6 +106,8 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
   const [me, setMe] = useState<LocalIdentity | null>(null);
   const [status, setStatus] = useState<SessionRoomStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const toast = useStatus();
+  const pollFailedRef = useRef(false);
   /** Host mutations bump this so an in-flight poll cannot overwrite newer state. */
   const [mutationEpoch, setMutationEpoch] = useState(0);
   const pollPausedRef = useRef(false);
@@ -267,8 +270,13 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
             connectionId: meRef.current.connectionId ?? self.connectionId ?? null,
           });
         }
+        if (pollFailedRef.current) {
+          pollFailedRef.current = false;
+          toast.announce("Connection to the space restored.");
+        }
       } catch {
-        /* best-effort poll */
+        pollFailedRef.current = true;
+        toast.alert("Connection to the space lost. Retrying.");
       }
     };
 
@@ -277,7 +285,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [session?.sessionId, status, userEmail, userSub, mutationEpoch, applyForceLeave]);
+  }, [session?.sessionId, status, userEmail, userSub, mutationEpoch, applyForceLeave, status]);
 
   return {
     session,

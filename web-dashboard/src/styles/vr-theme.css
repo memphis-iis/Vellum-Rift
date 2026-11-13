@@ -4075,3 +4075,47 @@ html.vr-immersive .vr-shell-main {
   margin-top: 0.75rem;
 }
 
+
+/* App-wide status / alert toasts (StatusRegion) */
+.vr-status-region {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(26rem, calc(100vw - 2rem));
+}
+
+.vr-status-region__toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 50%, transparent);
+  background: var(--vr-surface-container-high, #2d2926);
+  color: var(--vr-on-surface);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 45%, transparent);
+}
+
+.vr-status-region__toast--error {
+  border-color: var(--vr-error, #ffb4ab);
+}
+
+.vr-status-region__dismiss {
+  min-width: 2rem;
+  min-height: 2rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}

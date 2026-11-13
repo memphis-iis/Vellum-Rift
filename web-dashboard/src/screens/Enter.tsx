@@ -35,6 +35,7 @@ import {
 } from "../api/sessions";
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { useStatus } from "../components/StatusRegion";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
 import { ShareQrPanel } from "../components/ShareQrPanel";
 import { SpaceChatPanel } from "../components/SpaceChatPanel";
@@ -155,6 +156,7 @@ export default function Enter({
     setPlaylistBusy: setRoomPlaylistBusy,
   } = useSessionRoom(sessionId, displayName);
 
+  const toast = useStatus();
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | "observer" | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -497,8 +499,9 @@ export default function Enter({
       await navigator.clipboard.writeText(text);
       setCopied(kind);
       window.setTimeout(() => setCopied(null), 2000);
+      toast.announce("Copied to clipboard.");
     } catch {
-      /* ignore */
+      toast.alert("Could not copy. Select the text and copy it manually.");
     }
   };
 

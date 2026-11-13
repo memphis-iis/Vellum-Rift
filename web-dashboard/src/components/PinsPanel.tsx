@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteArtifact,
   listArtifacts,
@@ -6,6 +6,7 @@ import {
   updateArtifact,
 } from "../api/gameState";
 import { MaterialIcon } from "./MaterialIcon";
+import { useStatus } from "./StatusRegion";
 
 type PinsPanelProps = {
   sessionId: string;
@@ -19,17 +20,25 @@ export function PinsPanel({ sessionId, localPlayerId, pollMs = 3000 }: PinsPanel
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const status = useStatus();
+  const pinCountRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!sessionId) return;
     try {
       const rows = await listArtifacts(sessionId);
-      setPins(rows.filter((a) => a.artifactType === "waypoint" || !a.artifactType));
+      const next = rows.filter((a) => a.artifactType === "waypoint" || !a.artifactType);
+      const prevCount = pinCountRef.current;
+      if (prevCount !== null && next.length !== prevCount) {
+        status.announce(`Pins updated: ${next.length} in this space.`);
+      }
+      pinCountRef.current = next.length;
+      setPins(next);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load pins");
     }
-  }, [sessionId]);
+  }, [sessionId, status]);
 
   useEffect(() => {
     void refresh();
@@ -73,7 +82,7 @@ export function PinsPanel({ sessionId, localPlayerId, pollMs = 3000 }: PinsPanel
         <MaterialIcon name="push_pin" />
         Pins
       </h4>
-      {error ? <p className="vr-pins-panel__error">{error}</p> : null}
+      {error ? <p className="vr-pins-panel__error" role="alert">{error}</p> : null}
       {pins.length === 0 ? (
         <p className="vr-pins-panel__empty">No pins yet. Press F in-world to place one.</p>
       ) : (
