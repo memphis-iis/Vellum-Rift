@@ -99,7 +99,8 @@
 }
 
 .vr-upload__folder-select:focus {
-  outline: none;
+  outline: 2px solid var(--vr-accent);
+  outline-offset: 1px;
   border-color: var(--vr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
 }
@@ -263,7 +264,7 @@
   background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
 }
 
-.vr-upload__compare-side .vr-btn {
+.vr-upload__compare-side button {
   justify-content: flex-start;
   text-align: left;
   white-space: nowrap;

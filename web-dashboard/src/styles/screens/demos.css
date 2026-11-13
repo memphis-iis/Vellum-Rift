@@ -143,7 +143,7 @@
 
 .vr-demos__card-category {
   margin: 0 0 0.35rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vr-outline);
@@ -183,6 +183,4 @@
 .vr-demos--compact .vr-demos__try {
   width: auto;
   margin: 0 1.1rem 1.1rem;
-}
-
 }
