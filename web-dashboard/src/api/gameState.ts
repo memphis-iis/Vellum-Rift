@@ -93,27 +93,42 @@ export interface GameSession {
   metadata?: Record<string, unknown>;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+const AUTH_RETRY_DELAY_MS = 1500;
+
+type ErrorBody = { error?: string; code?: string } | null;
+
+/** True only for a genuinely expired/rejected host token (not missing header, kiosk, or outage). */
+export function isTokenExpiredResponse(status: number, body: ErrorBody): boolean {
+  if (status !== 401) return false;
+  if (body?.code) return body.code === "token_expired";
+  // Backends that predate error codes.
+  return body?.error === "Invalid or expired token";
+}
+
+async function fetchOnce(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: getAuthHeaders(init?.headers),
   });
+}
+
+/** Retry once when the auth service is temporarily unavailable (503). */
+async function fetchWithAuthRetry(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetchOnce(path, init);
+  if (res.status !== 503) return res;
+  await new Promise((resolve) => setTimeout(resolve, AUTH_RETRY_DELAY_MS));
+  return fetchOnce(path, init);
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetchWithAuthRetry(path, init);
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const message =
-      (body as { error?: string } | null)?.error ?? `Request failed (${res.status})`;
-    // Host Bluekey expired — clear and force re-login. Skip when only a kiosk JWT is in use.
-    if (res.status === 401 && !readKioskToken()) {
-      const lower = message.toLowerCase();
-      if (
-        lower.includes("expired") ||
-        lower.includes("invalid") ||
-        lower.includes("token") ||
-        lower.includes("unauthorized")
-      ) {
-        notifyAuthExpired("Session expired - sign in again.");
-      }
+    const body = (await res.json().catch(() => null)) as ErrorBody;
+    const message = body?.error ?? `Request failed (${res.status})`;
+    // Skip when only a kiosk JWT is in use.
+    if (isTokenExpiredResponse(res.status, body) && !readKioskToken()) {
+      notifyAuthExpired("Session expired - sign in again.");
     }
     throw new Error(message);
   }
