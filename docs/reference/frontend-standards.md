@@ -63,3 +63,12 @@ Each component PR should include an axe test.
 - Heavy third-party code (`@google/model-viewer`) is loaded with dynamic `import()`.
 - New classes used by one screen go in that screen's file; used by two or more, in `vr-theme.css`.
 - `styles/css-a11y.test.ts` scans every stylesheet (focus ring, minimum font size).
+
+## Function size and preconditions (NASA R4/R5)
+- Functions are at most 60 lines, complexity 10, depth 4. Split screens into hooks
+  (`use*`) for state/effects and small components for markup. `Upload` and `components/upload/*`
+  are enforced in `eslint.config.js`; `Enter` and `Documents` are still on the warning list.
+- `api/*` entry points validate id arguments with `assertId` (`lib/assert.ts`) before any
+  network call.
+- The upload dropzone is a plain container with one real button; do not nest interactive
+  elements inside `role="button"`.

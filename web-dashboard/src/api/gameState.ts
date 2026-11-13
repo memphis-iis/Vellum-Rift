@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { getAuthHeaders } from "./authHeaders";
 import { notifyAuthExpired, readKioskToken } from "../auth/tokenStorage";
+import { assertId } from "../lib/assert";
 
 export interface Vec3 {
   x: number;
@@ -122,6 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getSession(sessionId: string): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   return request<GameSession>(`/api/game-state/${encodeURIComponent(sessionId)}`);
 }
 
@@ -139,6 +141,7 @@ export function addPlayer(
   playerId?: string | null,
   connectionId?: string | null,
 ): Promise<PlayerState> {
+  assertId(sessionId, "sessionId");
   return request<PlayerState>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players`,
     {
@@ -154,6 +157,8 @@ export function addPlayer(
 }
 
 export function removePlayer(sessionId: string, playerId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}`,
     { method: "DELETE" },
@@ -161,6 +166,7 @@ export function removePlayer(sessionId: string, playerId: string): Promise<void>
 }
 
 export async function fetchChat(sessionId: string): Promise<ChatMessage[]> {
+  assertId(sessionId, "sessionId");
   const data = await request<{ messages: ChatMessage[] }>(
     `/api/game-state/${encodeURIComponent(sessionId)}/chat`,
   );
@@ -172,6 +178,8 @@ export async function postChat(
   playerId: string,
   text: string,
 ): Promise<ChatMessage> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   const data = await request<{ message: ChatMessage }>(
     `/api/game-state/${encodeURIComponent(sessionId)}/chat`,
     {
@@ -195,6 +203,7 @@ export function inviteToSession(
   recipientEmail: string,
   options?: { addToAllowlist?: boolean },
 ): Promise<SessionInviteResult> {
+  assertId(sessionId, "sessionId");
   return request<SessionInviteResult>(
     `/api/game-state/${encodeURIComponent(sessionId)}/invite`,
     {
@@ -216,6 +225,7 @@ export type AllowlistEntry = {
 };
 
 export function fetchAllowlist(sessionId: string): Promise<AllowlistEntry[]> {
+  assertId(sessionId, "sessionId");
   return request<AllowlistEntry[]>(
     `/api/game-state/${encodeURIComponent(sessionId)}/allowlist`,
   );
@@ -225,6 +235,7 @@ export function addAllowlistEmail(
   sessionId: string,
   email: string,
 ): Promise<AllowlistEntry> {
+  assertId(sessionId, "sessionId");
   return request<AllowlistEntry>(
     `/api/game-state/${encodeURIComponent(sessionId)}/allowlist`,
     {
@@ -238,6 +249,8 @@ export function removeAllowlistEntry(
   sessionId: string,
   entryId: string,
 ): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(entryId, "entryId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/allowlist/${encodeURIComponent(entryId)}`,
     { method: "DELETE" },
@@ -248,6 +261,7 @@ export function setSessionVisibility(
   sessionId: string,
   visibility: "public" | "private",
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   return request<GameSession>(
     `/api/game-state/${encodeURIComponent(sessionId)}/visibility`,
     {
@@ -262,6 +276,7 @@ export function setSessionKiosk(
   sessionId: string,
   enabled: boolean,
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   return request<GameSession>(
     `/api/game-state/${encodeURIComponent(sessionId)}/kiosk`,
     {
@@ -276,6 +291,7 @@ export function setSessionDemo(
   sessionId: string,
   body: { enabled?: boolean; category?: string; summary?: string },
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   return request<GameSession>(
     `/api/game-state/${encodeURIComponent(sessionId)}/demo`,
     {
@@ -286,6 +302,8 @@ export function setSessionDemo(
 }
 
 export function kickPlayer(sessionId: string, playerId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/kick`,
     { method: "POST", body: JSON.stringify({}) },
@@ -293,6 +311,8 @@ export function kickPlayer(sessionId: string, playerId: string): Promise<void> {
 }
 
 export function mutePlayer(sessionId: string, playerId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/mute`,
     { method: "POST", body: JSON.stringify({}) },
@@ -300,6 +320,8 @@ export function mutePlayer(sessionId: string, playerId: string): Promise<void> {
 }
 
 export function unmutePlayer(sessionId: string, playerId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/unmute`,
     { method: "POST", body: JSON.stringify({}) },
@@ -307,6 +329,8 @@ export function unmutePlayer(sessionId: string, playerId: string): Promise<void>
 }
 
 export function transferHost(sessionId: string, playerId: string): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<GameSession>(
     `/api/game-state/${encodeURIComponent(sessionId)}/host`,
     {
@@ -321,6 +345,8 @@ export function respawnPlayer(
   sessionId: string,
   playerId: string,
 ): Promise<{ ok: boolean; player: PlayerState; session: GameSession }> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/respawn`,
     { method: "POST", body: JSON.stringify({}) },
@@ -331,6 +357,7 @@ export function respawnPlayer(
 export function respawnAllPlayers(
   sessionId: string,
 ): Promise<{ ok: boolean; count: number; session: GameSession }> {
+  assertId(sessionId, "sessionId");
   return request(`/api/game-state/${encodeURIComponent(sessionId)}/respawn-all`, {
     method: "POST",
     body: JSON.stringify({}),
@@ -343,6 +370,8 @@ export function setPlayerControlScheme(
   playerId: string,
   scheme: ControlSchemeId,
 ): Promise<{ ok: boolean; player: PlayerState; session: GameSession }> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request(
     `/api/game-state/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerId)}/control-scheme`,
     {
@@ -365,6 +394,7 @@ export interface SessionArtifact {
 }
 
 export function listArtifacts(sessionId: string): Promise<SessionArtifact[]> {
+  assertId(sessionId, "sessionId");
   return request<SessionArtifact[]>(
     `/api/game-state/${encodeURIComponent(sessionId)}/artifacts`,
   );
@@ -376,6 +406,7 @@ export function createArtifact(
     artifactType?: string;
   },
 ): Promise<SessionArtifact> {
+  assertId(sessionId, "sessionId");
   return request<SessionArtifact>(
     `/api/game-state/${encodeURIComponent(sessionId)}/artifacts`,
     {
@@ -396,6 +427,8 @@ export function updateArtifact(
   artifactId: string,
   patch: { label?: string },
 ): Promise<SessionArtifact> {
+  assertId(sessionId, "sessionId");
+  assertId(artifactId, "artifactId");
   return request<SessionArtifact>(
     `/api/game-state/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
     {
@@ -406,6 +439,8 @@ export function updateArtifact(
 }
 
 export function deleteArtifact(sessionId: string, artifactId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
+  assertId(artifactId, "artifactId");
   return request<void>(
     `/api/game-state/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
     { method: "DELETE" },
@@ -417,6 +452,8 @@ export function postHelpRequest(
   sessionId: string,
   playerId: string,
 ): Promise<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }> {
+  assertId(sessionId, "sessionId");
+  assertId(playerId, "playerId");
   return request<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }>(
     `/api/game-state/${encodeURIComponent(sessionId)}/help-request`,
     {
@@ -431,6 +468,8 @@ export function acknowledgeHelpRequest(
   sessionId: string,
   requestId: string,
 ): Promise<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }> {
+  assertId(sessionId, "sessionId");
+  assertId(requestId, "requestId");
   return request<{ helpRequest: HelpRequest; helpRequests: HelpRequest[] }>(
     `/api/game-state/${encodeURIComponent(sessionId)}/help-requests/${encodeURIComponent(requestId)}/ack`,
     { method: "POST", body: JSON.stringify({}) },

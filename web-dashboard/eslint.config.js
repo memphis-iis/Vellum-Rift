@@ -15,6 +15,8 @@ const ENFORCED = [
   "src/components/StatusRegion.tsx",
   "src/components/TurnCountdown.tsx",
   "src/lib/concurrency.ts",
+  "src/screens/Upload.tsx",
+  "src/components/upload/*.{ts,tsx}",
 ];
 
 /** NASA Power of 10 aligned limits (rules 1, 2, 4, 7, 10). */

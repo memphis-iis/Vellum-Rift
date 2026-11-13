@@ -1,200 +1,92 @@
 import "../styles/screens/upload.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { uploadManuscript } from "../api/upload";
 import { MaterialIcon } from "../components/MaterialIcon";
-import { useStatus } from "../components/StatusRegion";
-import { usePoll } from "../hooks/usePoll";
-import { mapWithLimit } from "../lib/concurrency";
-import { fetchJob, uploadManuscript, type JobStatus } from "../api/upload";
-import { fetchLibrary, listFolderOptions } from "../api/library";
+import { DocumentOptions } from "../components/upload/DocumentOptions";
+import { Dropzone } from "../components/upload/Dropzone";
+import { JobCard } from "../components/upload/JobCard";
+import {
+  isPdf,
+  labelForFile,
+  normalizeJob,
+  TITLE_REQUIRED_MESSAGE,
+  type LocalJob,
+} from "../components/upload/uploadJobs";
+import { useUploadFolders } from "../components/upload/useUploadFolders";
+import { useUploadJobs } from "../components/upload/useUploadJobs";
 
-type LocalJob = {
-  id: string;
-  filename: string;
+type UploadRequest = {
+  files: File[];
   title: string;
-  status: string;
-  progress: number;
-  stage: string;
-  page?: number;
-  modelId?: string;
-  error?: string;
+  page: number;
+  folderId: string;
+  onJob: (job: LocalJob) => void;
 };
 
-const ACCEPT = ".tif,.tiff,.jpg,.jpeg,.png,.pdf,.webp,.bmp";
+async function uploadAll({ files, title, page, folderId, onJob }: UploadRequest): Promise<void> {
+  const multi = files.length > 1;
+  const folder = folderId.trim();
+  for (const file of files) {
+    const label = labelForFile(title, file, multi);
+    const pdf = isPdf(file);
+    const res = await uploadManuscript(file, {
+      label,
+      ...(pdf ? { page } : {}),
+      ...(folder ? { folderId: folder } : {}),
+    });
+    if (!res.jobId) throw new Error("Upload succeeded but no jobId returned");
+    const remote = { jobId: res.jobId, status: res.status || "pending" };
+    onJob(normalizeJob(res.jobId, file.name, label, remote, pdf ? page : undefined));
+  }
+}
 
-function isPdf(file: File): boolean {
+function JobList(props: {
+  jobs: LocalJob[];
+  onDismiss: (id: string) => void;
+  onViewModel?: (modelId: string) => void;
+}) {
   return (
-    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    <section className="vr-upload__jobs">
+      <h3 className="vr-upload__jobs-label">
+        <MaterialIcon name="sync" className="vr-upload__sync" />
+        Active Processing
+      </h3>
+      {!props.jobs.length ? (
+        <p className="vr-upload__empty">No active jobs yet. Drop a manuscript to begin.</p>
+      ) : (
+        props.jobs.map((job) => (
+          <JobCard key={job.id} job={job} onDismiss={props.onDismiss} onViewModel={props.onViewModel} />
+        ))
+      )}
+    </section>
   );
-}
-
-function stageLabel(status: string, progress: number): string {
-  if (status === "completed") return "Stabilized";
-  if (status === "failed") return "Failed";
-  if (status === "pending") return "Queued…";
-  if (progress < 30) return "Ingesting manuscript…";
-  if (progress < 55) return "Extracting topographic layers…";
-  if (progress < 80) return "Building mesh…";
-  return "Finalizing…";
-}
-
-function normalizeJob(
-  jobId: string,
-  filename: string,
-  title: string,
-  remote?: JobStatus,
-  page?: number,
-): LocalJob {
-  const status = remote?.status ?? "pending";
-  const progress =
-    typeof remote?.progress === "number"
-      ? Math.max(0, Math.min(100, Math.round(remote.progress)))
-      : status === "completed"
-        ? 100
-        : status === "failed"
-          ? 0
-          : 5;
-  return {
-    id: jobId,
-    filename,
-    title,
-    status,
-    progress,
-    page,
-    modelId: remote?.modelId || undefined,
-    stage: remote?.stage || stageLabel(status, progress),
-    error: remote?.errorMessage || remote?.error || undefined,
-  };
-}
-
-function labelForFile(title: string, file: File, multi: boolean): string {
-  return multi ? `${title} - ${file.name}` : title;
-}
-
-const MAX_PARALLEL_POLLS = 4;
-const UPLOAD_MAX_POLLS = 900;
-
-function isActiveJob(job: LocalJob): boolean {
-  return job.status !== "completed" && job.status !== "failed";
-}
-
-function announceTransition(
-  status: ReturnType<typeof useStatus>,
-  prev: LocalJob,
-  next: LocalJob,
-): void {
-  if (next.status === prev.status) return;
-  const name = next.title || next.filename;
-  if (next.status === "completed") status.announce(`${name}: processing complete.`);
-  if (next.status === "failed") status.alert(`${name}: processing failed.`);
 }
 
 type UploadProps = {
   onViewModel?: (modelId: string) => void;
 };
 
-export default function Upload({ onViewModel }: UploadProps) {
-  const status = useStatus();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [jobs, setJobs] = useState<LocalJob[]>([]);
+function useUploadSubmit(form: {
+  title: string;
+  page: number;
+  folderId: string;
+  onJob: (job: LocalJob) => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [title, setTitle] = useState("");
-  const [folderId, setFolderId] = useState("");
-  const [folderOptions, setFolderOptions] = useState<
-    Array<{ folderId: string; label: string }>
-  >([]);
-  const [foldersLoading, setFoldersLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setFoldersLoading(true);
-      try {
-        const library = await fetchLibrary();
-        const options = await listFolderOptions(library.rootFolderId);
-        if (cancelled) return;
-        setFolderOptions(options);
-        setFolderId((prev) =>
-          prev && options.some((o) => o.folderId === prev)
-            ? prev
-            : library.uploadsFolderId,
-        );
-      } catch {
-        if (!cancelled) {
-          setFolderOptions([]);
-          setFolderId("");
-        }
-      } finally {
-        if (!cancelled) setFoldersLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const upsertJob = useCallback((job: LocalJob) => {
-    setJobs((prev) => {
-      const i = prev.findIndex((j) => j.id === job.id);
-      if (i === -1) return [job, ...prev];
-      const existing = prev[i]!;
-      const next = [...prev];
-      next[i] = {
-        ...job,
-        title: job.title || existing.title,
-        page: job.page ?? existing.page,
-        modelId: job.modelId ?? existing.modelId,
-      };
-      return next;
-    });
-  }, []);
-
-  const removeJob = useCallback((id: string) => {
-    setJobs((prev) => prev.filter((j) => j.id !== id));
-  }, []);
-
-  const requireTitle = (): string | null => {
-    const trimmed = title.trim();
-    if (!trimmed) {
-      setError("Enter a document title before uploading.");
-      return null;
-    }
-    return trimmed;
+  const requireTitle = (): boolean => {
+    if (!form.title) setError(TITLE_REQUIRED_MESSAGE);
+    return Boolean(form.title);
   };
 
-  const processFiles = async (files: FileList | File[]) => {
-    const list = Array.from(files);
-    if (!list.length) return;
-    const docTitle = requireTitle();
-    if (!docTitle) return;
-
-    const pageToProcess = Math.max(1, Math.floor(page) || 1);
-    const multi = list.length > 1;
+  const processFiles = async (input: FileList | File[]): Promise<void> => {
+    const files = Array.from(input);
+    if (!files.length || !requireTitle()) return;
     setError(null);
     setUploading(true);
     try {
-      for (const file of list) {
-        const label = labelForFile(docTitle, file, multi);
-        const opts = {
-          label,
-          ...(isPdf(file) ? { page: pageToProcess } : {}),
-          ...(folderId.trim() ? { folderId: folderId.trim() } : {}),
-        };
-        const res = await uploadManuscript(file, opts);
-        const jobId = res.jobId;
-        if (!jobId) throw new Error("Upload succeeded but no jobId returned");
-        upsertJob(
-          normalizeJob(
-            jobId,
-            file.name,
-            label,
-            { jobId, status: res.status || "pending" },
-            isPdf(file) ? pageToProcess : undefined,
-          ),
-        );
-      }
+      await uploadAll({ files, ...form });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -202,34 +94,30 @@ export default function Upload({ onViewModel }: UploadProps) {
     }
   };
 
-  const openFilePicker = () => {
-    if (!requireTitle()) return;
-    inputRef.current?.click();
+  const clearTitleError = (): void => {
+    setError((prev) => (prev === TITLE_REQUIRED_MESSAGE ? null : prev));
   };
 
-  const jobsRef = useRef(jobs);
-  jobsRef.current = jobs;
-  const hasActive = jobs.some(isActiveJob);
+  return { error, uploading, requireTitle, processFiles, clearTitleError };
+}
 
-  usePoll(
-    async () => {
-      const active = jobsRef.current.filter(isActiveJob);
-      if (!active.length) return "stop";
-      await mapWithLimit(active, MAX_PARALLEL_POLLS, async (job) => {
-        const remote = await fetchJob(job.id);
-        const next = normalizeJob(job.id, job.filename, job.title, remote, job.page);
-        upsertJob(next);
-        announceTransition(status, job, next);
-      });
-    },
-    {
-      intervalMs: 2000,
-      maxAttempts: UPLOAD_MAX_POLLS,
-      enabled: hasActive,
-      onError: () => status.alert("Could not refresh upload status. Retrying."),
-      onGiveUp: () => status.alert("Stopped checking upload status. Reload to resume."),
-    },
-  );
+export default function Upload({ onViewModel }: UploadProps) {
+  const { jobs, upsertJob, removeJob } = useUploadJobs();
+  const folders = useUploadFolders();
+  const [page, setPage] = useState(1);
+  const [title, setTitle] = useState("");
+  const trimmedTitle = title.trim();
+  const { error, uploading, requireTitle, processFiles, clearTitleError } = useUploadSubmit({
+    title: trimmedTitle,
+    page,
+    folderId: folders.folderId,
+    onJob: upsertJob,
+  });
+
+  const onTitleChange = (value: string): void => {
+    setTitle(value);
+    clearTitleError();
+  };
 
   return (
     <main className="vr-upload">
@@ -240,206 +128,29 @@ export default function Upload({ onViewModel }: UploadProps) {
           manuscript library for use in learning spaces.
         </p>
       </header>
-
-      <section className="vr-upload__options" aria-label="Document details">
-        <label className="vr-upload__title-field" htmlFor="vr-upload-title">
-          <span className="vr-upload__page-label">
-            <MaterialIcon name="title" />
-            Document title
-            <span className="vr-upload__required">Required</span>
-          </span>
-          <input
-            id="vr-upload-title"
-            className="vr-upload__title-input"
-            type="text"
-            required
-            maxLength={200}
-            autoComplete="off"
-            placeholder="e.g. Codex fragment - folio 12"
-            value={title}
-            disabled={uploading}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              if (error === "Enter a document title before uploading.") setError(null);
-            }}
-          />
-        </label>
-        <p className="vr-upload__page-hint">
-          This title appears in the manuscript library and on the processed mesh record.
+      <DocumentOptions
+        title={title}
+        onTitleChange={onTitleChange}
+        page={page}
+        onPageChange={setPage}
+        folderId={folders.folderId}
+        onFolderChange={folders.setFolderId}
+        folderOptions={folders.folderOptions}
+        foldersLoading={folders.foldersLoading}
+        disabled={uploading}
+      />
+      <Dropzone
+        hasTitle={Boolean(trimmedTitle)}
+        uploading={uploading}
+        canOpenPicker={requireTitle}
+        onFiles={(files) => void processFiles(files)}
+      />
+      {error ? (
+        <p className="vr-upload__error" role="alert">
+          {error}
         </p>
-
-        <label className="vr-upload__page-field" htmlFor="vr-upload-page">
-          <span className="vr-upload__page-label">
-            <MaterialIcon name="filter_1" />
-            Page to process
-          </span>
-          <input
-            id="vr-upload-page"
-            className="vr-upload__page-input"
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={page}
-            disabled={uploading}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              setPage(Number.isFinite(next) && next >= 1 ? Math.floor(next) : 1);
-            }}
-          />
-        </label>
-        <p className="vr-upload__page-hint">
-          For multi-page PDFs, choose which page to extract. Raster images ignore this setting.
-        </p>
-
-        <label className="vr-upload__title-field" htmlFor="vr-upload-folder">
-          <span className="vr-upload__page-label">
-            <MaterialIcon name="folder" />
-            Where should this land?
-          </span>
-          <select
-            id="vr-upload-folder"
-            className="vr-upload__title-input"
-            value={folderId}
-            disabled={uploading || foldersLoading || !folderOptions.length}
-            onChange={(e) => setFolderId(e.target.value)}
-          >
-            {foldersLoading ? (
-              <option value="">Loading folders…</option>
-            ) : folderOptions.length ? (
-              folderOptions.map((opt) => (
-                <option key={opt.folderId} value={opt.folderId}>
-                  {opt.label}
-                </option>
-              ))
-            ) : (
-              <option value="">Uploads (default)</option>
-            )}
-          </select>
-        </label>
-        <p className="vr-upload__page-hint">
-          Defaults to your Uploads folder. You can move manuscripts later from the library.
-        </p>
-      </section>
-
-      <section
-        className={`vr-dropzone${dragging ? " vr-dropzone--active" : ""}${!title.trim() ? " vr-dropzone--locked" : ""}`}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          void processFiles(e.dataTransfer.files);
-        }}
-        onClick={openFilePicker}
-        role="button"
-        tabIndex={0}
-        aria-disabled={!title.trim()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openFilePicker();
-          }
-        }}
-      >
-        <MaterialIcon name="cloud_upload" className="vr-dropzone__icon" />
-        <h2 className="vr-dropzone__heading">Drag &amp; Drop Manuscripts</h2>
-        <p className="vr-dropzone__hint">
-          {title.trim() ? "or click to browse local files" : "Enter a document title above first"}
-        </p>
-        <button
-          type="button"
-          className="vr-btn vr-btn--outline"
-          disabled={uploading}
-          onClick={(e) => {
-            e.stopPropagation();
-            openFilePicker();
-          }}
-        >
-          {uploading ? "Uploading…" : "Select Files"}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT}
-          multiple
-          className="vr-upload__file-input"
-          onChange={(e) => {
-            if (e.target.files) void processFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </section>
-
-      {error ? <p className="vr-upload__error">{error}</p> : null}
-
-      <section className="vr-upload__jobs">
-        <h3 className="vr-upload__jobs-label">
-          <MaterialIcon name="sync" className="vr-upload__sync" />
-          Active Processing
-        </h3>
-
-        {!jobs.length ? (
-          <p className="vr-upload__empty">No active jobs yet. Drop a manuscript to begin.</p>
-        ) : (
-          jobs.map((job) => (
-            <article key={job.id} className="vr-job-card">
-              <div className="vr-job-card__top">
-                <div className="vr-job-card__meta">
-                  <div className="vr-job-card__icon">
-                    <MaterialIcon name="description" />
-                  </div>
-                  <div>
-                    <p className="vr-job-card__name">{job.title}</p>
-                    <p className="vr-job-card__filename">{job.filename}</p>
-                    <p className="vr-job-card__status">
-                      {job.status === "failed"
-                        ? "Failed"
-                        : job.status === "completed"
-                          ? "Ready"
-                          : `Processing (${job.progress}%)`}
-                      {job.page != null ? ` · Page ${job.page}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="vr-job-card__dismiss"
-                  aria-label="Dismiss"
-                  onClick={() => removeJob(job.id)}
-                >
-                  <MaterialIcon name="close" />
-                </button>
-              </div>
-              <div className="vr-job-card__bar">
-                <div
-                  className={`vr-job-card__fill${job.status === "failed" ? " vr-job-card__fill--error" : ""}`}
-                  style={{ width: `${job.status === "failed" ? 100 : job.progress}%` }}
-                />
-              </div>
-              <div className="vr-job-card__footer">
-                <span>{job.error || job.stage}</span>
-                <span className="vr-job-card__footer-actions">
-                  {job.status === "completed" && job.modelId && onViewModel ? (
-                    <button
-                      type="button"
-                      className="vr-job-card__view"
-                      onClick={() => onViewModel(job.modelId!)}
-                    >
-                      View in library
-                    </button>
-                  ) : null}
-                  <span>{job.id.slice(0, 8)}</span>
-                </span>
-              </div>
-            </article>
-          ))
-        )}
-      </section>
+      ) : null}
+      <JobList jobs={jobs} onDismiss={removeJob} onViewModel={onViewModel} />
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAuthHeaders } from "./authHeaders";
+import { assertId } from "../lib/assert";
 
 function authHeaders(json = false): Headers {
   const headers = getAuthHeaders();
@@ -65,6 +66,7 @@ export async function uploadManuscript(
 }
 
 export async function fetchJob(jobId: string): Promise<JobStatus> {
+  assertId(jobId, "jobId");
   const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}`, {
     headers: authHeaders(true),
   });

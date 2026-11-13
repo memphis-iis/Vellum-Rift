@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAuthHeaders } from "./authHeaders";
+import { assertId } from "../lib/assert";
 
 export type LibraryShareRole = "view" | "edit";
 
@@ -82,6 +83,7 @@ export function fetchLibrary(): Promise<LibrarySummary> {
 }
 
 export function fetchFolder(folderId: string): Promise<FolderListing> {
+  assertId(folderId, "folderId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}`,
     { headers: getAuthHeaders() },
@@ -89,6 +91,7 @@ export function fetchFolder(folderId: string): Promise<FolderListing> {
 }
 
 export function createFolder(parentId: string, name: string): Promise<LibraryFolder> {
+  assertId(parentId, "parentId");
   return fetch(`${API_BASE_URL}/api/library/folders`, {
     method: "POST",
     headers: getAuthHeaders(),
@@ -97,6 +100,7 @@ export function createFolder(parentId: string, name: string): Promise<LibraryFol
 }
 
 export function renameFolder(folderId: string, name: string): Promise<LibraryFolder> {
+  assertId(folderId, "folderId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}`,
     {
@@ -108,6 +112,7 @@ export function renameFolder(folderId: string, name: string): Promise<LibraryFol
 }
 
 export function deleteFolder(folderId: string): Promise<{ deleted: boolean }> {
+  assertId(folderId, "folderId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}`,
     {
@@ -118,6 +123,7 @@ export function deleteFolder(folderId: string): Promise<{ deleted: boolean }> {
 }
 
 export function fetchFolderShares(folderId: string): Promise<LibraryShare[]> {
+  assertId(folderId, "folderId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}/shares`,
     { headers: getAuthHeaders() },
@@ -128,6 +134,7 @@ export function addFolderShare(
   folderId: string,
   params: { email?: string; subjectSub?: string; role: LibraryShareRole },
 ): Promise<LibraryShare> {
+  assertId(folderId, "folderId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}/shares`,
     {
@@ -142,6 +149,8 @@ export function revokeFolderShare(
   folderId: string,
   shareId: string,
 ): Promise<{ deleted: boolean }> {
+  assertId(folderId, "folderId");
+  assertId(shareId, "shareId");
   return fetch(
     `${API_BASE_URL}/api/library/folders/${encodeURIComponent(folderId)}/shares/${encodeURIComponent(shareId)}`,
     {
@@ -155,6 +164,7 @@ export function revokeFolderShare(
 export async function listFolderOptions(
   rootFolderId: string,
 ): Promise<Array<{ folderId: string; label: string }>> {
+  assertId(rootFolderId, "rootFolderId");
   const options: Array<{ folderId: string; label: string }> = [];
   const queue: Array<{ folderId: string; path: string }> = [
     { folderId: rootFolderId, path: "Your library" },
