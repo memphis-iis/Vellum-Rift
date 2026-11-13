@@ -382,7 +382,7 @@ export default function Enter({
 
   const connectedCount = useMemo(() => visiblePlayers.length, [visiblePlayers]);
 
-  const isLive = visiblePlayers.some((p) => p.isConnected);
+  const isLive = useMemo(() => visiblePlayers.some((p) => p.isConnected), [visiblePlayers]);
 
   const webGlUrl = useMemo(() => {
     if (!sessionId || !me) return null;

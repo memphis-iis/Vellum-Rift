@@ -3,6 +3,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -116,14 +117,18 @@ export default function Documents({
   const [dialogStatus, setDialogStatus] = useState<string | null>(null);
 
   const canEdit = listing?.access === "edit";
+  const foldersById = useMemo(
+    () => new Map((listing?.folders ?? []).map((f) => [f.folderId, f] as const)),
+    [listing?.folders],
+  );
+  const modelsById = useMemo(
+    () => new Map((listing?.models ?? []).map((m) => [m.modelId, m] as const)),
+    [listing?.models],
+  );
   const selectedFolder: LibraryFolder | null =
-    selection?.kind === "folder"
-      ? listing?.folders.find((f) => f.folderId === selection.id) ?? null
-      : null;
+    selection?.kind === "folder" ? (foldersById.get(selection.id) ?? null) : null;
   const selectedModel: LibraryModel | null =
-    selection?.kind === "model"
-      ? listing?.models.find((m) => m.modelId === selection.id) ?? null
-      : null;
+    selection?.kind === "model" ? (modelsById.get(selection.id) ?? null) : null;
   /** Selection id drives preview even when the row isn’t in the current folder (deep-link). */
   const activeModelId = selection?.kind === "model" ? selection.id : null;
   const preview = useModelPreview(activeModelId);

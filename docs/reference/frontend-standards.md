@@ -50,3 +50,9 @@ Each component PR should include an axe test.
 - Never `setInterval` a network call. Fan out with `mapWithLimit` (`lib/concurrency.ts`).
 - Per-second UI clocks live in their own leaf component (`TurnCountdown`) so screens do not
   re-render every tick.
+
+## Render-path lookups
+- Resolve entities by id through a memoized `Map` (`foldersById`, `modelsById` in Documents),
+  not `Array.find` per render. Derived booleans/lists used in render are `useMemo`'d.
+- Virtualization evaluated and deferred: lists are scoped to one folder or one session roster
+  (tens of rows). Revisit if a folder routinely exceeds ~200 rows.
