@@ -535,3 +535,23 @@
   font-size: 0.85rem;
   color: var(--vr-on-surface-variant);
 }
+
+.vr-docs__try-now {
+  margin: 1rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--vr-outline-variant);
+}
+
+.vr-docs__try-now-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vr-docs__try-now-status {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--vr-on-surface-variant);
+}

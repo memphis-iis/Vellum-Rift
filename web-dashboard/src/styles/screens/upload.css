@@ -78,6 +78,55 @@
   opacity: 0.5;
 }
 
+.vr-upload__folder-select {
+  width: 100%;
+  padding: 0.75rem 2.25rem 0.75rem 0.9rem;
+  border-radius: var(--vr-radius);
+  border: 1px solid var(--vr-outline-variant);
+  background-color: #000;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%7dd3fc' d='M1.4 0.6 6 5.2 10.6.6 12 2 6 8 0 2z'/%3E%3C/svg%3E");
+  background-position: right 0.9rem center;
+  background-size: 0.7rem 0.45rem;
+  background-repeat: no-repeat;
+  color: var(--vr-on-background);
+  font-family: var(--font-body);
+  font-size: 16px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  color-scheme: dark;
+}
+
+.vr-upload__folder-select:focus {
+  outline: none;
+  border-color: var(--vr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vr-accent) 25%, transparent);
+}
+
+.vr-upload__folder-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vr-upload__folder-select option {
+  color: var(--vr-on-background);
+  background-color: #000;
+}
+
+.vr-upload__folder-retry {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--vr-primary, #3158a4);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .vr-upload__required {
   margin-left: 0.5rem;
   font-size: 0.75rem;
@@ -156,6 +205,70 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+.vr-upload__mode,
+.vr-upload__fit {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.vr-upload__mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 0.65rem;
+}
+
+.vr-upload__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--vr-on-background);
+  cursor: pointer;
+}
+
+.vr-upload__radio input {
+  accent-color: var(--vr-accent, #4ea1d3);
+}
+
+.vr-upload__compare {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.vr-upload__compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 700px) {
+  .vr-upload__compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vr-upload__compare-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  background: color-mix(in srgb, var(--vr-surface-low) 70%, transparent);
+}
+
+.vr-upload__compare-side .vr-btn {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .vr-upload__error {
