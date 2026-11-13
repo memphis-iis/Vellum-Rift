@@ -156,7 +156,7 @@ export default function Enter({
     setPlaylistBusy: setRoomPlaylistBusy,
   } = useSessionRoom(sessionId, displayName);
 
-  const status = useStatus();
+  const toast = useStatus();
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState<"invite" | "desktop" | "kiosk" | "share" | "observer" | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -499,9 +499,9 @@ export default function Enter({
       await navigator.clipboard.writeText(text);
       setCopied(kind);
       window.setTimeout(() => setCopied(null), 2000);
-      status.announce("Copied to clipboard.");
+      toast.announce("Copied to clipboard.");
     } catch {
-      status.alert("Could not copy. Select the text and copy it manually.");
+      toast.alert("Could not copy. Select the text and copy it manually.");
     }
   };
 

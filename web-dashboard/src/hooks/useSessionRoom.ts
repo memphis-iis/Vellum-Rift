@@ -106,7 +106,7 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
   const [me, setMe] = useState<LocalIdentity | null>(null);
   const [status, setStatus] = useState<SessionRoomStatus>("idle");
   const [error, setError] = useState<string | null>(null);
-  const status = useStatus();
+  const toast = useStatus();
   const pollFailedRef = useRef(false);
   /** Host mutations bump this so an in-flight poll cannot overwrite newer state. */
   const [mutationEpoch, setMutationEpoch] = useState(0);
@@ -272,11 +272,11 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
         }
         if (pollFailedRef.current) {
           pollFailedRef.current = false;
-          status.announce("Connection to the space restored.");
+          toast.announce("Connection to the space restored.");
         }
       } catch {
         pollFailedRef.current = true;
-        status.alert("Connection to the space lost. Retrying.");
+        toast.alert("Connection to the space lost. Retrying.");
       }
     };
 
