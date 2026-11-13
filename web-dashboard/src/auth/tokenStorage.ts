@@ -34,9 +34,16 @@ function safeRemove(store: Storage, key: string): void {
   }
 }
 
-/** JWT exp (seconds) → clear if past. local-dev never expires. */
+/** Non-JWT host session sentinels (never send as Bearer). */
+export const HOST_SENTINEL_TOKENS = new Set(["local-dev", "demo-guest"]);
+
+export function isHostSentinelToken(token: string | null | undefined): boolean {
+  return Boolean(token && HOST_SENTINEL_TOKENS.has(token));
+}
+
+/** JWT exp (seconds) → clear if past. Sentinels never expire. */
 export function isJwtExpired(token: string | null | undefined, nowSec = Date.now() / 1000): boolean {
-  if (!token || token === "local-dev") return false;
+  if (!token || isHostSentinelToken(token)) return false;
   try {
     const parts = token.split(".");
     const payloadB64 = parts[1];
@@ -107,20 +114,27 @@ export function clearKioskToken(): void {
 }
 
 /**
- * Bearer for API calls: prefer host Bluekey/local token; on kiosk pages fall back to kiosk JWT.
+ * Bearer for API calls.
+ * On kiosk pages (`?kiosk=1`), prefer the session-scoped kiosk JWT so exhibit
+ * playlist models load even when a Bluekey host session lacks library ACL
+ * (platform Demos folder) or a demo-guest sentinel is stored.
  */
 export function readBearerTokenForApi(): string | null {
-  const host = readHostToken();
-  if (host && host !== "local-dev") return host;
   const onKiosk =
     typeof window !== "undefined" &&
     (window.location.search.includes("kiosk=1") ||
       /\/kiosk\//i.test(window.location.pathname));
-  if (onKiosk || !host) {
+  if (onKiosk) {
     const kiosk = readKioskToken();
     if (kiosk) return kiosk;
   }
-  return host && host !== "local-dev" ? host : null;
+  const host = readHostToken();
+  if (host && !isHostSentinelToken(host)) return host;
+  if (!host || isHostSentinelToken(host)) {
+    const kiosk = readKioskToken();
+    if (kiosk) return kiosk;
+  }
+  return null;
 }
 
 export function notifyAuthExpired(message = "Session expired - sign in again."): void {

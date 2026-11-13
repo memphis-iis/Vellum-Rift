@@ -9,7 +9,7 @@ export function getAuthHeaders(extra?: HeadersInit): Headers {
   const headers = new Headers(extra);
   try {
     const token = readBearerTokenForApi();
-    if (token && token !== "local-dev") {
+    if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
   } catch {

@@ -8,13 +8,13 @@ vi.mock("../auth/AuthContext", () => ({
     openPopup: vi.fn(),
     continueInThisTab: vi.fn(),
     continueAsLocalDev: vi.fn(),
+    continueAsGuest: vi.fn(),
     loading: false,
     error: null,
     authRequired: true,
     softwareIdConfigured: true,
   }),
 }));
-vi.mock("../components/DemoCatalog", () => ({ DemoCatalog: () => null }));
 
 describe("Login logo links", () => {
   it("names each external link by destination and announces new tab", () => {

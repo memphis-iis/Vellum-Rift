@@ -3,6 +3,7 @@ import { useAuth } from "./auth/AuthContext";
 import { AmbientBackground } from "./components/AmbientBackground";
 import type { AppSection } from "./components/AppChrome";
 import { SideNav } from "./components/SideNav";
+import { useDemoAvailability } from "./hooks/useDemoAvailability";
 const Documents = lazy(() => import("./screens/Documents"));
 const Demos = lazy(() => import("./screens/Demos"));
 const Enter = lazy(() => import("./screens/Enter"));
@@ -20,6 +21,12 @@ function ScreenFallback() {
   );
 }
 import "./styles/vr-theme.css";
+
+function dashboardLabel(user: ReturnType<typeof useAuth>["user"]): string {
+  if (user?.isGuest) return "Guest";
+  if (user?.isLocalDev) return `${user.email} (local)`;
+  return user?.email || "signed-in@memphis.edu";
+}
 
 function readSessionDeepLink(): string | null {
   try {
@@ -43,37 +50,51 @@ function readKioskDeepLink(): string | null {
   }
 }
 
+const GUEST_SECTIONS = new Set<AppSection>(["home", "demos"]);
+
 function Dashboard() {
   const { user, logout } = useAuth();
+  const guestMode = Boolean(user?.isGuest);
+  const { hasDemos } = useDemoAvailability();
   const [section, setSection] = useState<AppSection>("home");
   const [documentModelId, setDocumentModelId] = useState<string | null>(null);
   const [libraryAddSessionId, setLibraryAddSessionId] = useState<string | null>(null);
   const [enterSessionId, setEnterSessionId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (guestMode) return;
     const sessionId = readSessionDeepLink();
     if (!sessionId) return;
     setEnterSessionId(sessionId);
     setSection("enter");
-  }, []);
+  }, [guestMode]);
 
-  const email = user?.isLocalDev
-    ? `${user.email} (local)`
-    : user?.email || "signed-in@memphis.edu";
+  useEffect(() => {
+    if (!hasDemos && section === "demos") setSection("home");
+  }, [hasDemos, section]);
+
+  useEffect(() => {
+    if (guestMode && !GUEST_SECTIONS.has(section)) setSection("home");
+  }, [guestMode, section]);
+
+  const email = dashboardLabel(user);
 
   const openDocument = (modelId: string) => {
+    if (guestMode) return;
     setDocumentModelId(modelId);
     setLibraryAddSessionId(null);
     setSection("documents");
   };
 
   const openLibraryForSpace = (sessionId: string) => {
+    if (guestMode) return;
     setLibraryAddSessionId(sessionId);
     setDocumentModelId(null);
     setSection("documents");
   };
 
   const enterSession = (sessionId: string) => {
+    if (guestMode) return;
     setEnterSessionId(sessionId);
     setSection("enter");
   };
@@ -83,22 +104,27 @@ function Dashboard() {
     setSection("sessions");
   };
 
+  const navigate = (next: AppSection) => {
+    if (guestMode && !GUEST_SECTIONS.has(next)) return;
+    if (next !== "documents") {
+      setDocumentModelId(null);
+      setLibraryAddSessionId(null);
+    }
+    if (next !== "enter") setEnterSessionId(null);
+    setSection(next);
+  };
+
   return (
     <div className={`vr-app vr-app--shell${section === "home" ? " vr-app--home" : ""}`}>
       {section === "home" ? <AmbientBackground /> : null}
       <SideNav
         active={section}
         email={email}
-        onNavigate={(next) => {
-          if (next !== "documents") {
-            setDocumentModelId(null);
-            setLibraryAddSessionId(null);
-          }
-          if (next !== "enter") setEnterSessionId(null);
-          setSection(next);
-        }}
+        showDemos={hasDemos}
+        guestMode={guestMode}
+        onNavigate={navigate}
         onSignOut={logout}
-        onNewSession={() => setSection("sessions")}
+        onNewSession={guestMode ? undefined : () => setSection("sessions")}
       />
       <div className="vr-shell-main">
         <Suspense fallback={<ScreenFallback />}>
@@ -108,25 +134,27 @@ function Dashboard() {
             onJoinSession={() => setSection("sessions")}
             onEnterSession={enterSession}
             onBrowseDemos={() => setSection("demos")}
+            showTryNow={hasDemos}
+            guestMode={guestMode}
           />
         ) : null}
-        {section === "demos" ? <Demos onEnterSession={enterSession} /> : null}
-        {section === "upload" ? <Upload onViewModel={openDocument} /> : null}
-        {section === "documents" ? (
+        {section === "demos" && hasDemos ? <Demos onEnterSession={enterSession} /> : null}
+        {!guestMode && section === "upload" ? <Upload onViewModel={openDocument} /> : null}
+        {!guestMode && section === "documents" ? (
           <Documents
             initialModelId={documentModelId}
             initialAddSessionId={libraryAddSessionId}
             onOpenInSpace={enterSession}
           />
         ) : null}
-        {section === "sessions" ? (
+        {!guestMode && section === "sessions" ? (
           <Sessions
             onEnterSession={enterSession}
             onNewSessionUpload={() => setSection("upload")}
             onAddFromLibrary={openLibraryForSpace}
           />
         ) : null}
-        {section === "enter" ? (
+        {!guestMode && section === "enter" ? (
           <Enter
             sessionId={enterSessionId}
             onLeave={leaveSessionRoom}
@@ -144,8 +172,9 @@ export default function App() {
   const { user } = useAuth();
   const kioskSessionId = readKioskDeepLink();
 
-  // Museum QR path: skip Bluekey when ?session=&kiosk=1 (#145).
-  if (!user && kioskSessionId) {
+  // Museum QR / Try now Enter demo: ?session=&kiosk=1 always opens kiosk join
+  // (even when a demo-guest shell session is already stored).
+  if (kioskSessionId) {
     return (
       <Suspense fallback={<ScreenFallback />}>
         <KioskJoin sessionId={kioskSessionId} />
