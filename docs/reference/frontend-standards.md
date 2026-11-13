@@ -33,3 +33,5 @@ Each component PR should include an axe test.
   `outline: none`/`0`; use a replacement ring with >= 3:1 contrast. Guarded by
   `src/styles/css-a11y.test.ts`.
 - Minimum text size is `0.75rem` (12px); also guarded by `css-a11y.test.ts`.
+- External links that open a new tab must name the destination and say "(opens in new tab)",
+  and use `rel="noopener noreferrer"`.
