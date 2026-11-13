@@ -1,11 +1,19 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
+const CSS_FILES = [
+  "./vr-theme.css",
+  "./bluekey.css",
+  ...readdirSync(join(process.cwd(), "src/styles/screens"))
+    .filter((f) => f.endsWith(".css"))
+    .map((f) => `./screens/${f}`),
+];
 
 describe("focus styles", () => {
   it("never removes the outline without a replacement", () => {
-    for (const file of ["./vr-theme.css", "./bluekey.css"]) {
+    for (const file of CSS_FILES) {
       expect(read(file)).not.toMatch(/outline:\s*(none|0)\s*;/);
     }
   });
@@ -17,7 +25,7 @@ describe("focus styles", () => {
 
 describe("type size", () => {
   it("never sets text below 0.75rem (12px)", () => {
-    for (const file of ["./vr-theme.css", "./bluekey.css"]) {
+    for (const file of CSS_FILES) {
       const sizes = [...read(file).matchAll(/font-size:\s*([\d.]+)(px|rem|em)\s*;/g)];
       for (const [, value, unit] of sizes) {
         const px = Number(value) * (unit === "px" ? 1 : 16);

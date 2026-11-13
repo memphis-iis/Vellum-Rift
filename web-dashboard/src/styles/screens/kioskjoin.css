@@ -1,0 +1,214 @@
+/**
+ * Vellum Rift post-login VR / spatial theme (Stitch home template → CSS).
+ * Scoped under `.vr-app` so Bluekey login stays on its own chrome.
+ */
+
+.vr-app {
+  /* Solid black shell (upload + post-login chrome) */
+  --vr-background: #000000;
+  --vr-surface: #000000;
+  --vr-surface-low: #0a0a0a;
+  --vr-surface-container: #121212;
+  --vr-surface-high: #1a1a1a;
+  --vr-surface-highest: #242424;
+  --vr-on-background: #e8e1db;
+  --vr-on-surface: #e8e1db;
+  --vr-on-surface-variant: #d1c5b7;
+  --vr-primary: #f1cf9c;
+  --vr-primary-container: #d4b483;
+  --vr-on-primary-container: #5c451e;
+  --vr-primary-fixed: #ffdeac;
+  /* Logo wordmark cyan — primary CTA fill */
+  --vr-accent: #6bb7c4;
+  --vr-accent-bright: #7dd1db;
+  --vr-on-accent: #0a242b;
+  --vr-outline: #998f82;
+  --vr-outline-variant: #4d463b;
+  --vr-gutter: 24px;
+  --vr-radius: 0.125rem;
+
+  --font-display: "Epilogue", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-label: "JetBrains Mono", ui-monospace, monospace;
+
+  min-height: 100vh;
+  color: var(--vr-on-background);
+  background-color: var(--vr-background);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.vr-app ::selection {
+  background: color-mix(in srgb, var(--vr-primary) 20%, transparent);
+  color: var(--vr-primary);
+}
+
+/* —— Shell with side nav —— */
+
+.vr-app--shell {
+  display: flex;
+  min-height: 100vh;
+  background: #000;
+}
+
+/* Museum kiosk join (#145) */
+
+.vr-kiosk {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.vr-kiosk__logo {
+  display: block;
+  margin: 0 auto 0.75rem;
+}
+
+.vr-kiosk__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__title {
+  margin: 0.35rem 0 0.5rem;
+  font-family: var(--vr-font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+}
+
+.vr-kiosk__lead {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+  line-height: 1.45;
+}
+
+.vr-kiosk__card {
+  padding: 1.25rem 1.1rem 1.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--vr-surface) 88%, transparent);
+}
+
+.vr-kiosk__space {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.vr-kiosk__loadout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.vr-kiosk__preview {
+  min-height: min(32vh, 16rem);
+}
+
+.vr-kiosk__playlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vr-kiosk__playlist-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--vr-outline-variant) 35%, transparent);
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--vr-surface-low) 80%, transparent);
+  color: var(--vr-on-background);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vr-kiosk__playlist-btn--previewing {
+  border-color: color-mix(in srgb, var(--vr-accent-bright, #7dd3fc) 55%, transparent);
+  background: color-mix(in srgb, var(--vr-accent-bright, #7dd3fc) 10%, transparent);
+}
+
+.vr-kiosk__active-badge {
+  margin-left: auto;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vr-accent-bright, #7dd3fc);
+}
+
+.vr-kiosk__form,
+.vr-kiosk__joined {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vr-kiosk__museum-ops {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline-variant) 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.vr-kiosk__label {
+  font-size: 0.8rem;
+  color: var(--vr-outline);
+}
+
+.vr-kiosk__input {
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--vr-outline-variant);
+  background: var(--vr-surface);
+  color: var(--vr-on-surface);
+}
+
+.vr-kiosk__status {
+  margin: 0;
+  color: var(--vr-on-surface-variant);
+}
+
+.vr-kiosk__error {
+  margin: 0;
+  color: #e57373;
+}
+
+.vr-kiosk__museum-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--vr-outline) 35%, transparent);
+}
+
+.vr-kiosk__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--vr-outline);
+}

@@ -1,3 +1,4 @@
+import "../styles/screens/home.css";
 import { useEffect, useState } from "react";
 import { BrandMark } from "../components/BrandMark";
 import { MaterialIcon } from "../components/MaterialIcon";

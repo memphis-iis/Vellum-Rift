@@ -1,3 +1,4 @@
+import "../styles/screens/documents.css";
 import {
   type FormEvent,
   type KeyboardEvent,

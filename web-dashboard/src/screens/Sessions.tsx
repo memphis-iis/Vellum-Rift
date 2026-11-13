@@ -1,3 +1,4 @@
+import "../styles/screens/sessions.css";
 import { useCallback, useEffect, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { fetchModels } from "../api/models";
