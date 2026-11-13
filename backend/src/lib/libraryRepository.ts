@@ -214,14 +214,15 @@ export class LibraryRepository {
     libraryId: string;
     parentId: string;
     name: string;
+    isSystem?: boolean;
   }): Promise<LibraryFolder> {
     const name = params.name.trim();
     if (!name) throw new Error("Folder name is required");
     const { rows } = await pool.query(
       `INSERT INTO library_folders (library_id, parent_id, name, is_root, is_system)
-       VALUES ($1, $2, $3, false, false)
+       VALUES ($1, $2, $3, false, $4)
        RETURNING *`,
-      [params.libraryId, params.parentId, name],
+      [params.libraryId, params.parentId, name, params.isSystem === true],
     );
     return mapFolder(rows[0] as Record<string, unknown>);
   }

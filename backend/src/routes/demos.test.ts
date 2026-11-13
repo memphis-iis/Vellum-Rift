@@ -2,9 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 
+const listAvailableDemos = vi.fn();
+
+vi.mock("../lib/demoCatalog.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/demoCatalog.js")>();
+  return {
+    ...actual,
+    listAvailableDemos: (...args: unknown[]) => listAvailableDemos(...args),
+  };
+});
+
 vi.mock("pg", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  const sharedQuery = vi.fn();
+  const sharedQuery = vi.fn().mockResolvedValue({ rows: [] });
   (globalThis as Record<string, unknown>).__pgMockQueryDemos = sharedQuery;
   return {
     ...actual,
@@ -15,12 +25,6 @@ vi.mock("pg", async (importOriginal) => {
     },
   };
 });
-
-const mocks = {
-  query: (globalThis as Record<string, unknown>).__pgMockQueryDemos as ReturnType<
-    typeof vi.fn
-  >,
-};
 
 process.env.DEMO_ADMIN_EMAILS = "admin@memphis.edu";
 
@@ -59,14 +63,13 @@ function sessionRow(overrides: Record<string, unknown> = {}) {
       playlist: [MODEL_A],
       activeModelId: MODEL_A,
       kioskEnabled: true,
-      demoEnabled: true,
-      demoCategory: "Medieval",
-      demoSummary: "Study a folio",
+      exhibitReadonly: true,
+      exhibitModelId: MODEL_A,
     },
     is_active: true,
     visibility: "public",
-    created_by_sub: HOST.sub,
-    created_by_email: HOST.email,
+    created_by_sub: "acct:vellum-demos",
+    created_by_email: "demos@vellum.rift",
     created_at: "2026-08-27T00:00:00.000Z",
     updated_at: "2026-08-27T00:00:00.000Z",
     ...overrides,
@@ -76,42 +79,26 @@ function sessionRow(overrides: Record<string, unknown> = {}) {
 describe("Demos catalog", () => {
   let app: express.Express;
   let currentUser: typeof ADMIN | typeof HOST | null;
-  let savedMetadata: Record<string, unknown> | null;
-  let listRows: Record<string, unknown>[] | null;
+  const mocks = {
+    query: (globalThis as Record<string, unknown>).__pgMockQueryDemos as ReturnType<
+      typeof vi.fn
+    >,
+  };
 
   beforeEach(() => {
     mocks.query.mockReset();
+    mocks.query.mockResolvedValue({ rows: [] });
+    listAvailableDemos.mockReset();
     resetRateLimits();
-    savedMetadata = null;
-    listRows = null;
     currentUser = ADMIN;
     BLUEKEY_CONFIG.required = false;
 
-    mocks.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+    mocks.query.mockImplementation(async (sql: string) => {
       const text = String(sql);
       if (text.includes("FROM game_sessions WHERE session_id")) {
-        const base = sessionRow();
-        const meta = savedMetadata ?? (base.metadata as Record<string, unknown>);
-        return { rows: [{ ...base, metadata: meta }] };
+        return { rows: [sessionRow()] };
       }
-      if (text.includes("FROM game_sessions ORDER BY updated_at")) {
-        const rows = listRows ?? [
-          {
-            ...sessionRow(),
-            metadata:
-              savedMetadata ??
-              (sessionRow().metadata as Record<string, unknown>),
-          },
-        ];
-        return { rows };
-      }
-      if (text.includes("INSERT INTO game_sessions") || text.includes("UPDATE game_sessions")) {
-        const metadataParam = params?.[3];
-        if (typeof metadataParam === "string") {
-          savedMetadata = JSON.parse(metadataParam) as Record<string, unknown>;
-        } else if (metadataParam && typeof metadataParam === "object") {
-          savedMetadata = metadataParam as Record<string, unknown>;
-        }
+      if (text.includes("UPDATE game_sessions") || text.includes("INSERT INTO game_sessions")) {
         return { rows: [] };
       }
       return { rows: [] };
@@ -123,7 +110,6 @@ describe("Demos catalog", () => {
       if (currentUser) req.user = { ...currentUser };
       next();
     });
-    // Injected-user harness (same pattern as kiosk tests) — avoid live introspect.
     app.get("/api/demos/admin-status", (req, res) => {
       res.json({ isAdmin: isDemoAdmin(req.user?.email, { authRequired: true }) });
     });
@@ -131,28 +117,32 @@ describe("Demos catalog", () => {
     app.use("/api/game-state", gameStateRouter);
   });
 
-  it("GET /api/demos lists curated demos publicly", async () => {
+  it("GET /api/demos lists available library exhibits", async () => {
     currentUser = null;
+    listAvailableDemos.mockResolvedValue([
+      {
+        sessionId: "session-1",
+        modelId: MODEL_A,
+        label: "Codex demo",
+        category: "Medieval",
+        summary: "",
+        updatedAt: "2026-08-27T00:00:00.000Z",
+      },
+    ]);
     const res = await request(app).get("/api/demos");
     expect(res.status).toBe(200);
     expect(res.body.categories).toEqual(["Medieval"]);
     expect(res.body.demos).toHaveLength(1);
     expect(res.body.demos[0]).toMatchObject({
       sessionId: "session-1",
+      modelId: MODEL_A,
       category: "Medieval",
-      playlistCount: 1,
+      previewUrl: `/api/demos/${MODEL_A}/glb`,
     });
   });
 
-  it("omits demos without demoEnabled", async () => {
-    listRows = [
-      sessionRow({
-        metadata: {
-          playlist: [MODEL_A],
-          kioskEnabled: true,
-        },
-      }),
-    ];
+  it("omits unavailable demos (empty catalog)", async () => {
+    listAvailableDemos.mockResolvedValue([]);
     const res = await request(app).get("/api/demos");
     expect(res.status).toBe(200);
     expect(res.body.demos).toEqual([]);
@@ -168,23 +158,63 @@ describe("Demos catalog", () => {
     expect(hostRes.body.isAdmin).toBe(false);
   });
 
-  it("demo admin can publish a Space as demo", async () => {
-    savedMetadata = { playlist: [MODEL_A], activeModelId: MODEL_A };
+  it("Space demo publish stays available to demo admins only", async () => {
+    currentUser = HOST;
+    const denied = await request(app)
+      .patch("/api/game-state/session-1/demo")
+      .send({ enabled: true, category: "Forgery" });
+    expect(denied.status).toBe(403);
     currentUser = ADMIN;
     const res = await request(app)
       .patch("/api/game-state/session-1/demo")
-      .send({ enabled: true, category: "Forgery", summary: "Spot the fake" });
-    expect(res.status).toBe(200);
-    expect(res.body.demoEnabled).toBe(true);
-    expect(res.body.demoCategory).toBe("Forgery");
-    expect(res.body.kioskEnabled).toBe(true);
+      .send({ category: "Forgery" });
+    expect(res.status).not.toBe(410);
+    expect(res.status).not.toBe(403);
   });
 
-  it("non-admin cannot publish demos", async () => {
+  it("exhibitReadonly rejects guest playlist patch", async () => {
     currentUser = HOST;
     const res = await request(app)
-      .patch("/api/game-state/session-1/demo")
-      .send({ enabled: true, category: "Forgery" });
+      .patch("/api/game-state/session-1/playlist")
+      .send({ playlist: [MODEL_A] });
     expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/read-only/i);
+  });
+
+  it("demo admin can patch exhibit playlist", async () => {
+    currentUser = ADMIN;
+    mocks.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (text.includes("FROM game_sessions WHERE session_id")) {
+        return { rows: [sessionRow()] };
+      }
+      if (text.includes("FROM gltf_models WHERE model_id")) {
+        return {
+          rows: [
+            {
+              model_id: MODEL_A,
+              session_id: "session-1",
+              label: "Codex",
+              storage_key: "models/a.glb",
+              height_mode: "fixed",
+              width: 1,
+              height: 1,
+              vertex_count: 10,
+              file_size: 100,
+              created_at: "2026-08-27T00:00:00.000Z",
+              owner_sub: null,
+              folder_id: null,
+              try_now_enabled: true,
+              exhibit_session_id: "session-1",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    const res = await request(app)
+      .patch("/api/game-state/session-1/playlist")
+      .send({ playlist: [MODEL_A] });
+    expect(res.status).toBe(200);
   });
 });

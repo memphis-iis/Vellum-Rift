@@ -122,11 +122,18 @@ function computeVertexNormals(vertices: Vertex[], faces: number[]): Vertex[] {
     return normals;
 }
 
+/** Page-relative Z exaggeration so 0..1 channel heights read as relief. */
+export function suggestedHeightScale(width: number, height: number): number {
+    const maxDim = Math.max(width, height);
+    if (!Number.isFinite(maxDim) || maxDim <= 0) return 40;
+    return Math.min(200, Math.max(8, Math.round(maxDim * 0.08)));
+}
+
 export class TopographyMeshGenerator {
     // generate image and convert it to mesh data, leave it up to export function to decide what format it will be exported in
     // heightScale exaggerates the color-channel height so the bump mapping is
     // visible at page scale (default 1 = raw 0..1 channel values, which look
-    // flat on a 1000px-wide page)
+    // flat on a 1000px-wide page — prefer suggestedHeightScale(w,h))
     generate(imageArray: PixelDataTuple[], mode: HeightMode, heightScale = 1): MeshData { //takes in imageArray to return MeshData
         const vertices: Vertex[] = []; //empty list to later store vertices
         const faces: number[] = []; //empty list to later store faces

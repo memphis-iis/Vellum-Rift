@@ -56,6 +56,8 @@ const sampleRecord: GlTFModelRecord = {
   createdAt: sampleRow.created_at,
   ownerSub: null,
   folderId: null,
+  tryNowEnabled: false,
+  exhibitSessionId: null,
 };
 
 // ---------------------------------------------------------------------------

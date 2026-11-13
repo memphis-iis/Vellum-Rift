@@ -5,8 +5,16 @@ import crypto from "node:crypto";
 import { JobRepository, type ProcessingJobRecord, type JobStatus } from "./jobRepository.js";
 import { GlTFModelRepository } from "./gltfModelRepository.js";
 import { getStorage } from "./storage.js";
-import { TopographyMeshGenerator, GLTFExporter, type PixelDataTuple, type HeightMode } from "../scripts/imageArrayToOBJ.js";
+import {
+  TopographyMeshGenerator,
+  GLTFExporter,
+  suggestedHeightScale,
+  type PixelDataTuple,
+  type HeightMode,
+} from "../scripts/imageArrayToOBJ.js";
 import { ImageTo3DArray } from "../scripts/imageTo3DArray.js";
+import { sideBySideComposite, type FitMode } from "./sideBySideComposite.js";
+import { MAX_UPLOAD_PIXELS } from "../routes/uploadValidation.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -40,6 +48,11 @@ export interface UploadJobPayload {
   label?: string;
   ownerSub?: string | null;
   folderId?: string | null;
+  /** Optional right-side file for side-by-side comparison uploads */
+  uploadKeyB?: string;
+  fileTypeB?: string;
+  pageB?: number;
+  fitMode?: "scale" | "pad";
 }
 
 export type JobPayload =
@@ -243,7 +256,6 @@ export class JobQueue {
 
       // Step 3: Upload to MinIO (70%)
       const storage = getStorage();
-      const safeLabel = (payload.label ?? "").replace(/[^a-zA-Z0-9._-]/g, "_");
       const storageKey = `models/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.glb`;
 
       const stream = Readable.from([glbBuffer]);
@@ -251,9 +263,15 @@ export class JobQueue {
       await this.jobRepo.update(jobId, { progress: 70 });
 
       // Step 4: Persist model metadata to DB (90%)
+      const displayLabel = (payload.label ?? "")
+        .normalize("NFKC")
+        .replace(/[\u0000-\u001F\u007F]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
       const modelRecord = await this.modelRepo.create({
         sessionId: payload.sessionId ?? null,
-        label: safeLabel || "",
+        label: displayLabel || "",
         storageKey,
         heightMode: payload.heightMode,
         width,
@@ -312,15 +330,57 @@ export class JobQueue {
     const storage = getStorage();
 
     try {
-      // Step 1: Download raw file from MinIO (20%)
+      // Step 1: Download raw file(s) from MinIO (20%)
       const rawBuffer = await storage.downloadBuffer(payload.uploadKey);
+      const rawBufferB =
+        payload.uploadKeyB != null
+          ? await storage.downloadBuffer(payload.uploadKeyB)
+          : null;
       await this.jobRepo.update(jobId, { progress: 20 });
 
-      // Step 2: Convert to pixels (40%)
-      const pixels =
-        payload.fileType === "application/pdf"
-          ? await this.converter.pdf2ArrayFromBuffer(rawBuffer, payload.page ?? 1)
-          : await this.converter.img2ArrayFromBuffer(rawBuffer);
+      // Step 2: Convert to pixels (40%) — optional side-by-side composite
+      let pixels: PixelDataTuple[];
+      let width: number;
+      let height: number;
+
+      if (rawBufferB && payload.uploadKeyB && payload.fitMode) {
+        const left = await this.decodeToRawRgba(
+          rawBuffer,
+          payload.fileType,
+          payload.page ?? 1,
+        );
+        const right = await this.decodeToRawRgba(
+          rawBufferB,
+          payload.fileTypeB ?? "image/png",
+          payload.pageB ?? 1,
+        );
+        const composite = await sideBySideComposite(
+          left,
+          right,
+          payload.fitMode as FitMode,
+          MAX_UPLOAD_PIXELS,
+        );
+        width = composite.width;
+        height = composite.height;
+        pixels = this.converter.rawRgbaToPixelTuples(composite);
+        logger.info(
+          `Upload job ${jobId} side-by-side fitMode=${payload.fitMode} → ${width}x${height}`,
+        );
+      } else {
+        pixels =
+          payload.fileType === "application/pdf"
+            ? await this.converter.pdf2ArrayFromBuffer(rawBuffer, payload.page ?? 1)
+            : await this.converter.img2ArrayFromBuffer(rawBuffer);
+
+        let maxX = 0;
+        let maxY = 0;
+        for (const [x, y] of pixels) {
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+        width = maxX + 1;
+        height = maxY + 1;
+      }
 
       if (pixels.length === 0) {
         throw new Error("No pixels could be extracted from the uploaded file");
@@ -329,23 +389,16 @@ export class JobQueue {
       await this.jobRepo.update(jobId, { progress: 40 });
 
       // Step 3: Generate mesh (55%)
-      const heightScale = payload.heightScale ?? 1;
+      const heightScale = payload.heightScale ?? suggestedHeightScale(width, height);
+      logger.info(
+        `Upload job ${jobId} mesh ${width}x${height} heightMode=${payload.heightMode} heightScale=${heightScale}`,
+      );
       const mesh = this.generator.generate(pixels, payload.heightMode, heightScale);
       await this.jobRepo.update(jobId, { progress: 55 });
 
       // Step 4: Export to glb buffer (70%)
       const glbBuffer = await this.exporter.exportToBuffer(mesh);
       await this.jobRepo.update(jobId, { progress: 70 });
-
-      // Derive dimensions
-      let maxX = 0;
-      let maxY = 0;
-      for (const [x, y] of pixels) {
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-      const width = maxX + 1;
-      const height = maxY + 1;
 
       // Step 5: Upload processed GLB to MinIO (80%)
       const storageKey = `models/${Date.now()}-${crypto.randomUUID()}.glb`;
@@ -354,10 +407,16 @@ export class JobQueue {
       await this.jobRepo.update(jobId, { progress: 80 });
 
       // Step 6: Persist model metadata to DB (90%)
-      const safeLabel = (payload.label ?? "").replace(/[^a-zA-Z0-9._-]/g, "_");
+      // Keep a human-readable title (spaces OK). Storage key is UUID-based.
+      const displayLabel = (payload.label ?? "")
+        .normalize("NFKC")
+        .replace(/[\u0000-\u001F\u007F]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
       const modelRecord = await this.modelRepo.create({
         sessionId: payload.sessionId ?? null,
-        label: safeLabel || "",
+        label: displayLabel || "",
         storageKey,
         heightMode: payload.heightMode,
         width,
@@ -384,12 +443,14 @@ export class JobQueue {
         errorMessage: null,
       });
     } catch (err) {
-      // Clean up raw file on failure
-      try {
-        await storage.remove(payload.uploadKey);
-        logger.info(`Cleaned up raw upload ${payload.uploadKey} after job ${jobId} failure`);
-      } catch (cleanupErr) {
-        logger.warn(`Failed to clean up raw upload ${payload.uploadKey}`, { error: String(cleanupErr) });
+      // Clean up raw file(s) on failure
+      for (const key of [payload.uploadKey, payload.uploadKeyB].filter(Boolean) as string[]) {
+        try {
+          await storage.remove(key);
+          logger.info(`Cleaned up raw upload ${key} after job ${jobId} failure`);
+        } catch (cleanupErr) {
+          logger.warn(`Failed to clean up raw upload ${key}`, { error: String(cleanupErr) });
+        }
       }
 
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -408,6 +469,17 @@ export class JobQueue {
       });
       throw err;
     }
+  }
+
+  private async decodeToRawRgba(
+    buffer: Buffer,
+    fileType: string,
+    page: number,
+  ): Promise<{ data: Buffer; width: number; height: number }> {
+    if (fileType === "application/pdf") {
+      return this.converter.pdfToRawRgbaFromBuffer(buffer, page);
+    }
+    return this.converter.imgToRawRgbaFromBuffer(buffer);
   }
 }
 

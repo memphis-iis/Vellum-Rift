@@ -13,6 +13,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = `file://${resolve(
 export type RGBA = [number, number, number, number];
 export type PixelDataTuple = [number, number, RGBA];
 
+export type RawRgbaImage = {
+  data: Buffer;
+  width: number;
+  height: number;
+};
+
 /**
  * Converts PDF pages or image files into a 3D array representation.
  * Each pixel becomes a tuple of [x, y, [r, g, b, a]].
@@ -78,6 +84,22 @@ export class ImageTo3DArray {
     pageNumber: number,
     scale: number = 2,
   ): Promise<PixelDataTuple[]> {
+    const raw = await this.pdfToRawRgbaFromBuffer(buffer, pageNumber, scale);
+    return this.convertToPixelDataTuple(
+      new Uint8ClampedArray(raw.data),
+      raw.width,
+      raw.height,
+    );
+  }
+
+  /**
+   * Renders a PDF page to raw RGBA (for side-by-side composite before mesh gen).
+   */
+  async pdfToRawRgbaFromBuffer(
+    buffer: Buffer,
+    pageNumber: number,
+    scale: number = 2,
+  ): Promise<RawRgbaImage> {
     const doc = await pdfjs.getDocument({ data: buffer }).promise;
 
     if (pageNumber < 1 || pageNumber > doc.numPages) {
@@ -102,12 +124,11 @@ export class ImageTo3DArray {
     }).promise;
 
     const imageData = context.getImageData(0, 0, viewport.width, viewport.height);
-
-    return this.convertToPixelDataTuple(
-      imageData.data,
-      viewport.width,
-      viewport.height,
-    );
+    return {
+      data: Buffer.from(imageData.data),
+      width: viewport.width,
+      height: viewport.height,
+    };
   }
 
   /**
@@ -142,6 +163,16 @@ export class ImageTo3DArray {
    * @returns Promise resolving to an array of [x, y, RGBA] tuples
    */
   async img2ArrayFromBuffer(buffer: Buffer): Promise<PixelDataTuple[]> {
+    const raw = await this.imgToRawRgbaFromBuffer(buffer);
+    return this.convertToPixelDataTuple(
+      new Uint8ClampedArray(raw.data),
+      raw.width,
+      raw.height,
+    );
+  }
+
+  /** Decodes a raster buffer to raw RGBA. */
+  async imgToRawRgbaFromBuffer(buffer: Buffer): Promise<RawRgbaImage> {
     const { data, info } = await sharp(buffer)
       .raw()
       .ensureAlpha()
@@ -151,10 +182,15 @@ export class ImageTo3DArray {
       throw new Error("Failed to read image dimensions from buffer.");
     }
 
+    return { data, width: info.width, height: info.height };
+  }
+
+  /** Builds sparse pixel tuples from a composite RGBA buffer. */
+  rawRgbaToPixelTuples(raw: RawRgbaImage): PixelDataTuple[] {
     return this.convertToPixelDataTuple(
-      new Uint8ClampedArray(data),
-      info.width,
-      info.height,
+      new Uint8ClampedArray(raw.data),
+      raw.width,
+      raw.height,
     );
   }
 

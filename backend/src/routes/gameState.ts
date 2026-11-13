@@ -45,6 +45,7 @@ import {
   parseControlScheme,
   readSpawnRadius,
 } from "../lib/museumControls.js";
+import { readExhibitReadonly } from "../lib/sessionExhibit.js";
 
 const router = Router();
 const repo = new GameStateRepository();
@@ -91,6 +92,34 @@ function rejectKioskGuest(req: Request, res: Response): boolean {
     return true;
   }
   return false;
+}
+
+/** Read-only Try now exhibits: only demo admins may mutate host controls. */
+function rejectExhibitReadonly(
+  req: Request,
+  res: Response,
+  state: GameState,
+): boolean {
+  if (!readExhibitReadonly(state.metadata)) return false;
+  if (isDemoAdmin(req.user?.email) && !isKioskGuest(req.user)) return false;
+  res.status(403).json({ error: "This exhibit is read-only" });
+  return true;
+}
+
+/** Host, or demo admin on a read-only exhibit Space. */
+function requireHostOrExhibitAdmin(
+  req: Request,
+  res: Response,
+  state: GameState,
+): boolean {
+  if (
+    readExhibitReadonly(state.metadata) &&
+    isDemoAdmin(req.user?.email) &&
+    !isKioskGuest(req.user)
+  ) {
+    return true;
+  }
+  return requireHost(req, res, state);
 }
 
 /** Museum path only: host may target any player; kiosk/public may target self (#322). */
@@ -468,7 +497,8 @@ router.patch("/:sessionId/kiosk", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Session not found" });
     return;
   }
-  if (!requireHost(req, res, state)) return;
+  if (rejectExhibitReadonly(req, res, state)) return;
+  if (!requireHostOrExhibitAdmin(req, res, state)) return;
 
   const enabled = (req.body as { enabled?: unknown }).enabled;
   if (typeof enabled !== "boolean") {
@@ -492,7 +522,8 @@ router.patch("/:sessionId/event", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Session not found" });
     return;
   }
-  if (!requireHost(req, res, state)) return;
+  if (rejectExhibitReadonly(req, res, state)) return;
+  if (!requireHostOrExhibitAdmin(req, res, state)) return;
 
   const body = req.body as {
     kind?: unknown;
@@ -598,7 +629,8 @@ router.patch("/:sessionId/visibility", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Session not found" });
     return;
   }
-  if (!requireHost(req, res, state)) return;
+  if (rejectExhibitReadonly(req, res, state)) return;
+  if (!requireHostOrExhibitAdmin(req, res, state)) return;
 
   const visibility = parseVisibility((req.body as { visibility?: string }).visibility);
   if (!visibility) {
@@ -656,7 +688,8 @@ router.patch("/:sessionId/playlist", async (req: Request, res: Response) => {
       res.status(404).json({ error: "Session not found" });
       return;
     }
-    if (!requireHost(req, res, state)) return;
+    if (rejectExhibitReadonly(req, res, state)) return;
+    if (!requireHostOrExhibitAdmin(req, res, state)) return;
 
     const body = req.body as {
       playlist?: unknown;
@@ -708,7 +741,8 @@ router.patch("/:sessionId/active-model", async (req: Request, res: Response) => 
       res.status(404).json({ error: "Session not found" });
       return;
     }
-    if (!requireHost(req, res, state)) return;
+    if (rejectExhibitReadonly(req, res, state)) return;
+    if (!requireHostOrExhibitAdmin(req, res, state)) return;
 
     const { modelId } = req.body as { modelId?: unknown };
     if (modelId === undefined) {

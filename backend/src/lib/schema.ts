@@ -192,11 +192,21 @@ ALTER TABLE gltf_models
 ALTER TABLE gltf_models
   ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES library_folders(folder_id) ON DELETE SET NULL;
 
+ALTER TABLE gltf_models
+  ADD COLUMN IF NOT EXISTS try_now_enabled BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE gltf_models
+  ADD COLUMN IF NOT EXISTS exhibit_session_id UUID REFERENCES game_sessions(session_id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_gltf_models_folder
   ON gltf_models (folder_id);
 
 CREATE INDEX IF NOT EXISTS idx_gltf_models_owner_sub
   ON gltf_models (owner_sub);
+
+CREATE INDEX IF NOT EXISTS idx_gltf_models_try_now
+  ON gltf_models (try_now_enabled)
+  WHERE try_now_enabled = true;
 
 CREATE TABLE IF NOT EXISTS library_shares (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

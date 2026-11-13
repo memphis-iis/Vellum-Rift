@@ -2,6 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   TopographyMeshGenerator,
+  suggestedHeightScale,
   type PixelDataTuple,
 } from "../imageArrayToOBJ.js";
 
@@ -195,5 +196,11 @@ test("grayscale differs from brightness for non-uniform RGB", () => {
     Math.abs(brightnessMesh.vertices[0][2] - grayscaleMesh.vertices[0][2]) > 0.01,
     "grayscale and brightness should differ for non-uniform RGB",
   );
+});
+
+test("suggestedHeightScale is ~8% of max dim, clamped", () => {
+  assert.equal(suggestedHeightScale(325, 480), 38);
+  assert.equal(suggestedHeightScale(10, 10), 8);
+  assert.equal(suggestedHeightScale(5000, 5000), 200);
 });
 

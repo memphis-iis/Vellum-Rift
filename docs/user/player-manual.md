@@ -33,7 +33,7 @@ Vellum Rift turns manuscript pages into a shared **3D landscape** you can walk t
 
 **Stuck facing the wrong way?** On the join page, click **Respawn me**, then look at the 3D window again.
 
-**Alternate:** On the login page, choose **Join museum exhibit** or **Join as guest**, enter the Space ID posted at your station, then continue as above.
+**Alternate (public demos):** On the login page, under **Join as guest**, pick a listed demo (only when demos are available). Museum stations use the QR or hardcoded kiosk link on the client, not a Space ID field.
 
 ---
 

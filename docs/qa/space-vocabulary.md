@@ -36,5 +36,5 @@ Standalone / Quest-bound client shows a world-space **Login** panel (dashboard p
 
 - **Sign in with Bluekey** - available to anyone with an IIS Bluekey account (not staff-only); opens portal + paste-token fallback; token lands in `ApiAuth` like WebGL handoff
 - **Museum / guest** - Space ID → public kiosk mint (no Bluekey); then enter that Space
-- **Try now / Demos** - curated Spaces (playlist + kiosk + `demoEnabled`) listed by category on Login and in nav; guests open kiosk join, signed-in users enter Lobby
+- **Try now / Demos** - platform Library Demos folder manuscripts with **Show in Try now**; each is a read-only kiosk exhibit Space listed only when ready; Login and Demos nav use the same catalog
 - WebGL dashboard handoff and `?kiosk=1` guest path unchanged
