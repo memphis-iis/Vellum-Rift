@@ -17,6 +17,8 @@ const ENFORCED = [
   "src/lib/concurrency.ts",
   "src/screens/Upload.tsx",
   "src/components/upload/*.{ts,tsx}",
+  "src/screens/Enter.tsx",
+  "src/components/enter/*.{ts,tsx}",
 ];
 
 /** NASA Power of 10 aligned limits (rules 1, 2, 4, 7, 10). */
@@ -75,6 +77,7 @@ export default tseslint.config(
       ...Object.fromEntries(
         Object.keys(jsxA11y.flatConfigs.recommended.rules).map((r) => [r, "error"]),
       ),
+      "jsx-a11y/label-has-for": ["error", { required: { some: ["nesting", "id"] } }],
       "react-hooks/exhaustive-deps": "error",
       ...nasaRules("error"),
     },
