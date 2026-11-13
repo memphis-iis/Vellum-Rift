@@ -72,3 +72,10 @@ Each component PR should include an axe test.
   network call.
 - The upload dropzone is a plain container with one real button; do not nest interactive
   elements inside `role="button"`.
+
+## Per-screen CSS must be reachable
+- Shared components must import any screen stylesheet they depend on themselves, or the
+  styles must live in `vr-theme.css` (global). Screens are lazy routes, so a stylesheet
+  imported only by another screen is not loaded.
+- `src/styles/css-reachability.test.ts` enforces this for classes and `var(--x)` custom
+  properties defined in `styles/screens/*.css`.
