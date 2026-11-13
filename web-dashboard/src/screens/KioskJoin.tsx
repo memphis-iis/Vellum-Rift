@@ -58,7 +58,8 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
   const [previewModelId, setPreviewModelId] = useState<string | null>(null);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
 
-  const loadoutPreview = useModelPreview(previewModelId);
+  // Refetch preview after kiosk JWT is minted (Bearer prefers kiosk on ?kiosk=1).
+  const loadoutPreview = useModelPreview(previewModelId, accessToken);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +217,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
     setOpsStatus(null);
     try {
       await respawnPlayer(sessionId, playerId);
-      setOpsStatus("Respawned at the manuscript - look for the 3D view to update.");
+      setOpsStatus("Respawned at the asset - look for the 3D view to update.");
     } catch (err) {
       setOpsStatus(err instanceof Error ? err.message : "Respawn failed");
     } finally {
@@ -290,11 +291,11 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
 
             {phase === "ready" ? (
               <>
-                <div className="vr-kiosk__loadout" aria-label="Exhibit manuscripts">
+                <div className="vr-kiosk__loadout" aria-label="Exhibit assets">
                   <ManuscriptPreview
                     className="vr-kiosk__preview"
                     preview={loadoutPreview}
-                    emptyMessage="No manuscripts in this exhibit yet."
+                    emptyMessage="No assets in this exhibit yet."
                     alt={
                       previewModelId
                         ? shortModelLabel(previewModelId, modelLabels[previewModelId])
@@ -326,7 +327,7 @@ export default function KioskJoin({ sessionId }: KioskJoinProps) {
                       })}
                     </ul>
                   ) : (
-                    <p className="vr-kiosk__hint">No manuscripts in this exhibit yet.</p>
+                    <p className="vr-kiosk__hint">No assets in this exhibit yet.</p>
                   )}
                 </div>
 

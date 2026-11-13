@@ -19,7 +19,8 @@ import {
   fetchFolder,
   fetchFolderShares,
   fetchLibrary,
-  listFolderOptions,
+  listUploadFolderOptions,
+  patchModelTryNow,
   renameFolder,
   revokeFolderShare,
   type FolderListing,
@@ -63,7 +64,7 @@ function spaceOptionLabel(s: GameSession): string {
   const name = s.label?.trim() || "Untitled space";
   const playlistLen = Array.isArray(s.playlist) ? s.playlist.length : 0;
   const vis = (s.visibility ?? "public") === "private" ? "Private" : "Public";
-  return `${name} · ${vis} · ${playlistLen} manuscript${playlistLen === 1 ? "" : "s"}`;
+  return `${name} · ${vis} · ${playlistLen} asset${playlistLen === 1 ? "" : "s"}`;
 }
 
 function badgeLabel(
@@ -116,6 +117,7 @@ export default function Documents({
   const [shares, setShares] = useState<LibraryShare[]>([]);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogStatus, setDialogStatus] = useState<string | null>(null);
+  const [tryNowBusy, setTryNowBusy] = useState(false);
 
   const canEdit = listing?.access === "edit";
   const foldersById = useMemo(
@@ -125,6 +127,11 @@ export default function Documents({
   const modelsById = useMemo(
     () => new Map((listing?.models ?? []).map((m) => [m.modelId, m] as const)),
     [listing?.models],
+  );
+  const inDemosTree = Boolean(
+    library?.demos?.folderId &&
+      (listing?.folder.folderId === library.demos.folderId ||
+        listing?.breadcrumbs.some((b) => b.folderId === library.demos!.folderId)),
   );
   const selectedFolder: LibraryFolder | null =
     selection?.kind === "folder" ? (foldersById.get(selection.id) ?? null) : null;
@@ -153,10 +160,10 @@ export default function Documents({
     }
   }, [initialAddSessionId]);
 
-  const loadFolder = useCallback(async (id: string) => {
+  const loadFolder = useCallback(async (id: string, opts?: { keepSelection?: boolean }) => {
     setListingLoading(true);
     setListingError(null);
-    setSelection(null);
+    if (!opts?.keepSelection) setSelection(null);
     try {
       const next = await fetchFolder(id);
       setListing(next);
@@ -282,7 +289,7 @@ export default function Documents({
       const name = updated.label?.trim() || "space";
       setBindStatus(
         setAsActive
-          ? `Added and set active in “${name}”. Everyone in the space will load this manuscript.`
+          ? `Added and set active in “${name}”. Everyone in the space will load this asset.`
           : `Added to “${name}” playlist.`,
       );
       await refreshSpaces();
@@ -310,14 +317,14 @@ export default function Documents({
       });
       const name = updated.label?.trim() || "space";
       setBindStatus(
-        `Active manuscript in “${name}” is now this one. Connected clients will switch automatically.`,
+        `Active asset in “${name}” is now this one. Connected clients will switch automatically.`,
       );
       await refreshSpaces();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to set active manuscript (you must be the host)",
+          : "Failed to set active asset (you must be the host)",
       );
     } finally {
       setBindBusy(false);
@@ -364,9 +371,10 @@ export default function Documents({
     setMoveOpen(true);
     setDialogBusy(true);
     try {
-      const options = await listFolderOptions(library.rootFolderId);
+      // Include Platform → Demos (demo admins) and editable shared folders.
+      const { options, defaultFolderId } = await listUploadFolderOptions();
       setMoveOptions(options);
-      setMoveTargetId(library.uploadsFolderId);
+      setMoveTargetId(defaultFolderId || library.uploadsFolderId);
     } catch (err) {
       setDialogStatus(err instanceof Error ? err.message : "Could not load folders");
     } finally {
@@ -478,31 +486,53 @@ export default function Documents({
           </span>
         </div>
         <p className="vr-docs__lead">
-          Browse folders and manuscripts. Select a manuscript to preview its mesh, then open a
+          Browse folders and assets. Select an asset to preview its mesh, then open a
           learning space or add it to one.
         </p>
       </header>
 
-      {library?.sharedWithMe?.length ? (
-        <section className="vr-docs__shared" aria-label="Shared with you">
-          <h2 className="vr-docs__shared-label">Shared with you</h2>
-          <ul className="vr-docs__shared-list">
-            {library.sharedWithMe.map((item) => (
-              <li key={item.folderId}>
-                <button
-                  type="button"
-                  className="vr-docs__shared-item"
-                  onClick={() => openFolder(item.folderId, true)}
-                >
-                  <MaterialIcon name="folder_shared" />
-                  <span>{item.name}</span>
-                  <span className="vr-docs__shared-meta">
-                    {item.role} · {item.ownerEmail || "shared"}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+      {library?.demos?.folderId || library?.sharedWithMe?.length ? (
+        <section className="vr-docs__shared" aria-label="Library shortcuts">
+          {library.demos?.folderId ? (
+            <>
+              <h2 className="vr-docs__shared-label">Platform</h2>
+              <ul className="vr-docs__shared-list">
+                <li>
+                  <button
+                    type="button"
+                    className="vr-docs__shared-item"
+                    onClick={() => openFolder(library.demos!.folderId, false)}
+                  >
+                    <MaterialIcon name="auto_stories" />
+                    <span>Demos</span>
+                    <span className="vr-docs__shared-meta">Try now exhibits</span>
+                  </button>
+                </li>
+              </ul>
+            </>
+          ) : null}
+          {library.sharedWithMe?.length ? (
+            <>
+              <h2 className="vr-docs__shared-label">Shared with you</h2>
+              <ul className="vr-docs__shared-list">
+                {library.sharedWithMe.map((item) => (
+                  <li key={item.folderId}>
+                    <button
+                      type="button"
+                      className="vr-docs__shared-item"
+                      onClick={() => openFolder(item.folderId, true)}
+                    >
+                      <MaterialIcon name="folder_shared" />
+                      <span>{item.name}</span>
+                      <span className="vr-docs__shared-meta">
+                        {item.role} · {item.ownerEmail || "shared"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </section>
       ) : null}
 
@@ -628,7 +658,7 @@ export default function Documents({
               <p>This folder is empty.</p>
               <p className="vr-docs__list-empty-hint">
                 {canEdit
-                  ? "Create a folder or upload a manuscript into Uploads."
+                  ? "Create a folder or upload an asset into Uploads."
                   : "Nothing shared here yet."}
               </p>
             </div>
@@ -666,7 +696,7 @@ export default function Documents({
             ? listing.models.map((model) => {
                 const selected =
                   selection?.kind === "model" && selection.id === model.modelId;
-                const name = model.label?.trim() || "Untitled manuscript";
+                const name = model.label?.trim() || "Untitled asset";
                 return (
                   <button
                     key={model.modelId}
@@ -703,7 +733,7 @@ export default function Documents({
           emptyMessage={
             selection?.kind === "folder"
               ? "Double-click or press Enter to open this folder."
-              : "Select a manuscript to preview its mesh."
+              : "Select an asset to preview its mesh."
           }
           alt={meta?.label || (activeModelId ? `Model ${activeModelId}` : undefined)}
         />
@@ -757,7 +787,7 @@ export default function Documents({
                 disabled={bindBusy}
                 onChange={(e) => setSetAsActive(e.target.checked)}
               />
-              Set as active manuscript
+              Set as active asset
             </label>
             <button
               type="button"
@@ -772,7 +802,7 @@ export default function Documents({
               className="vr-btn vr-btn--primary"
               disabled={bindBusy || !addTargetId || !activeModelId}
               onClick={() => void onSetActiveInSpace()}
-              title="Set this manuscript as the live one for everyone in the space"
+              title="Set this asset as the live one for everyone in the space"
             >
               {bindBusy ? "Working…" : "Set active for everyone"}
             </button>
@@ -822,6 +852,42 @@ export default function Documents({
               <dd>{new Date(meta.createdAt).toLocaleString()}</dd>
             </div>
           </dl>
+          {library?.isDemoAdmin && inDemosTree && selectedModel ? (
+            <div className="vr-docs__try-now">
+              <label className="vr-docs__try-now-toggle">
+                <input
+                  type="checkbox"
+                  checked={selectedModel.tryNowEnabled === true}
+                  disabled={tryNowBusy}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    void (async () => {
+                      setTryNowBusy(true);
+                      setError(null);
+                      try {
+                        await patchModelTryNow(selectedModel.modelId, enabled);
+                        if (folderId) await loadFolder(folderId, { keepSelection: true });
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : "Failed to update Try now",
+                        );
+                      } finally {
+                        setTryNowBusy(false);
+                      }
+                    })();
+                  }}
+                />
+                Show in Try now
+              </label>
+              <p className="vr-docs__try-now-status">
+                {Number(selectedModel.fileSize) > 0
+                  ? selectedModel.tryNowEnabled
+                    ? "Ready - listed for guests"
+                    : "Ready"
+                  : "Not ready - won't list until the 3D asset is available"}
+              </p>
+            </div>
+          ) : null}
           <p className="vr-docs__hint">Drag to orbit · Scroll to zoom · Right-drag to pan</p>
         </aside>
       ) : null}
@@ -900,7 +966,7 @@ export default function Documents({
         <Dialog titleId="vr-docs-move-title" onClose={() => setMoveOpen(false)}>
           <form onSubmit={(e) => void onMoveModel(e)}>
             <h2 id="vr-docs-move-title" className="vr-docs__dialog-title">
-              Move manuscript
+              Move asset
             </h2>
             <label className="vr-docs__field" htmlFor="vr-docs-move-folder">
               <span className="vr-docs__field-label">Destination folder</span>

@@ -138,7 +138,7 @@ function Dashboard() {
             guestMode={guestMode}
           />
         ) : null}
-        {section === "demos" && hasDemos ? <Demos onEnterSession={enterSession} /> : null}
+        {section === "demos" && hasDemos ? <Demos /> : null}
         {!guestMode && section === "upload" ? <Upload onViewModel={openDocument} /> : null}
         {!guestMode && section === "documents" ? (
           <Documents

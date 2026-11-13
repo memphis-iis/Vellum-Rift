@@ -3,20 +3,34 @@ import { getAuthHeaders } from "./authHeaders";
 
 export type DemoCatalogItem = {
   sessionId: string;
+  modelId?: string;
+  /** Human-readable title (not a raw filename). */
   label: string;
   category: string;
   summary: string;
-  activeModelId: string | null;
-  playlistCount: number;
   updatedAt: string;
+  /** Absolute or path URL for public GLB preview. */
+  previewUrl?: string;
 };
+
+/** Resolve a fetchable GLB URL for catalog <model-viewer>. */
+export function demoPreviewUrl(demo: DemoCatalogItem): string | null {
+  const modelId = demo.modelId?.trim();
+  const path =
+    demo.previewUrl?.trim() ||
+    (modelId ? `/api/demos/${encodeURIComponent(modelId)}/glb` : "");
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = API_BASE_URL.replace(/\/$/, "");
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 export type DemoCatalogResponse = {
   demos: DemoCatalogItem[];
   categories: string[];
 };
 
-/** Public curated demo list (no auth). */
+/** Public available-demo list (no auth). */
 export async function fetchDemos(): Promise<DemoCatalogResponse> {
   const res = await fetch(`${API_BASE_URL}/api/demos`);
   if (!res.ok) {
@@ -37,30 +51,6 @@ export async function fetchDemoAdminStatus(): Promise<boolean> {
   return body.isAdmin === true;
 }
 
-export async function patchSessionDemo(
-  sessionId: string,
-  body: { enabled?: boolean; category?: string; summary?: string },
-): Promise<unknown> {
-  const res = await fetch(
-    `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/demo`,
-    {
-      method: "PATCH",
-      headers: {
-        ...getAuthHeaders(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    },
-  );
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => null);
-    throw new Error(
-      (errBody as { error?: string } | null)?.error ?? `Demo update failed (${res.status})`,
-    );
-  }
-  return res.json();
-}
-
 export function groupDemosByCategory(
   demos: DemoCatalogItem[],
 ): { category: string; demos: DemoCatalogItem[] }[] {
@@ -76,7 +66,7 @@ export function groupDemosByCategory(
   }));
 }
 
-/** Guest Try now → kiosk join URL for a curated Space. */
+/** Guest / signed-in Try now → kiosk join URL for an exhibit Space. */
 export function demoKioskHref(sessionId: string): string {
   const url = new URL(window.location.href);
   url.searchParams.set("session", sessionId);

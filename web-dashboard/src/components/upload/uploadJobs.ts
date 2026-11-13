@@ -14,7 +14,7 @@ export type LocalJob = {
 };
 
 export const ACCEPT = ".tif,.tiff,.jpg,.jpeg,.png,.pdf,.webp,.bmp";
-export const TITLE_REQUIRED_MESSAGE = "Enter a document title before uploading.";
+export const TITLE_REQUIRED_MESSAGE = "Enter an asset title before uploading.";
 
 export function isPdf(file: File): boolean {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -32,7 +32,7 @@ export function stageLabel(status: string, progress: number): string {
   if (status === "completed") return "Stabilized";
   if (status === "failed") return "Failed";
   if (status === "pending") return "Queued…";
-  if (progress < 30) return "Ingesting manuscript…";
+  if (progress < 30) return "Ingesting asset…";
   if (progress < 55) return "Extracting topographic layers…";
   if (progress < 80) return "Building mesh…";
   return "Finalizing…";

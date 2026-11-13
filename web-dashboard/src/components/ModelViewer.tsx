@@ -10,7 +10,7 @@ type ModelViewerProps = {
  * Thin React wrapper around Google's <model-viewer> web component.
  * Expects a blob: or https: URL to a .glb / .gltf asset.
  */
-export function ModelViewer({ src, alt = "Manuscript mesh", className = "" }: ModelViewerProps) {
+export function ModelViewer({ src, alt = "Asset mesh", className = "" }: ModelViewerProps) {
   const ref = useRef<HTMLElement | null>(null);
 
   // Registers the <model-viewer> custom element on first use (keeps ~1 MB out of the entry chunk).
