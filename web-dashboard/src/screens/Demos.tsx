@@ -2,11 +2,7 @@ import "../styles/screens/demos.css";
 import { demoKioskHref, type DemoCatalogItem } from "../api/demos";
 import { DemoCatalog } from "../components/DemoCatalog";
 
-type DemosProps = {
-  onEnterSession: (sessionId: string) => void;
-};
-
-export default function Demos({ onEnterSession: _onEnterSession }: DemosProps) {
+export default function Demos() {
   const onTry = (demo: DemoCatalogItem) => {
     window.location.assign(demoKioskHref(demo.sessionId));
   };
