@@ -21,7 +21,7 @@ function FileInput(props: {
       accept={ACCEPT}
       multiple
       tabIndex={-1}
-      aria-label="Choose manuscript files"
+      aria-label="Choose asset files"
       className="vr-upload__file-input"
       onChange={(e) => {
         if (e.target.files) props.onFiles(e.target.files);
@@ -57,9 +57,9 @@ export function Dropzone({ hasTitle, uploading, canOpenPicker, onFiles }: Dropzo
       onDrop={onDrop}
     >
       <MaterialIcon name="cloud_upload" className="vr-dropzone__icon" />
-      <h2 className="vr-dropzone__heading">Drag &amp; Drop Manuscripts</h2>
+      <h2 className="vr-dropzone__heading">Drag &amp; Drop Assets</h2>
       <p className="vr-dropzone__hint" id="vr-dropzone-hint">
-        {hasTitle ? "or click to browse local files" : "Enter a document title above first"}
+        {hasTitle ? "or click to browse local files" : "Enter an asset title above first"}
       </p>
       <button
         type="button"
