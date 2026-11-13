@@ -22,3 +22,8 @@ branch -> code -> test -> document -> PR -> merge. Branch names: `type/<issue>-s
 Legacy files emit warnings. When a PR touches or refactors a file, add it to `ENFORCED`
 in `web-dashboard/eslint.config.js` so every rule becomes an error for that file.
 Each component PR should include an axe test.
+
+## Shared components
+- `components/Dialog.tsx`: all modals. Provides `role="dialog"`, `aria-modal`, Escape to
+  close, Tab trap, and focus return. Mark the initial control with `data-autofocus`
+  (do not use `autoFocus`).

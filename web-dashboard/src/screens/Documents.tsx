@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { Dialog } from "../components/Dialog";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
 import {
@@ -820,14 +821,8 @@ export default function Documents({
       ) : null}
 
       {newFolderOpen ? (
-        <div className="vr-docs__dialog-backdrop" role="presentation" onClick={() => setNewFolderOpen(false)}>
-          <form
-            className="vr-docs__dialog"
-            role="dialog"
-            aria-labelledby="vr-docs-new-folder-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => void onCreateFolder(e)}
-          >
+        <Dialog titleId="vr-docs-new-folder-title" onClose={() => setNewFolderOpen(false)}>
+          <form onSubmit={(e) => void onCreateFolder(e)}>
             <h2 id="vr-docs-new-folder-title" className="vr-docs__dialog-title">
               New folder
             </h2>
@@ -837,7 +832,7 @@ export default function Documents({
                 id="vr-docs-new-folder-name"
                 className="vr-docs__input"
                 value={newFolderName}
-                autoFocus
+                data-autofocus
                 maxLength={120}
                 disabled={dialogBusy}
                 onChange={(e) => setNewFolderName(e.target.value)}
@@ -857,18 +852,12 @@ export default function Documents({
               </button>
             </div>
           </form>
-        </div>
+        </Dialog>
       ) : null}
 
       {renameOpen && selectedFolder ? (
-        <div className="vr-docs__dialog-backdrop" role="presentation" onClick={() => setRenameOpen(false)}>
-          <form
-            className="vr-docs__dialog"
-            role="dialog"
-            aria-labelledby="vr-docs-rename-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => void onRenameFolder(e)}
-          >
+        <Dialog titleId="vr-docs-rename-title" onClose={() => setRenameOpen(false)}>
+          <form onSubmit={(e) => void onRenameFolder(e)}>
             <h2 id="vr-docs-rename-title" className="vr-docs__dialog-title">
               Rename folder
             </h2>
@@ -878,7 +867,7 @@ export default function Documents({
                 id="vr-docs-rename-name"
                 className="vr-docs__input"
                 value={renameName}
-                autoFocus
+                data-autofocus
                 maxLength={120}
                 disabled={dialogBusy}
                 onChange={(e) => setRenameName(e.target.value)}
@@ -898,18 +887,12 @@ export default function Documents({
               </button>
             </div>
           </form>
-        </div>
+        </Dialog>
       ) : null}
 
       {moveOpen ? (
-        <div className="vr-docs__dialog-backdrop" role="presentation" onClick={() => setMoveOpen(false)}>
-          <form
-            className="vr-docs__dialog"
-            role="dialog"
-            aria-labelledby="vr-docs-move-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => void onMoveModel(e)}
-          >
+        <Dialog titleId="vr-docs-move-title" onClose={() => setMoveOpen(false)}>
+          <form onSubmit={(e) => void onMoveModel(e)}>
             <h2 id="vr-docs-move-title" className="vr-docs__dialog-title">
               Move manuscript
             </h2>
@@ -943,17 +926,16 @@ export default function Documents({
               </button>
             </div>
           </form>
-        </div>
+        </Dialog>
       ) : null}
 
       {shareOpen ? (
-        <div className="vr-docs__dialog-backdrop" role="presentation" onClick={() => setShareOpen(false)}>
-          <div
-            className="vr-docs__dialog vr-docs__dialog--share"
-            role="dialog"
-            aria-labelledby="vr-docs-share-title"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Dialog
+          titleId="vr-docs-share-title"
+          className="vr-docs__dialog--share"
+          onClose={() => setShareOpen(false)}
+        >
+          <>
             <h2 id="vr-docs-share-title" className="vr-docs__dialog-title">
               Share…
             </h2>
@@ -1028,8 +1010,8 @@ export default function Documents({
                 Done
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        </Dialog>
       ) : null}
     </main>
   );
