@@ -4,6 +4,7 @@ import {
   AUTH_HANDOFF_MESSAGE,
 } from "./mountWebGlAuthHandoff";
 import {
+  isHostSentinelToken,
   readBearerTokenForApi,
   readHostEmail,
   readHostToken,
@@ -32,7 +33,7 @@ export function webGlOriginFromBaseUrl(baseUrl: string): string | null {
 
 export function readDashboardAccessToken(): string | null {
   const host = readHostToken();
-  if (host && host !== "local-dev") return host;
+  if (host && !isHostSentinelToken(host)) return host;
   const kiosk = readKioskToken();
   if (kiosk) return kiosk;
   return readBearerTokenForApi();

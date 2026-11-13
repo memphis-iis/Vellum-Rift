@@ -8,6 +8,10 @@ type SideNavProps = {
   onNavigate: (section: AppSection) => void;
   onSignOut: () => void;
   onNewSession?: () => void;
+  /** Hide Demos nav when catalog is empty. */
+  showDemos?: boolean;
+  /** Guest browse: Home + Demos only (no upload / Spaces). */
+  guestMode?: boolean;
 };
 
 const NAV: { id: AppSection; label: string; icon: string }[] = [
@@ -19,7 +23,22 @@ const NAV: { id: AppSection; label: string; icon: string }[] = [
   { id: "enter", label: "Lobby", icon: "login" },
 ];
 
-export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: SideNavProps) {
+const GUEST_NAV_IDS = new Set<AppSection>(["home", "demos"]);
+
+export function SideNav({
+  active,
+  email,
+  onNavigate,
+  onSignOut,
+  onNewSession,
+  showDemos = true,
+  guestMode = false,
+}: SideNavProps) {
+  const links = NAV.filter((item) => {
+    if (item.id === "demos" && !showDemos) return false;
+    if (guestMode && !GUEST_NAV_IDS.has(item.id)) return false;
+    return true;
+  });
   return (
     <>
       <nav className="vr-sidenav" aria-label="Primary">
@@ -35,19 +54,21 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
           <p className="vr-sidenav__eyebrow">Virtual Learning Spaces</p>
         </div>
 
-        <div className="vr-sidenav__cta-wrap">
-          <button
-            type="button"
-            className="vr-btn vr-btn--ghost vr-sidenav__cta"
-            onClick={() => (onNewSession ? onNewSession() : onNavigate("upload"))}
-          >
-            <MaterialIcon name="add" filled />
-            New space
-          </button>
-        </div>
+        {!guestMode ? (
+          <div className="vr-sidenav__cta-wrap">
+            <button
+              type="button"
+              className="vr-btn vr-btn--ghost vr-sidenav__cta"
+              onClick={() => (onNewSession ? onNewSession() : onNavigate("upload"))}
+            >
+              <MaterialIcon name="add" filled />
+              New space
+            </button>
+          </div>
+        ) : null}
 
         <div className="vr-sidenav__links">
-          {NAV.map((item) => (
+          {links.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -63,7 +84,7 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
         <div className="vr-sidenav__footer">
           <p className="vr-sidenav__email">{email}</p>
           <button type="button" className="vr-sidenav__sign-out" onClick={onSignOut}>
-            Sign Out
+            {guestMode ? "Sign in" : "Sign Out"}
           </button>
         </div>
       </nav>
@@ -72,9 +93,25 @@ export function SideNav({ active, email, onNavigate, onSignOut, onNewSession }: 
         <button type="button" className="vr-mobile-top__brand" onClick={() => onNavigate("home")}>
           <BrandMark variant="mark" size="sm" />
         </button>
-        <button type="button" className="vr-mobile-top__menu" onClick={() => onNavigate("upload")} aria-label="Upload">
-          <MaterialIcon name="upload_file" />
-        </button>
+        {guestMode ? (
+          <button
+            type="button"
+            className="vr-mobile-top__menu"
+            onClick={() => onNavigate(showDemos ? "demos" : "home")}
+            aria-label={showDemos ? "Demos" : "Home"}
+          >
+            <MaterialIcon name={showDemos ? "auto_awesome" : "home"} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="vr-mobile-top__menu"
+            onClick={() => onNavigate("upload")}
+            aria-label="Upload"
+          >
+            <MaterialIcon name="upload_file" />
+          </button>
+        )}
       </header>
     </>
   );

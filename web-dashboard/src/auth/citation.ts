@@ -1,6 +1,6 @@
 /** Project metadata and citation constants for Vellum Rift. */
 
-export const PROJECT_CITATION_AUTHORS_APA = "Haner, J. R., & IIS Research Team";
+export const PROJECT_CITATION_AUTHORS_APA = "Haner, J. R., Wells, L. C., & White, A.";
 export const PROJECT_CITATION_YEAR = "2026";
 export const PROJECT_CITATION_TITLE = "Vellum Rift: Collaborative Spatial Manuscript Exploration";
 export const PROJECT_CITATION_VERSION = "v0.1.0";

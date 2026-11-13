@@ -548,6 +548,31 @@
   margin-bottom: 0.25rem;
 }
 
+.auth-guest-continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.75rem;
+  border: 1px solid rgba(101, 128, 178, 0.35);
+  border-radius: 999px;
+  padding: 0.85rem 1.1rem;
+  background: #fff;
+  color: #23427b;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-guest-continue:hover {
+  background: #edf4ff;
+}
+
+.auth-guest-continue:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .auth-dev-skip {
   display: inline-flex;
   align-items: center;

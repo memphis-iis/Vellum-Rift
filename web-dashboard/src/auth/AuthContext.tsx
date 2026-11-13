@@ -29,6 +29,8 @@ export type AuthUser = {
   accessToken: string | null;
   /** Local-dev bypass without Bluekey */
   isLocalDev: boolean;
+  /** Browse demos / Try now without Bluekey (no upload or Spaces). */
+  isGuest: boolean;
   /** Bluekey JWT `sub` when decodeable from the access token */
   sub?: string | null;
 };
@@ -40,6 +42,7 @@ type AuthContextValue = {
   openPopup: () => void;
   continueInThisTab: () => void;
   continueAsLocalDev: () => void;
+  continueAsGuest: () => void;
   logout: () => void;
   getAccessToken: () => string | null;
   authRequired: boolean;
@@ -74,13 +77,29 @@ function readStoredUser(): AuthUser | null {
   const token = readHostToken();
   const email = readHostEmail();
   if (token === "local-dev") {
-    return { email: email || "dev@memphis.edu", accessToken: null, isLocalDev: true, sub: null };
+    return {
+      email: email || "dev@memphis.edu",
+      accessToken: null,
+      isLocalDev: true,
+      isGuest: false,
+      sub: null,
+    };
+  }
+  if (token === "demo-guest") {
+    return {
+      email: email || "Guest",
+      accessToken: null,
+      isLocalDev: false,
+      isGuest: true,
+      sub: null,
+    };
   }
   if (token) {
     return {
       email,
       accessToken: token,
       isLocalDev: false,
+      isGuest: false,
       sub: subFromAccessToken(token),
     };
   }
@@ -94,6 +113,10 @@ function persistUser(user: AuthUser | null): void {
   }
   if (user.isLocalDev) {
     writeHostSession("local-dev", user.email);
+    return;
+  }
+  if (user.isGuest) {
+    writeHostSession("demo-guest", user.email || "Guest");
     return;
   }
   if (user.accessToken) {
@@ -148,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: email || "signed-in@memphis.edu",
       accessToken,
       isLocalDev: false,
+      isGuest: false,
       sub: subFromAccessToken(accessToken),
     };
     persistUser(next);
@@ -194,6 +218,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: "dev@memphis.edu",
       accessToken: null,
       isLocalDev: true,
+      isGuest: false,
+      sub: null,
+    };
+    persistUser(next);
+    setUser(next);
+    setError(null);
+    setLoading(false);
+  }, []);
+
+  const continueAsGuest = useCallback(() => {
+    const next: AuthUser = {
+      email: "Guest",
+      accessToken: null,
+      isLocalDev: false,
+      isGuest: true,
       sub: null,
     };
     persistUser(next);
@@ -210,7 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getAccessToken = useCallback(() => {
-    if (!user || user.isLocalDev) return null;
+    if (!user || user.isLocalDev || user.isGuest) return null;
     return user.accessToken;
   }, [user]);
 
@@ -289,6 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       openPopup,
       continueInThisTab,
       continueAsLocalDev,
+      continueAsGuest,
       logout,
       getAccessToken,
       authRequired: AUTH_REQUIRED,
@@ -301,6 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       openPopup,
       continueInThisTab,
       continueAsLocalDev,
+      continueAsGuest,
       logout,
       getAccessToken,
     ],

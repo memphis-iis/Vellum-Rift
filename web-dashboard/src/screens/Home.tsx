@@ -16,6 +16,9 @@ type HomeProps = {
   onJoinSession: () => void;
   onEnterSession?: (sessionId: string) => void;
   onBrowseDemos?: () => void;
+  showTryNow?: boolean;
+  /** Guest browse: Try now only (hide upload / join / featured host CTAs). */
+  guestMode?: boolean;
 };
 
 export default function Home({
@@ -23,6 +26,8 @@ export default function Home({
   onJoinSession,
   onEnterSession,
   onBrowseDemos,
+  showTryNow = true,
+  guestMode = false,
 }: HomeProps) {
   const [featured, setFeatured] = useState<GameSession | null>(null);
 
@@ -53,34 +58,40 @@ export default function Home({
           </div>
           <h1 className="vr-home__title">
             Virtual Learning Spaces <br className="vr-home__br" />
-            for web and VR
+            for web&nbsp;and&nbsp;VR
           </h1>
           <p className="vr-home__lead">
-            Collaborative spaces on the web and in VR - bring manuscripts into a shared place your
+            Collaborative spaces on the web and in VR - bring assets into a shared place your
             group can explore together.
           </p>
         </div>
 
         <div className="vr-home__actions">
-          <button
-            type="button"
-            className="vr-btn vr-btn--primary"
-            onClick={() => onBrowseDemos?.()}
-          >
-            <MaterialIcon name="play_arrow" filled />
-            Try now
-          </button>
-          <button type="button" className="vr-btn vr-btn--ghost" onClick={onUpload}>
-            <MaterialIcon name="upload_file" filled />
-            Upload a manuscript
-          </button>
-          <button type="button" className="vr-btn vr-btn--outline" onClick={onJoinSession}>
-            <MaterialIcon name="login" />
-            Join a space
-          </button>
+          {showTryNow ? (
+            <button
+              type="button"
+              className="vr-btn vr-btn--primary"
+              onClick={() => onBrowseDemos?.()}
+            >
+              <MaterialIcon name="play_arrow" filled />
+              Try now
+            </button>
+          ) : null}
+          {!guestMode ? (
+            <>
+              <button type="button" className="vr-btn vr-btn--ghost" onClick={onUpload}>
+                <MaterialIcon name="upload_file" filled />
+                Upload an asset
+              </button>
+              <button type="button" className="vr-btn vr-btn--outline" onClick={onJoinSession}>
+                <MaterialIcon name="login" />
+                Join a space
+              </button>
+            </>
+          ) : null}
         </div>
 
-        {featured && sessionKind(featured) === "event" ? (
+        {!guestMode && featured && sessionKind(featured) === "event" ? (
           <section className="vr-home__featured" aria-label="Featured event">
             <p className="vr-home__featured-eyebrow">Featured event</p>
             <h2 className="vr-home__featured-title">

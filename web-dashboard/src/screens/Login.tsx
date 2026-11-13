@@ -1,4 +1,3 @@
-import { useState, type FormEvent } from "react";
 import { useAuth } from "../auth/AuthContext";
 import {
   BLUEKEY_PORTAL_URL,
@@ -13,34 +12,20 @@ import {
   PROJECT_CITATION_VERSION,
   PROJECT_CITATION_YEAR,
 } from "../auth/citation";
-import { DemoCatalog } from "../components/DemoCatalog";
-import { demoKioskHref, type DemoCatalogItem } from "../api/demos";
 import "../styles/bluekey.css";
 import "../styles/vr-theme.css";
 
-/** Optional preconfigured exhibit Space for walk-up kiosk (no Bluekey). */
-const MUSEUM_KIOSK_SPACE_ID = String(
-  import.meta.env.VITE_MUSEUM_KIOSK_SPACE_ID ?? "",
-).trim();
-
-function goToKioskJoin(spaceId: string) {
-  const id = spaceId.trim();
-  if (!id) return;
-  const url = new URL(window.location.href);
-  url.searchParams.set("session", id);
-  url.searchParams.set("kiosk", "1");
-  window.location.assign(url.toString());
-}
-
 /**
- * IIS Bluekey login shell (Undertaker template), reworded for Vellum Rift.
- * Bluekey for anyone with an IIS account; museum guests: kiosk path - never Bluekey-only (#180 / #187).
+ * IIS Bluekey login shell.
+ * Guests continue without signing in → Try now / Demos only.
+ * Museum/classroom kits still use hardcoded kiosk URLs (`?session=&kiosk=1`).
  */
 export default function Login() {
   const {
     openPopup,
     continueInThisTab,
     continueAsLocalDev,
+    continueAsGuest,
     loading,
     error,
     authRequired,
@@ -48,19 +33,6 @@ export default function Login() {
   } = useAuth();
 
   const showLocalSkip = !authRequired;
-  const [guestSpaceId, setGuestSpaceId] = useState("");
-  const [guestError, setGuestError] = useState<string | null>(null);
-
-  const onGuestJoin = (e: FormEvent) => {
-    e.preventDefault();
-    const id = guestSpaceId.trim();
-    if (!id) {
-      setGuestError("Enter the Space ID from your host or signage.");
-      return;
-    }
-    setGuestError(null);
-    goToKioskJoin(id);
-  };
 
   return (
     <main className="auth-shell">
@@ -101,13 +73,12 @@ export default function Login() {
           </div>
 
           <p className="auth-lead">
-            Spaces for web and VR. <strong>Sign in with Bluekey</strong> if you have an IIS
-            account (host, upload, or join). <strong>Museum guests</strong> do not need Bluekey;
-            use the exhibit QR or guest join below.
+            Spaces for web&nbsp;and&nbsp;VR. <strong>Sign in with Bluekey</strong> to host, upload, or
+            join with an IIS account — or continue without logging in to try example demos.
           </p>
 
           <div className="auth-paper-ref">
-            <p className="eyebrow">Citation</p>
+            <p className="eyebrow">Credits and citation</p>
             <p className="auth-citation">
               {PROJECT_CITATION_AUTHORS_APA} ({PROJECT_CITATION_YEAR}). <em>{PROJECT_CITATION_TITLE}</em>{" "}
               ({PROJECT_CITATION_VERSION}) [Computer software]. {PROJECT_CITATION_PUBLISHER}
@@ -116,77 +87,6 @@ export default function Login() {
         </div>
 
         <div className="auth-form-panel">
-          <section className="auth-guest-panel" aria-labelledby="auth-try-heading">
-            <p className="eyebrow" id="auth-try-heading">
-              Try now
-            </p>
-            <p className="auth-guest-lead">
-              No account needed - open a curated example Space with sample manuscripts in 3D.
-            </p>
-            <DemoCatalog
-              compact
-              className="auth-demo-catalog"
-              tryLabel="Try now"
-              onTry={(demo: DemoCatalogItem) => {
-                window.location.assign(demoKioskHref(demo.sessionId));
-              }}
-            />
-          </section>
-
-          <div className="auth-separator" role="presentation">
-            <span>Museum</span>
-          </div>
-
-          <section className="auth-guest-panel" aria-labelledby="auth-guest-heading">
-            <p className="eyebrow" id="auth-guest-heading">
-              Museum / guest
-            </p>
-            <p className="auth-guest-lead">
-              Scan the host’s QR, open their kiosk link, or enter a Space ID if one is posted on the
-              exhibit.
-            </p>
-
-            {MUSEUM_KIOSK_SPACE_ID ? (
-              <button
-                type="button"
-                className="auth-guest-primary"
-                onClick={() => goToKioskJoin(MUSEUM_KIOSK_SPACE_ID)}
-              >
-                Join museum exhibit
-              </button>
-            ) : null}
-
-            <form className="auth-guest-form" onSubmit={onGuestJoin}>
-              <label className="auth-guest-label" htmlFor="auth-guest-space-id">
-                Space ID
-              </label>
-              <input
-                id="auth-guest-space-id"
-                className="auth-guest-input"
-                value={guestSpaceId}
-                onChange={(e) => {
-                  setGuestSpaceId(e.target.value);
-                  if (guestError) setGuestError(null);
-                }}
-                placeholder="Paste Space ID from signage"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {guestError ? (
-                <p className="status-banner error auth-error-banner" role="alert">
-                  {guestError}
-                </p>
-              ) : null}
-              <button type="submit" className="auth-guest-secondary">
-                Join as guest
-              </button>
-            </form>
-          </section>
-
-          <div className="auth-separator" role="presentation">
-            <span>Bluekey</span>
-          </div>
-
           <div className="auth-copy">
             <p className="eyebrow">Sign in</p>
             <p>
@@ -194,7 +94,7 @@ export default function Login() {
               <a href={BLUEKEY_PORTAL_URL} target="_blank" rel="noreferrer">
                 IIS Bluekey
               </a>{" "}
-              to create Spaces, upload manuscripts, join sessions, or enable kiosk for museum guests.
+              to create Spaces, upload assets, and manage sessions.
             </p>
           </div>
 
@@ -236,6 +136,15 @@ export default function Login() {
               disabled={loading || !softwareIdConfigured}
             >
               {loading ? "Signing in..." : "Sign in with Bluekey"}
+            </button>
+
+            <button
+              type="button"
+              className="auth-guest-continue"
+              onClick={continueAsGuest}
+              disabled={loading}
+            >
+              Continue without logging in
             </button>
 
             {!softwareIdConfigured ? (
