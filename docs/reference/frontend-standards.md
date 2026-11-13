@@ -27,3 +27,8 @@ Each component PR should include an axe test.
 - `components/Dialog.tsx`: all modals. Provides `role="dialog"`, `aria-modal`, Escape to
   close, Tab trap, and focus return. Mark the initial control with `data-autofocus`
   (do not use `autoFocus`).
+
+## Focus
+- `vr-theme.css` defines a global `:focus-visible` ring (`--vr-focus-ring`). Never use
+  `outline: none`/`0`; use a replacement ring with >= 3:1 contrast. Guarded by
+  `src/styles/focus.test.ts`.
