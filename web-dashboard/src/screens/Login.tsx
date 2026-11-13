@@ -72,24 +72,24 @@ export default function Login() {
                 className="brand-lockup__logo-link"
                 href="https://iis.memphis.edu/"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 <img
                   className="brand-lockup__icon"
                   src={VELLUM_LOGO_URL}
-                  alt="Vellum Rift logo"
+                  alt="Institute for Intelligent Systems, University of Memphis (opens in new tab)"
                 />
               </a>
               <a
                 className="brand-lockup__logo-link brand-lockup__logo-link--pillar"
                 href="https://www.memphis.edu/"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 <img
                   className="brand-lockup__pillar"
                   src={MEMPHIS_PILLAR_URL}
-                  alt="University of Memphis pillar logo"
+                  alt="University of Memphis (opens in new tab)"
                 />
               </a>
             </div>
