@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
+import { useStatus } from "../components/StatusRegion";
 import { fetchJob, uploadManuscript, type JobStatus } from "../api/upload";
 import { fetchLibrary, listFolderOptions } from "../api/library";
 
@@ -71,6 +72,7 @@ type UploadProps = {
 };
 
 export default function Upload({ onViewModel }: UploadProps) {
+  const status = useStatus();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [jobs, setJobs] = useState<LocalJob[]>([]);
@@ -193,16 +195,22 @@ export default function Upload({ onViewModel }: UploadProps) {
         active.map(async (job) => {
           try {
             const remote = await fetchJob(job.id);
-            upsertJob(normalizeJob(job.id, job.filename, job.title, remote, job.page));
+            const next = normalizeJob(job.id, job.filename, job.title, remote, job.page);
+            upsertJob(next);
+            if (next.status !== job.status) {
+              const name = next.title || next.filename;
+              if (next.status === "completed") status.announce(`${name}: processing complete.`);
+              if (next.status === "failed") status.alert(`${name}: processing failed.`);
+            }
           } catch {
-            /* keep last known */
+            status.alert("Could not refresh upload status. Retrying.");
           }
         }),
       );
     }, 2000);
 
     return () => window.clearInterval(timer);
-  }, [jobs, upsertJob]);
+  }, [jobs, upsertJob, status]);
 
   return (
     <main className="vr-upload">

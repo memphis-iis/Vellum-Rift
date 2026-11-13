@@ -35,3 +35,10 @@ Each component PR should include an axe test.
 - Minimum text size is `0.75rem` (12px); also guarded by `css-a11y.test.ts`.
 - External links that open a new tab must name the destination and say "(opens in new tab)",
   and use `rel="noopener noreferrer"`.
+
+## Status and errors
+- Wrap async feedback in `useStatus()` from `components/StatusRegion.tsx`:
+  `announce(text)` (polite, `role="status"`) and `alert(text)` (visible, `role="alert"`).
+  Repeats within 15 s are de-duplicated, max 5 toasts. Never leave a `catch` empty for
+  user-visible work; surface the failure or recovery.
+- Chat message lists use `role="log"`; icon-only buttons need `aria-label`.

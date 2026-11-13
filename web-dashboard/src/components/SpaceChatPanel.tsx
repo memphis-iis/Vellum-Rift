@@ -113,7 +113,13 @@ export function SpaceChatPanel({
           </button>
         ) : null}
       </div>
-      <div className="vr-enter__chat-log">
+      <div
+        className="vr-enter__chat-log"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="Chat messages"
+      >
         {messages.length === 0 ? (
           <p className="vr-enter__chat-empty">No messages yet. Say hello to the room.</p>
         ) : (
@@ -150,7 +156,11 @@ export function SpaceChatPanel({
           maxLength={500}
           aria-label="Chat message"
         />
-        <button type="submit" disabled={!me || status !== "ready" || !draft.trim()}>
+        <button
+          type="submit"
+          aria-label="Send message"
+          disabled={!me || status !== "ready" || !draft.trim()}
+        >
           <MaterialIcon name="send" />
         </button>
       </form>
