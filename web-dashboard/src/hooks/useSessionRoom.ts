@@ -12,12 +12,14 @@ import {
 import { CHAT_ENABLED } from "../auth/config";
 import { useAuth } from "../auth/AuthContext";
 import { useStatus } from "../components/StatusRegion";
+import { usePoll } from "./usePoll";
 import {
   evaluateSeatEviction,
   seatEvictionMessage,
 } from "../lib/seatEviction";
 
 const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 10_000;
 const PLAYER_ID_PREFIX = "vellum_rift_player:";
 
 function playerIdStorageKey(sessionId: string): string {
@@ -233,59 +235,58 @@ export function useSessionRoom(sessionId: string | null, displayName: string) {
     [session],
   );
 
-  useEffect(() => {
-    if (!session?.sessionId || status !== "ready") return;
+  const pollSessionId = session?.sessionId;
+  usePoll(
+    async (signal) => {
+      if (!pollSessionId) return "stop";
+    if (pollPausedRef.current) return;
+      const knownMs = sessionUpdatedMs(sessionRef.current);
+      const nextSession = await getSession(pollSessionId);
+      const nextMessages = CHAT_ENABLED
+        ? await fetchChat(pollSessionId)
+        : [];
+      if (signal.aborted || pollPausedRef.current) return;
+      if (sessionUpdatedMs(nextSession) < knownMs) return;
 
-    let cancelled = false;
-    const tick = async () => {
-      if (pollPausedRef.current) return;
-      try {
-        const knownMs = sessionUpdatedMs(sessionRef.current);
-        const nextSession = await getSession(session.sessionId);
-        const nextMessages = CHAT_ENABLED
-          ? await fetchChat(session.sessionId)
-          : [];
-        if (cancelled || pollPausedRef.current) return;
-        if (sessionUpdatedMs(nextSession) < knownMs) return;
+      const identity = meRef.current;
+      const eviction = evaluateSeatEviction(
+        nextSession.players,
+        identity?.playerId,
+        identity?.connectionId,
+      );
+      if (eviction) {
+        applyForceLeave(eviction);
+        return;
+      }
 
-        const identity = meRef.current;
-        const eviction = evaluateSeatEviction(
-          nextSession.players,
-          identity?.playerId,
-          identity?.connectionId,
-        );
-        if (eviction) {
-          applyForceLeave(eviction);
-          return;
-        }
-
-        setSession(nextSession);
-        setMessages(nextMessages);
-        const self = nextSession.players?.find((p) => p.id === meRef.current?.playerId);
-        if (self && meRef.current) {
-          setMe({
-            playerId: self.id,
-            displayName: self.displayName || meRef.current.displayName,
-            isHost: resolveIsHost(self, nextSession, userEmail, userSub),
-            connectionId: meRef.current.connectionId ?? self.connectionId ?? null,
-          });
-        }
-        if (pollFailedRef.current) {
-          pollFailedRef.current = false;
-          toast.announce("Connection to the space restored.");
-        }
-      } catch {
+      setSession(nextSession);
+      setMessages(nextMessages);
+      const self = nextSession.players?.find((p) => p.id === meRef.current?.playerId);
+      if (self && meRef.current) {
+        setMe({
+          playerId: self.id,
+          displayName: self.displayName || meRef.current.displayName,
+          isHost: resolveIsHost(self, nextSession, userEmail, userSub),
+          connectionId: meRef.current.connectionId ?? self.connectionId ?? null,
+        });
+      }
+      if (pollFailedRef.current) {
+        pollFailedRef.current = false;
+        toast.announce("Connection to the space restored.");
+      }
+    },
+    {
+      intervalMs: POLL_INTERVAL_MS,
+      maxAttempts: POLL_MAX_ATTEMPTS,
+      enabled: Boolean(pollSessionId) && status === "ready",
+      resetKey: `${pollSessionId ?? ""}:${mutationEpoch}`,
+      onError: () => {
         pollFailedRef.current = true;
         toast.alert("Connection to the space lost. Retrying.");
-      }
-    };
-
-    const timer = window.setInterval(tick, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [session?.sessionId, status, userEmail, userSub, mutationEpoch, applyForceLeave, status]);
+      },
+      onGiveUp: () => toast.alert("Live updates paused. Reload the page to resume."),
+    },
+  );
 
   return {
     session,

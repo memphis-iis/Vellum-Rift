@@ -36,6 +36,7 @@ import {
 import { buildWebGlLaunchUrl } from "../api/webGlLaunchUrl";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useStatus } from "../components/StatusRegion";
+import { TurnCountdown } from "../components/TurnCountdown";
 import { ManuscriptPreview } from "../components/ManuscriptPreview";
 import { ShareQrPanel } from "../components/ShareQrPanel";
 import { SpaceChatPanel } from "../components/SpaceChatPanel";
@@ -59,9 +60,7 @@ import {
 } from "../api/sessions";
 import {
   buildPrimaryShareUrl,
-  formatCountdown,
   formatEventWindow,
-  rotationSecondsRemaining,
   sessionEndsAt,
   sessionExperiencePhase,
   sessionKind,
@@ -216,18 +215,6 @@ export default function Enter({
     ? buildPrimaryShareUrl(sessionId, kioskEnabled)
     : "";
   const experiencePhase = sessionExperiencePhase(session);
-  const [rotationNow, setRotationNow] = useState(() => Date.now());
-  const rotationSecondsLeft = rotationSecondsRemaining(session, rotationNow);
-  const rotationRunning = experiencePhase === "playing" && rotationSecondsLeft !== null;
-  const rotationExpired = rotationRunning && rotationSecondsLeft === 0;
-
-  // Tick once a second while a host turn is counting down (session poll refreshes the end time).
-  useEffect(() => {
-    if (!isHost || !rotationRunning) return;
-    setRotationNow(Date.now());
-    const timer = window.setInterval(() => setRotationNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [isHost, rotationRunning, session?.rotationEndsAt]);
 
   useEffect(() => {
     setAddInviteToAllowlist(visibility === "private");
@@ -602,7 +589,6 @@ export default function Enter({
         rotationMinutes: minutes,
       });
       applySession(updated as GameSession);
-      setRotationNow(Date.now());
       setInviteStatus(`Turn started - ${minutes} min`);
     } catch (err) {
       setInviteStatus(err instanceof Error ? err.message : "Could not start turn");
@@ -1124,19 +1110,7 @@ export default function Enter({
                   {minutes} min
                 </button>
               ))}
-              <span
-                className={`vr-enter__turn-countdown${
-                  experiencePhase === "ended" || rotationExpired ? " vr-enter__turn-countdown--ended" : ""
-                }`}
-                role="timer"
-                aria-live="off"
-              >
-                {experiencePhase === "ended" || rotationExpired
-                  ? "Ended"
-                  : rotationRunning
-                    ? formatCountdown(rotationSecondsLeft)
-                    : "No timer"}
-              </span>
+              <TurnCountdown session={session} ticking={isHost} />
               <button
                 type="button"
                 className="vr-btn vr-btn--primary vr-enter__turn-reset"

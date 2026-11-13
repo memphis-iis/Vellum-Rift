@@ -42,3 +42,11 @@ Each component PR should include an axe test.
   Repeats within 15 s are de-duplicated, max 5 toasts. Never leave a `catch` empty for
   user-visible work; surface the failure or recovery.
 - Chat message lists use `role="log"`; icon-only buttons need `aria-label`.
+
+## Polling
+- Use `usePoll` (`hooks/usePoll.ts`) for all repeated network work. It is single-timer
+  (recursive `setTimeout`), bounded (`maxAttempts` + `onGiveUp`), backs off exponentially on
+  failure, pauses while the tab is hidden, and aborts on unmount.
+- Never `setInterval` a network call. Fan out with `mapWithLimit` (`lib/concurrency.ts`).
+- Per-second UI clocks live in their own leaf component (`TurnCountdown`) so screens do not
+  re-render every tick.

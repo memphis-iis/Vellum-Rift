@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   deleteArtifact,
   listArtifacts,
@@ -7,6 +7,9 @@ import {
 } from "../api/gameState";
 import { MaterialIcon } from "./MaterialIcon";
 import { useStatus } from "./StatusRegion";
+import { usePoll } from "../hooks/usePoll";
+
+const PINS_MAX_POLLS = 5000;
 
 type PinsPanelProps = {
   sessionId: string;
@@ -40,11 +43,12 @@ export function PinsPanel({ sessionId, localPlayerId, pollMs = 3000 }: PinsPanel
     }
   }, [sessionId, status]);
 
-  useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => void refresh(), pollMs);
-    return () => window.clearInterval(id);
-  }, [refresh, pollMs]);
+  usePoll(
+    async () => {
+      await refresh();
+    },
+    { intervalMs: pollMs, maxAttempts: PINS_MAX_POLLS, immediate: true, enabled: Boolean(sessionId), resetKey: sessionId },
+  );
 
   const canEdit = (pin: SessionArtifact) =>
     Boolean(localPlayerId && pin.createdBy === localPlayerId);

@@ -13,6 +13,8 @@ const ENFORCED = [
   "src/hooks/usePoll.ts",
   "src/components/Dialog.tsx",
   "src/components/StatusRegion.tsx",
+  "src/components/TurnCountdown.tsx",
+  "src/lib/concurrency.ts",
 ];
 
 /** NASA Power of 10 aligned limits (rules 1, 2, 4, 7, 10). */

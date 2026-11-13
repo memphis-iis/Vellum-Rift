@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../components/MaterialIcon";
 import { useStatus } from "../components/StatusRegion";
+import { usePoll } from "../hooks/usePoll";
+import { mapWithLimit } from "../lib/concurrency";
 import { fetchJob, uploadManuscript, type JobStatus } from "../api/upload";
 import { fetchLibrary, listFolderOptions } from "../api/library";
 
@@ -65,6 +67,24 @@ function normalizeJob(
 
 function labelForFile(title: string, file: File, multi: boolean): string {
   return multi ? `${title} - ${file.name}` : title;
+}
+
+const MAX_PARALLEL_POLLS = 4;
+const UPLOAD_MAX_POLLS = 900;
+
+function isActiveJob(job: LocalJob): boolean {
+  return job.status !== "completed" && job.status !== "failed";
+}
+
+function announceTransition(
+  status: ReturnType<typeof useStatus>,
+  prev: LocalJob,
+  next: LocalJob,
+): void {
+  if (next.status === prev.status) return;
+  const name = next.title || next.filename;
+  if (next.status === "completed") status.announce(`${name}: processing complete.`);
+  if (next.status === "failed") status.alert(`${name}: processing failed.`);
 }
 
 type UploadProps = {
@@ -186,31 +206,29 @@ export default function Upload({ onViewModel }: UploadProps) {
     inputRef.current?.click();
   };
 
-  useEffect(() => {
-    const active = jobs.filter((j) => j.status !== "completed" && j.status !== "failed");
-    if (!active.length) return;
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  const hasActive = jobs.some(isActiveJob);
 
-    const timer = window.setInterval(async () => {
-      await Promise.all(
-        active.map(async (job) => {
-          try {
-            const remote = await fetchJob(job.id);
-            const next = normalizeJob(job.id, job.filename, job.title, remote, job.page);
-            upsertJob(next);
-            if (next.status !== job.status) {
-              const name = next.title || next.filename;
-              if (next.status === "completed") status.announce(`${name}: processing complete.`);
-              if (next.status === "failed") status.alert(`${name}: processing failed.`);
-            }
-          } catch {
-            status.alert("Could not refresh upload status. Retrying.");
-          }
-        }),
-      );
-    }, 2000);
-
-    return () => window.clearInterval(timer);
-  }, [jobs, upsertJob, status]);
+  usePoll(
+    async () => {
+      const active = jobsRef.current.filter(isActiveJob);
+      if (!active.length) return "stop";
+      await mapWithLimit(active, MAX_PARALLEL_POLLS, async (job) => {
+        const remote = await fetchJob(job.id);
+        const next = normalizeJob(job.id, job.filename, job.title, remote, job.page);
+        upsertJob(next);
+        announceTransition(status, job, next);
+      });
+    },
+    {
+      intervalMs: 2000,
+      maxAttempts: UPLOAD_MAX_POLLS,
+      enabled: hasActive,
+      onError: () => status.alert("Could not refresh upload status. Retrying."),
+      onGiveUp: () => status.alert("Stopped checking upload status. Reload to resume."),
+    },
+  );
 
   return (
     <main className="vr-upload">
