@@ -36,6 +36,18 @@ export type UploadOptions = {
   folderId?: string;
 };
 
+export type FitMode = "scale" | "pad";
+
+export type ComparisonUploadOptions = {
+  left: File;
+  right: File;
+  fitMode: FitMode;
+  pageLeft?: number;
+  pageRight?: number;
+  label?: string;
+  folderId?: string;
+};
+
 export async function uploadManuscript(
   file: File,
   options: UploadOptions = {},
@@ -44,6 +56,40 @@ export async function uploadManuscript(
   body.append("file", file);
   if (options.page != null) {
     body.append("page", String(options.page));
+  }
+  if (options.label != null && options.label.trim()) {
+    body.append("label", options.label.trim());
+  }
+  if (options.folderId != null && options.folderId.trim()) {
+    body.append("folderId", options.folderId.trim());
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/upload`, {
+    method: "POST",
+    headers: authHeaders(false),
+    body,
+  });
+
+  const data = (await res.json().catch(() => ({}))) as UploadJobResponse & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Upload failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Upload two manuscripts; server stitches them side-by-side then meshes once. */
+export async function uploadManuscriptComparison(
+  options: ComparisonUploadOptions,
+): Promise<UploadJobResponse> {
+  const body = new FormData();
+  body.append("file", options.left);
+  body.append("fileB", options.right);
+  body.append("fitMode", options.fitMode);
+  if (options.pageLeft != null) {
+    body.append("page", String(options.pageLeft));
+  }
+  if (options.pageRight != null) {
+    body.append("pageB", String(options.pageRight));
   }
   if (options.label != null && options.label.trim()) {
     body.append("label", options.label.trim());

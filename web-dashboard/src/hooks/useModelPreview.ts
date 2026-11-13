@@ -13,10 +13,15 @@ function revokeBlob(url: string | null | undefined) {
 }
 
 /**
- * Load authenticated GLB + meta for in-dashboard mesh preview (#238 / #239).
+ * Load GLB + meta for in-dashboard mesh preview (#238 / #239).
  * Caller should treat empty modelId as the empty state (no fetch).
+ * `authEpoch` bumps when a kiosk token is minted so the preview refetches
+ * with the correct Bearer (kiosk pages prefer kiosk JWT).
  */
-export function useModelPreview(modelId: string | null | undefined): ModelPreviewState {
+export function useModelPreview(
+  modelId: string | null | undefined,
+  authEpoch: string | null = null,
+): ModelPreviewState {
   const [src, setSrc] = useState<string | null>(null);
   const [meta, setMeta] = useState<ModelMeta | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +79,7 @@ export function useModelPreview(modelId: string | null | undefined): ModelPrevie
     return () => {
       cancelled = true;
     };
-  }, [modelId]);
+  }, [modelId, authEpoch]);
 
   useEffect(() => {
     return () => {

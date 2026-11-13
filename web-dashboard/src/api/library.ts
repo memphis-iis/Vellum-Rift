@@ -20,6 +20,9 @@ export type LibrarySummary = {
     ownerEmail: string;
     libraryId: string;
   }>;
+  /** Present for DEMO_ADMIN_EMAILS: platform Demos folder entry. */
+  demos?: { folderId: string; libraryId: string } | null;
+  isDemoAdmin?: boolean;
 };
 
 export type LibraryFolder = {
@@ -37,6 +40,7 @@ export type LibraryModel = {
   modelId: string;
   sessionId?: string | null;
   label: string;
+  storageKey?: string;
   heightMode: string;
   width: number;
   height: number;
@@ -45,6 +49,8 @@ export type LibraryModel = {
   createdAt: string;
   ownerSub?: string | null;
   folderId?: string | null;
+  tryNowEnabled?: boolean;
+  exhibitSessionId?: string | null;
 };
 
 export type FolderListing = {
@@ -80,6 +86,32 @@ export function fetchLibrary(): Promise<LibrarySummary> {
   return fetch(`${API_BASE_URL}/api/library`, {
     headers: getAuthHeaders(),
   }).then((res) => parseJson<LibrarySummary>(res));
+}
+
+export function patchModelTryNow(
+  modelId: string,
+  enabled: boolean,
+): Promise<{
+  modelId: string;
+  tryNowEnabled: boolean;
+  exhibitSessionId: string | null;
+  readyFor3d: boolean;
+}> {
+  return fetch(
+    `${API_BASE_URL}/api/library/models/${encodeURIComponent(modelId)}/try-now`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled }),
+    },
+  ).then((res) =>
+    parseJson<{
+      modelId: string;
+      tryNowEnabled: boolean;
+      exhibitSessionId: string | null;
+      readyFor3d: boolean;
+    }>(res),
+  );
 }
 
 export function fetchFolder(folderId: string): Promise<FolderListing> {
@@ -163,11 +195,12 @@ export function revokeFolderShare(
 /** Flat folder options with path labels for pickers (BFS from root). */
 export async function listFolderOptions(
   rootFolderId: string,
+  rootLabel = "Your library",
 ): Promise<Array<{ folderId: string; label: string }>> {
   assertId(rootFolderId, "rootFolderId");
   const options: Array<{ folderId: string; label: string }> = [];
   const queue: Array<{ folderId: string; path: string }> = [
-    { folderId: rootFolderId, path: "Your library" },
+    { folderId: rootFolderId, path: rootLabel },
   ];
   const seen = new Set<string>();
 
@@ -176,14 +209,65 @@ export async function listFolderOptions(
     if (seen.has(next.folderId)) continue;
     seen.add(next.folderId);
     options.push({ folderId: next.folderId, label: next.path });
-    const listing = await fetchFolder(next.folderId);
-    for (const folder of listing.folders) {
-      const label = next.path === "Your library"
-        ? folder.name
-        : `${next.path} / ${folder.name}`;
-      queue.push({ folderId: folder.folderId, path: label });
+    try {
+      const listing = await fetchFolder(next.folderId);
+      for (const folder of listing.folders) {
+        const label =
+          next.path === rootLabel
+            ? folder.name
+            : `${next.path} / ${folder.name}`;
+        queue.push({ folderId: folder.folderId, path: label });
+      }
+    } catch {
+      // Keep the parent option even if children fail to load.
     }
   }
 
   return options;
+}
+
+/**
+ * Upload destination picker: personal library (+ Demos for demo admins,
+ * + shared editable folders).
+ */
+export async function listUploadFolderOptions(): Promise<{
+  options: Array<{ folderId: string; label: string }>;
+  defaultFolderId: string;
+}> {
+  const library = await fetchLibrary();
+  const byId = new Map<string, string>();
+
+  const addAll = async (rootId: string, rootLabel: string) => {
+    const list = await listFolderOptions(rootId, rootLabel);
+    for (const opt of list) {
+      if (!byId.has(opt.folderId)) byId.set(opt.folderId, opt.label);
+    }
+  };
+
+  await addAll(library.rootFolderId, "Your library");
+
+  if (library.demos?.folderId) {
+    await addAll(library.demos.folderId, "Demos");
+  }
+
+  for (const shared of library.sharedWithMe ?? []) {
+    if (shared.role !== "edit") continue;
+    await addAll(shared.folderId, `Shared / ${shared.name}`);
+  }
+
+  // Ensure Uploads is present even if BFS missed it.
+  if (library.uploadsFolderId && !byId.has(library.uploadsFolderId)) {
+    byId.set(library.uploadsFolderId, "Uploads");
+  }
+
+  const options = [...byId.entries()].map(([folderId, label]) => ({
+    folderId,
+    label,
+  }));
+  options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+
+  return {
+    options,
+    defaultFolderId: library.uploadsFolderId,
+  };
 }

@@ -16,18 +16,18 @@ type ManuscriptPreviewProps = {
  */
 export function ManuscriptPreview({
   preview,
-  emptyMessage = "Select a manuscript to preview its mesh.",
+  emptyMessage = "Select an asset to preview its mesh.",
   alt,
   className = "",
 }: ManuscriptPreviewProps) {
   const { src, meta, loading, error } = preview;
-  const label = meta?.label?.trim() || alt || "Manuscript mesh";
+  const label = meta?.label?.trim() || alt || "Asset mesh";
 
   return (
     <section
       className={`vr-manuscript-preview ${className}`.trim()}
       aria-live="polite"
-      aria-label="Manuscript preview"
+      aria-label="Asset preview"
     >
       {loading ? (
         <div className="vr-manuscript-preview__empty">

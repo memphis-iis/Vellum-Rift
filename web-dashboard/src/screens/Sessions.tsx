@@ -225,7 +225,7 @@ export default function Sessions({
         </fieldset>
         {onNewSessionUpload ? (
           <button type="button" className="vr-btn vr-btn--outline" onClick={onNewSessionUpload}>
-            Upload manuscript
+            Upload asset
           </button>
         ) : null}
       </section>
@@ -246,7 +246,7 @@ export default function Sessions({
 
         {!loading && !sessions.length ? (
           <p className="vr-sessions__empty">
-            No spaces yet. Create one with New space, or upload a manuscript first.
+            No spaces yet. Create one with New space, or upload an asset first.
           </p>
         ) : null}
 
