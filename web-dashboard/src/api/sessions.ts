@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAuthHeaders } from "./authHeaders";
+import { assertId } from "../lib/assert";
 
 function authHeaders(json = false): Headers {
   const headers = getAuthHeaders();
@@ -81,6 +82,7 @@ export async function createSession(
 }
 
 export async function resumeSession(sessionId: string): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/resume`,
     {
@@ -96,6 +98,7 @@ export async function resumeSession(sessionId: string): Promise<GameSession> {
 }
 
 export async function endSession(sessionId: string): Promise<void> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(`${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
     headers: authHeaders(true),
@@ -118,6 +121,7 @@ export async function patchSessionPlaylist(
   sessionId: string,
   patch: PlaylistPatch,
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/playlist`,
     {
@@ -138,6 +142,8 @@ export async function patchSessionActiveModel(
   sessionId: string,
   modelId: string | null,
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
+  assertId(modelId, "modelId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/active-model`,
     {
@@ -158,6 +164,7 @@ export async function patchSessionDepthScale(
   sessionId: string,
   depthScale: number,
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/depth-scale`,
     {
@@ -182,6 +189,7 @@ export async function patchSessionEvent(
     endsAt?: string | null;
   },
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/event`,
     {
@@ -214,6 +222,7 @@ export async function patchSessionRotation(
   sessionId: string,
   patch: RotationPatch,
 ): Promise<GameSession> {
+  assertId(sessionId, "sessionId");
   const res = await fetch(
     `${API_BASE_URL}/api/game-state/${encodeURIComponent(sessionId)}/turn`,
     {
